@@ -11,7 +11,6 @@
 - 启动和管理 Web 服务器线程
 - 处理程序生命周期（启动、运行、停止）
 - 提供统一的程序入口点
-- 处理程序生命周期（启动、运行、停止）
 """
 
 import threading
@@ -100,8 +99,9 @@ class AppController:
         
         # 如果启用了推送功能，显示推送配置
         if self.ranging_service.enable_push:
-            print(f"视频推送: {self.ranging_service.video_push_url or '未配置'}")
-            print(f"结果推送: {self.ranging_service.meta_push_url or '未配置'}")
+            print("推送模式: webrtc")
+            print(f"WebRTC 信令: {self.ranging_service.webrtc_signal_url or '未配置'}")
+            print(f"WebRTC STUN: {self.ranging_service.webrtc_stun_urls or '未配置'}")
         
         print("退出方式: Ctrl+C（终端）")
         print("=" * 60)

@@ -7,11 +7,9 @@
 """
 
 import cv2
-import json
 import numpy as np
 import threading
 import time
-import urllib.request
 
 try:
     from cv2 import ximgproc
@@ -32,11 +30,9 @@ class RangingService:
                  enable_display=False,
                  render_on_device=False,
                  enable_push=False,
-                 video_push_url=None,
-                 meta_push_url=None,
+                 webrtc_signal_url=None,
+                 webrtc_stun_urls=None,
                  push_fps=8,
-                 push_timeout=1.0,
-                 push_jpeg_quality=85,
                  event_bus=None,
                  use_wls=True,
                  wls_lambda=8000.0,
@@ -65,11 +61,9 @@ class RangingService:
         self.enable_display = enable_display
         self.render_on_device = render_on_device
         self.enable_push = enable_push
-        self.video_push_url = video_push_url
-        self.meta_push_url = meta_push_url
+        self.webrtc_signal_url = webrtc_signal_url
+        self.webrtc_stun_urls = webrtc_stun_urls
         self.push_fps = push_fps
-        self.push_timeout = push_timeout
-        self.push_jpeg_quality = push_jpeg_quality
         self.event_bus = event_bus
         self.smooth_alpha = smooth_alpha
         self.min_valid_ratio = min_valid_ratio
@@ -112,8 +106,8 @@ class RangingService:
 
         self._camera_thread = None
         self._display_thread = None
-        self._video_push_thread = None
         self._meta_push_thread = None
+        self._webrtc_client = None
 
     def _create_stereo_sgbm(self):
         # numDisparities 必须是 16 的倍数
@@ -503,15 +497,16 @@ class RangingService:
         time.sleep(2.0)
         self._display_thread = threading.Thread(target=self._display_loop, daemon=True)
         self._display_thread.start()
-        if self.enable_push and self.video_push_url:
-            self._video_push_thread = threading.Thread(target=self._video_push_loop, daemon=True)
-            self._video_push_thread.start()
-        if self.enable_push and self.meta_push_url:
-            self._meta_push_thread = threading.Thread(target=self._meta_push_loop, daemon=True)
-            self._meta_push_thread.start()
+        if self.enable_push:
+            self._start_webrtc_push()
+            if self._webrtc_client is not None:
+                self._meta_push_thread = threading.Thread(target=self._meta_push_loop, daemon=True)
+                self._meta_push_thread.start()
 
     def stop(self):
         self.camera_active = False
+        if self._webrtc_client is not None:
+            self._webrtc_client.stop()
 
     def is_active(self):
         return self.camera_active
@@ -536,50 +531,25 @@ class RangingService:
         with self.data_lock:
             return self.latest_detected
 
-    def _post_json(self, url, payload):
-        data = json.dumps(payload, ensure_ascii=True).encode('utf-8')
-        headers = {"Content-Type": "application/json"}
-        req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=self.push_timeout) as resp:
-            resp.read()
-
-    def _post_jpeg(self, url, jpeg_bytes, frame_ts):
-        headers = {
-            "Content-Type": "image/jpeg",
-            "X-Frame-Timestamp": f"{frame_ts:.6f}"
-        }
-        req = urllib.request.Request(url, data=jpeg_bytes, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=self.push_timeout) as resp:
-            resp.read()
-
-    def _video_push_loop(self):
-        print("视频推送线程启动...")
-        interval = 1.0 / max(1, float(self.push_fps))
-        next_ts = time.monotonic()
-        while self.camera_active:
-            now = time.monotonic()
-            if now < next_ts:
-                time.sleep(max(0.0, next_ts - now))
-                continue
-            next_ts = time.monotonic() + interval
-
-            frame = None
-            frame_ts = None
-            with self.data_lock:
-                if self.latest_left_frame is not None:
-                    frame = self.latest_left_frame.copy()
-                    frame_ts = self.latest_frame_ts
-            if frame is None or frame_ts is None:
-                time.sleep(0.05)
-                continue
-
-            ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, int(self.push_jpeg_quality)])
-            if not ret:
-                continue
-            try:
-                self._post_jpeg(self.video_push_url, jpeg.tobytes(), frame_ts)
-            except Exception:
-                time.sleep(0.2)
+    def _start_webrtc_push(self):
+        if not self.webrtc_signal_url:
+            print("WebRTC 推送已启用，但 WEBRTC_SIGNAL_URL 未配置，已跳过。")
+            return
+        try:
+            from app.infrastructure.webrtc_push import WebRTCPushClient
+        except Exception as exc:
+            print(f"WebRTC 推送不可用: {exc}")
+            return
+        stun_urls = []
+        if isinstance(self.webrtc_stun_urls, str) and self.webrtc_stun_urls.strip():
+            stun_urls = [u.strip() for u in self.webrtc_stun_urls.split(",") if u.strip()]
+        self._webrtc_client = WebRTCPushClient(
+            service=self,
+            signal_url=self.webrtc_signal_url,
+            fps=self.push_fps,
+            stun_urls=stun_urls
+        )
+        self._webrtc_client.start()
 
     def _meta_push_loop(self):
         print("检测结果推送线程启动...")
@@ -603,6 +573,7 @@ class RangingService:
                 time.sleep(0.05)
                 continue
             try:
-                self._post_json(self.meta_push_url, payload)
+                if self._webrtc_client is not None:
+                    self._webrtc_client.send_meta(payload)
             except Exception:
                 time.sleep(0.2)

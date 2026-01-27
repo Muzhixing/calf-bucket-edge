@@ -10,7 +10,7 @@
 - 双目相机采集、视差计算、距离估计
 - RKNN 模型目标检测（bucket）
 - Web 实时视频流与测距结果展示
-- 结果可选 HTTP 推送（视频帧/元数据）
+- WebRTC 推流（视频 + 检测结果）
 - 串口输出层预留（占位，待补充）
 
 ---
@@ -73,15 +73,15 @@ Flask: http://<板卡IP>:5050/
 在运行前可按需设置：
 
 - `ENABLE_PUSH=1` 启用推送
-- `VIDEO_PUSH_URL` 视频帧推送地址（JPEG）
-- `META_PUSH_URL` 结果推送地址（JSON）
+- `WEBRTC_SIGNAL_URL` WebRTC 信令 WebSocket 地址
+- `WEBRTC_STUN_URLS` STUN 地址列表（逗号分隔，可选）
 - `PUSH_FPS` 推送帧率（默认 8）
 
 示例：
 ```bash
 export ENABLE_PUSH=1
-export VIDEO_PUSH_URL=http://<host>/video
-export META_PUSH_URL=http://<host>/meta
+export WEBRTC_SIGNAL_URL=ws://<host>:<port>/ws
+export WEBRTC_STUN_URLS=stun:stun.l.google.com:19302
 export PUSH_FPS=8
 python main.py
 ```
@@ -97,6 +97,7 @@ python main.py
 - `flask`
 - `rknnlite`（RKNN 推理，运行在 RK 设备上）
 - `pyserial`（GPS / 串口相关）
+- `aiortc` / `av` / `websockets`（WebRTC 推送）
 
 > RKNN 模型路径目前在 `app/infrastructure/detector.py` 中为绝对路径：
 > `/mnt/tfcard/work/calf/model/bucket.rknn`，如需调整请修改该常量。
@@ -122,4 +123,3 @@ python main.py
 - 摄像头设备号、分辨率、推送参数等均在 `RangingService` 中可配置。
 - Web 展示默认读取事件缓存（`RangingStateStore`）。
 - 如果环境缺少显示输出，`render_on_device` 可关闭显示以仅提供 Web 服务。
-
