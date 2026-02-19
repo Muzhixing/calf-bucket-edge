@@ -1,0 +1,18 @@
+# Core runtime
+numpy>=1.23
+flask>=2.2,<4
+
+# OpenCV (includes ximgproc for WLS filtering used by ranging_service)
+# If your board already provides system OpenCV, you can remove this line.
+opencv-contrib-python>=4.8,<5
+
+# RKNN inference (install the vendor-provided wheel if pip cannot resolve)
+rknnlite
+
+# Serial / GPS
+pyserial>=3.5
+
+# WebRTC push / viewer tools (optional, required when ENABLE_PUSH=1 or using tools/webrtc_sender.py)
+aiortc>=1.6
+av>=10
+websockets>=11
