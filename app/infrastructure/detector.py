@@ -38,6 +38,7 @@ DETECT_SCORE_MIN = 0.536  # 最终检测分数门槛，用于二次过滤，避�
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
+MODEL_LAYOUT = "NCHW"  # 当前 bucket.rknn 导出布局为 NCHW
 
 # ==================== 全局变量 ====================
 color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
@@ -444,6 +445,20 @@ def scale_boxes(image_shape, boxes):
     return pixel_boxes
 
 
+def prepare_input(image_bgr):
+    """
+    根据模型布局准备输入张量。
+
+    当前模型为 NCHW，返回形状为 (1, 3, H, W) 的连续数组。
+    """
+    img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
+    if MODEL_LAYOUT == "NCHW":
+        img = np.transpose(img, (2, 0, 1))
+    elif MODEL_LAYOUT != "NHWC":
+        raise ValueError(f"不支持的模型输入布局: {MODEL_LAYOUT}")
+    return np.expand_dims(np.ascontiguousarray(img), axis=0)
+
+
 def draw_detections(img, left, top, right, bottom, score, class_id):
     """
     在图像上绘制单个检测结果
@@ -596,10 +611,8 @@ class RknnDetector:
                 - scores: 置信度分数数组，形状为 (N,)
                 如果没有检测到目标，返回 (None, None, None)
         """
-        # 图像预处理：调整尺寸并应用 letterbox
-        img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
-        # 添加批次维度：(height, width, 3) -> (1, height, width, 3)
-        input_data = np.expand_dims(img, axis=0)
+        # 图像预处理：按模型要求组装输入张量
+        input_data = prepare_input(image_bgr)
         # 模型推理
         outputs = infer(self.rknn, input_data)
         # 后处理：解码、过滤、NMS
