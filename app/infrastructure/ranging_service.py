@@ -292,144 +292,148 @@ class RangingService:
         detector_instance = None
         try:
             detector_instance = detector.RknnDetector()
-            print("RKNN 检测器初始化完成")
+            print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
         except Exception as exc:
             print(f"RKNN 检测器初始化失败: {exc}")
 
-        while self.camera_active:
-            ret, frame = self.cap.read()
-            if not ret or frame is None:
-                print("警告: 无法读取摄像头帧")
-                time.sleep(0.05)
-                continue
-            frame_ts = time.time()
+        try:
+            while self.camera_active:
+                ret, frame = self.cap.read()
+                if not ret or frame is None:
+                    print("警告: 无法读取摄像头帧")
+                    time.sleep(0.05)
+                    continue
+                frame_ts = time.time()
 
-            left_frame = frame[self.left_roi[1]:self.left_roi[1] + self.left_roi[3],
-                               self.left_roi[0]:self.left_roi[0] + self.left_roi[2]]
-            right_frame = frame[self.right_roi[1]:self.right_roi[1] + self.right_roi[3],
-                                self.right_roi[0]:self.right_roi[0] + self.right_roi[2]]
+                left_frame = frame[self.left_roi[1]:self.left_roi[1] + self.left_roi[3],
+                                   self.left_roi[0]:self.left_roi[0] + self.left_roi[2]]
+                right_frame = frame[self.right_roi[1]:self.right_roi[1] + self.right_roi[3],
+                                    self.right_roi[0]:self.right_roi[0] + self.right_roi[2]]
 
-            left_rectified = cv2.remap(left_frame, camera_config.left_map1, camera_config.left_map2,
-                                       cv2.INTER_LINEAR)
-            right_rectified = cv2.remap(right_frame, camera_config.right_map1, camera_config.right_map2,
-                                        cv2.INTER_LINEAR)
+                left_rectified = cv2.remap(left_frame, camera_config.left_map1, camera_config.left_map2,
+                                           cv2.INTER_LINEAR)
+                right_rectified = cv2.remap(right_frame, camera_config.right_map1, camera_config.right_map2,
+                                            cv2.INTER_LINEAR)
 
-            img1_rectified = cv2.cvtColor(left_rectified, cv2.COLOR_BGR2GRAY)
-            img2_rectified = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
+                img1_rectified = cv2.cvtColor(left_rectified, cv2.COLOR_BGR2GRAY)
+                img2_rectified = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
 
-            if wls_filter is not None and right_matcher is not None:
-                disp_left = stereo.compute(img1_rectified, img2_rectified)
-                disp_right = right_matcher.compute(img2_rectified, img1_rectified)
-                disp_wls = wls_filter.filter(disp_left, img1_rectified, None, disp_right)
-                disparity_filtered = disp_wls.astype(np.float32) / 16.0
-                disparity_filtered[disparity_filtered <= 0] = 0
-                # 轻度去噪，避免把边缘抹得太干净
-                disparity_filtered = cv2.medianBlur(disparity_filtered, 5)
-            else:
-                disparity_raw = stereo.compute(img1_rectified, img2_rectified).astype(np.float32) / 16.0
-                disparity_filtered = cv2.medianBlur(disparity_raw, 5)
+                if wls_filter is not None and right_matcher is not None:
+                    disp_left = stereo.compute(img1_rectified, img2_rectified)
+                    disp_right = right_matcher.compute(img2_rectified, img1_rectified)
+                    disp_wls = wls_filter.filter(disp_left, img1_rectified, None, disp_right)
+                    disparity_filtered = disp_wls.astype(np.float32) / 16.0
+                    disparity_filtered[disparity_filtered <= 0] = 0
+                    # 轻度去噪，避免把边缘抹得太干净
+                    disparity_filtered = cv2.medianBlur(disparity_filtered, 5)
+                else:
+                    disparity_raw = stereo.compute(img1_rectified, img2_rectified).astype(np.float32) / 16.0
+                    disparity_filtered = cv2.medianBlur(disparity_raw, 5)
 
-            detected = False
-            distance = None
-            display_frame = left_rectified.copy()
-            detections = []
+                detected = False
+                distance = None
+                display_frame = left_rectified.copy()
+                detections = []
 
+                if detector_instance is not None:
+                    boxes, classes, scores = detector_instance.infer(left_rectified)
+                    if boxes is not None and len(boxes) > 0:
+                        pixel_boxes = detector.scale_boxes(left_rectified.shape, boxes)
+                        best_idx = int(np.argmax(scores))
+                        best_score = float(scores[best_idx])
+                        if best_score >= detector.DETECT_SCORE_MIN:
+                            detected = True
+                            left, top, right, bottom = pixel_boxes[best_idx]
+                            distance = self._calculate_distance_for_box(
+                                disparity_filtered, left, top, right, bottom
+                            )
+                        for (left, top, right, bottom), score, class_id in zip(pixel_boxes, scores, classes):
+                            detections.append({
+                                "left": int(left),
+                                "top": int(top),
+                                "right": int(right),
+                                "bottom": int(bottom),
+                                "score": float(score),
+                                "class_id": int(class_id),
+                                "label": detector.CLASSES[int(class_id)]
+                            })
+
+                distance_held = False
+                now_ts = time.time()
+
+                if detected and distance is not None:
+                    if last_distance is None:
+                        smooth_distance = distance
+                    else:
+                        smooth_distance = self.smooth_alpha * distance + (1.0 - self.smooth_alpha) * last_distance
+                    last_distance = smooth_distance
+                    last_distance_ts = now_ts
+
+                elif detected and last_distance is not None and (now_ts - last_distance_ts) <= self.hold_last_seconds:
+                    # 桶仍被检测到，但某一帧视差不稳定：短时间沿用上一帧有效距离，减少 N/A
+                    smooth_distance = last_distance
+                    distance_held = True
+
+                elif (not detected) and last_distance is not None and (now_ts - last_distance_ts) <= self.hold_lost_seconds:
+                    # 检测短暂丢失（1~2 帧）也沿用上一帧距离，避免频繁 N/A/No bucket 抖动
+                    smooth_distance = last_distance
+                    distance_held = True
+
+                else:
+                    smooth_distance = None
+                    last_distance = None
+
+                if self.render_on_device:
+                    if smooth_distance is not None and (detected or distance_held):
+                        text = f"Distance: {smooth_distance:.3f} m"
+                        # 沿用上一帧距离时用黄色提示
+                        color_fg = (0, 255, 255) if distance_held else (0, 255, 0)
+                    elif detected:
+                        text = "Measuring..."  # 不显示 N/A，避免干扰
+                        color_fg = (0, 255, 255)
+                    else:
+                        text = "No bucket"
+                        color_fg = (0, 0, 255)
+
+                    cv2.putText(display_frame, text, (10, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 3, cv2.LINE_AA)
+                    cv2.putText(display_frame, text, (10, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_fg, 2, cv2.LINE_AA)
+
+                with self.data_lock:
+                    frame_copy = frame.copy()
+                    left_frame_copy = left_rectified.copy()
+                    disparity_copy = disparity_filtered.copy()
+                    display_frame_copy = display_frame.copy()
+                    self.latest_frame = frame_copy
+                    self.latest_left_frame = left_frame_copy
+                    self.latest_disparity = disparity_copy
+                    self.latest_distance = smooth_distance
+                    self.latest_display_frame = display_frame_copy
+                    self.latest_detected = detected
+                    self.latest_detections = detections
+                    self.latest_frame_ts = frame_ts
+                self._publish_update(
+                    frame_ts=frame_ts,
+                    detected=detected,
+                    distance_m=smooth_distance,
+                    detections=detections,
+                    display_frame=display_frame_copy,
+                    left_frame=left_frame_copy
+                )
+
+                frame_count += 1
+                if frame_count % 30 == 0:
+                    if smooth_distance is None:
+                        dist_text = "N/A"
+                    else:
+                        dist_text = f"{smooth_distance:.3f} m"
+                    print(f"[{frame_count} 帧] 距离 = {dist_text} (原始: {distance if distance is not None else 'None'})")
+
+                time.sleep(1.0 / 30.0)
+        finally:
             if detector_instance is not None:
-                boxes, classes, scores = detector_instance.infer(left_rectified)
-                if boxes is not None and len(boxes) > 0:
-                    pixel_boxes = detector.scale_boxes(left_rectified.shape, boxes)
-                    best_idx = int(np.argmax(scores))
-                    best_score = float(scores[best_idx])
-                    if best_score >= detector.DETECT_SCORE_MIN:
-                        detected = True
-                        left, top, right, bottom = pixel_boxes[best_idx]
-                        distance = self._calculate_distance_for_box(
-                            disparity_filtered, left, top, right, bottom
-                        )
-                    for (left, top, right, bottom), score, class_id in zip(pixel_boxes, scores, classes):
-                        detections.append({
-                            "left": int(left),
-                            "top": int(top),
-                            "right": int(right),
-                            "bottom": int(bottom),
-                            "score": float(score),
-                            "class_id": int(class_id),
-                            "label": detector.CLASSES[int(class_id)]
-                        })
-
-            distance_held = False
-            now_ts = time.time()
-
-            if detected and distance is not None:
-                if last_distance is None:
-                    smooth_distance = distance
-                else:
-                    smooth_distance = self.smooth_alpha * distance + (1.0 - self.smooth_alpha) * last_distance
-                last_distance = smooth_distance
-                last_distance_ts = now_ts
-
-            elif detected and last_distance is not None and (now_ts - last_distance_ts) <= self.hold_last_seconds:
-                # 桶仍被检测到，但某一帧视差不稳定：短时间沿用上一帧有效距离，减少 N/A
-                smooth_distance = last_distance
-                distance_held = True
-
-            elif (not detected) and last_distance is not None and (now_ts - last_distance_ts) <= self.hold_lost_seconds:
-                # 检测短暂丢失（1~2 帧）也沿用上一帧距离，避免频繁 N/A/No bucket 抖动
-                smooth_distance = last_distance
-                distance_held = True
-
-            else:
-                smooth_distance = None
-                last_distance = None
-
-            if self.render_on_device:
-                if smooth_distance is not None and (detected or distance_held):
-                    text = f"Distance: {smooth_distance:.3f} m"
-                    # 沿用上一帧距离时用黄色提示
-                    color_fg = (0, 255, 255) if distance_held else (0, 255, 0)
-                elif detected:
-                    text = "Measuring..."  # 不显示 N/A，避免干扰
-                    color_fg = (0, 255, 255)
-                else:
-                    text = "No bucket"
-                    color_fg = (0, 0, 255)
-
-                cv2.putText(display_frame, text, (10, 40),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 3, cv2.LINE_AA)
-                cv2.putText(display_frame, text, (10, 40),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_fg, 2, cv2.LINE_AA)
-
-            with self.data_lock:
-                frame_copy = frame.copy()
-                left_frame_copy = left_rectified.copy()
-                disparity_copy = disparity_filtered.copy()
-                display_frame_copy = display_frame.copy()
-                self.latest_frame = frame_copy
-                self.latest_left_frame = left_frame_copy
-                self.latest_disparity = disparity_copy
-                self.latest_distance = smooth_distance
-                self.latest_display_frame = display_frame_copy
-                self.latest_detected = detected
-                self.latest_detections = detections
-                self.latest_frame_ts = frame_ts
-            self._publish_update(
-                frame_ts=frame_ts,
-                detected=detected,
-                distance_m=smooth_distance,
-                detections=detections,
-                display_frame=display_frame_copy,
-                left_frame=left_frame_copy
-            )
-
-            frame_count += 1
-            if frame_count % 30 == 0:
-                if smooth_distance is None:
-                    dist_text = "N/A"
-                else:
-                    dist_text = f"{smooth_distance:.3f} m"
-                print(f"[{frame_count} 帧] 距离 = {dist_text} (原始: {distance if distance is not None else 'None'})")
-
-            time.sleep(1.0 / 30.0)
+                detector_instance.release()
 
         if self.cap is not None:
             self.cap.release()

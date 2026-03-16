@@ -13,13 +13,18 @@ RKNN 目标检测模块（bucket）
 - 检测框绘制和可视化
 """
 
+import os
 import threading
+from pathlib import Path
+
 import cv2
 import numpy as np
 from rknnlite.api import RKNNLite
 
 # ==================== 模型配置 ====================
-RKNN_MODEL = "/calf/model/bucket.rknn"  # RKNN 模型文件路径
+DEFAULT_MODEL_ENV = "RKNN_MODEL_PATH"
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RKNN_MODEL = str(_PROJECT_ROOT / "model" / "bucket.rknn")  # 默认优先使用仓库内模型文件
 
 # ==================== 类别配置 ====================
 CLASSES = ['bucket']  # 类别名称列表，索引对应类别ID
@@ -517,6 +522,36 @@ class RknnDetector:
         >>> detector.release()
     """
 
+    @staticmethod
+    def resolve_model_path(model_path=None):
+        """解析并校验 RKNN 模型路径。"""
+        candidates = []
+        if model_path:
+            candidates.append(Path(model_path).expanduser())
+        env_model_path = Path(os.environ[DEFAULT_MODEL_ENV]).expanduser() if DEFAULT_MODEL_ENV in os.environ else None
+        if env_model_path is not None:
+            candidates.append(env_model_path)
+        candidates.extend([
+            Path(RKNN_MODEL),
+            _PROJECT_ROOT / "model" / "bucket.rknn",
+            Path("/mnt/tfcard/work/calf/model/bucket.rknn"),
+            Path("/userdata/project/calf-bucket-edge/model/bucket.rknn"),
+        ])
+
+        checked = []
+        for candidate in candidates:
+            resolved = candidate.resolve(strict=False)
+            resolved_str = str(resolved)
+            if resolved_str not in checked:
+                checked.append(resolved_str)
+            if resolved.is_file():
+                return resolved_str
+
+        checked_desc = ", ".join(checked)
+        raise FileNotFoundError(
+            f"未找到 RKNN 模型文件。请设置 {DEFAULT_MODEL_ENV} 或确认以下路径存在: {checked_desc}"
+        )
+
     def __init__(self, model_path=RKNN_MODEL):
         """
         初始化检测器，加载并初始化 RKNN 模型
@@ -527,16 +562,21 @@ class RknnDetector:
         Raises:
             RuntimeError: 如果模型加载失败或运行时环境初始化失败
         """
+        self.rknn = None
+        resolved_model_path = self.resolve_model_path(model_path)
+        self.model_path = resolved_model_path
         self.rknn = RKNNLite()
         
         # 加载 RKNN 模型文件
-        ret = self.rknn.load_rknn(model_path)
+        ret = self.rknn.load_rknn(resolved_model_path)
         if ret != 0:
+            self.release()
             raise RuntimeError(f"加载 RKNN 模型失败，错误代码: {ret}")
         
         # 初始化运行时环境
         ret = self.rknn.init_runtime()
         if ret != 0:
+            self.release()
             raise RuntimeError(f"初始化运行时环境失败，错误代码: {ret}")
 
     def infer(self, image_bgr):
@@ -573,3 +613,7 @@ class RknnDetector:
         """
         if self.rknn is not None:
             self.rknn.release()
+            self.rknn = None
+
+    def __del__(self):
+        self.release()
