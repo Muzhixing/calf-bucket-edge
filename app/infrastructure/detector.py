@@ -70,9 +70,11 @@ def infer(rknn, inp):
     assert inp.ndim == 4, f"输入维度应为4，实际为 {inp.ndim}"
     assert inp.dtype in (np.uint8, np.float32), f"输入数据类型应为 uint8 或 float32，实际为 {inp.dtype}"
 
+    data_format = "nchw" if MODEL_LAYOUT == "NCHW" else "nhwc"
+
     # 关键：使用线程锁防止多线程并发访问导致推理错误
     with _rknn_lock:
-        return rknn.inference(inputs=[inp])
+        return rknn.inference(inputs=[inp], data_format=[data_format])
 
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
@@ -452,6 +454,7 @@ def prepare_input(image_bgr):
     当前模型为 NCHW，返回形状为 (1, 3, H, W) 的连续数组。
     """
     img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     if MODEL_LAYOUT == "NCHW":
         img = np.transpose(img, (2, 0, 1))
     elif MODEL_LAYOUT != "NHWC":

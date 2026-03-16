@@ -8,6 +8,7 @@
 
 import cv2
 import numpy as np
+import os
 import threading
 import time
 
@@ -290,11 +291,15 @@ class RangingService:
         last_distance = None
         last_distance_ts = 0.0
         detector_instance = None
-        try:
-            detector_instance = detector.RknnDetector()
-            print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
-        except Exception as exc:
-            print(f"RKNN 检测器初始化失败: {exc}")
+        enable_detector = os.getenv("ENABLE_RKNN_DETECTOR", "1") == "1"
+        if enable_detector:
+            try:
+                detector_instance = detector.RknnDetector()
+                print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
+            except Exception as exc:
+                print(f"RKNN 检测器初始化失败: {exc}")
+        else:
+            print("RKNN 检测器已禁用（ENABLE_RKNN_DETECTOR=0）")
 
         try:
             while self.camera_active:
@@ -336,6 +341,14 @@ class RangingService:
                 detections = []
 
                 if detector_instance is not None:
+                    if frame_count == 0:
+                        model_input = detector.prepare_input(left_rectified)
+                        print(
+                            "首帧 RKNN 推理输入: "
+                            f"left_rectified={left_rectified.shape}, "
+                            f"model_input={model_input.shape}, "
+                            f"layout={detector.MODEL_LAYOUT}"
+                        )
                     boxes, classes, scores = detector_instance.infer(left_rectified)
                     if boxes is not None and len(boxes) > 0:
                         pixel_boxes = detector.scale_boxes(left_rectified.shape, boxes)
