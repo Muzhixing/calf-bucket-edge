@@ -292,13 +292,8 @@ class RangingService:
         last_distance_ts = 0.0
         detector_instance = None
         enable_detector = os.getenv("ENABLE_RKNN_DETECTOR", "1") == "1"
-        if enable_detector:
-            try:
-                detector_instance = detector.RknnDetector()
-                print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
-            except Exception as exc:
-                print(f"RKNN 检测器初始化失败: {exc}")
-        else:
+        detector_init_attempted = False
+        if not enable_detector:
             print("RKNN 检测器已禁用（ENABLE_RKNN_DETECTOR=0）")
 
         try:
@@ -339,6 +334,16 @@ class RangingService:
                 distance = None
                 display_frame = left_rectified.copy()
                 detections = []
+
+                if enable_detector and not detector_init_attempted:
+                    detector_init_attempted = True
+                    try:
+                        print("开始初始化 RKNN 检测器...")
+                        detector_instance = detector.RknnDetector()
+                        print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
+                    except Exception as exc:
+                        print(f"RKNN 检测器初始化失败: {exc}")
+                        detector_instance = None
 
                 if detector_instance is not None:
                     if frame_count == 0:
