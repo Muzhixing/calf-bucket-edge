@@ -19,7 +19,7 @@ import numpy as np
 from rknnlite.api import RKNNLite
 
 # ==================== 模型配置 ====================
-RKNN_MODEL = "/mnt/tfcard/work/calf/model/bucket.rknn"  # RKNN 模型文件路径
+RKNN_MODEL = "/calf/model/bucket.rknn"  # RKNN 模型文件路径
 
 # ==================== 类别配置 ====================
 CLASSES = ['bucket']  # 类别名称列表，索引对应类别ID
