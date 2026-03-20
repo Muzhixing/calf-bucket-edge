@@ -266,11 +266,22 @@ class RangingService:
             print("警告: 摄像头分辨率与预期不一致，但继续尝试运行。")
 
         self.cap = cap_local
-        stereo = self._create_stereo_sgbm()
+        enable_rectify = os.getenv("ENABLE_RECTIFY", "1") == "1"
+        enable_stereo = os.getenv("ENABLE_STEREO", "1") == "1"
+        enable_wls = os.getenv("ENABLE_WLS", "1") == "1"
+
+        print(
+            "原生链路开关: "
+            f"ENABLE_RECTIFY={int(enable_rectify)}, "
+            f"ENABLE_STEREO={int(enable_stereo)}, "
+            f"ENABLE_WLS={int(enable_wls)}"
+        )
+
+        stereo = self._create_stereo_sgbm() if enable_stereo else None
 
         right_matcher = None
         wls_filter = None
-        if self.use_wls:
+        if enable_stereo and self.use_wls and enable_wls:
             if ximgproc is None:
                 print("警告: OpenCV ximgproc 不可用，无法启用 WLS 视差滤波，将退回 medianBlur。")
             else:
@@ -305,25 +316,32 @@ class RangingService:
                 right_frame = frame[self.right_roi[1]:self.right_roi[1] + self.right_roi[3],
                                     self.right_roi[0]:self.right_roi[0] + self.right_roi[2]]
 
-                left_rectified = cv2.remap(left_frame, camera_config.left_map1, camera_config.left_map2,
-                                           cv2.INTER_LINEAR)
-                right_rectified = cv2.remap(right_frame, camera_config.right_map1, camera_config.right_map2,
-                                            cv2.INTER_LINEAR)
-
-                img1_rectified = cv2.cvtColor(left_rectified, cv2.COLOR_BGR2GRAY)
-                img2_rectified = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
-
-                if wls_filter is not None and right_matcher is not None:
-                    disp_left = stereo.compute(img1_rectified, img2_rectified)
-                    disp_right = right_matcher.compute(img2_rectified, img1_rectified)
-                    disp_wls = wls_filter.filter(disp_left, img1_rectified, None, disp_right)
-                    disparity_filtered = disp_wls.astype(np.float32) / 16.0
-                    disparity_filtered[disparity_filtered <= 0] = 0
-                    # 轻度去噪，避免把边缘抹得太干净
-                    disparity_filtered = cv2.medianBlur(disparity_filtered, 5)
+                if enable_rectify:
+                    left_rectified = cv2.remap(left_frame, camera_config.left_map1, camera_config.left_map2,
+                                               cv2.INTER_LINEAR)
+                    right_rectified = cv2.remap(right_frame, camera_config.right_map1, camera_config.right_map2,
+                                                cv2.INTER_LINEAR)
                 else:
-                    disparity_raw = stereo.compute(img1_rectified, img2_rectified).astype(np.float32) / 16.0
-                    disparity_filtered = cv2.medianBlur(disparity_raw, 5)
+                    left_rectified = left_frame
+                    right_rectified = right_frame
+
+                if enable_stereo:
+                    img1_rectified = cv2.cvtColor(left_rectified, cv2.COLOR_BGR2GRAY)
+                    img2_rectified = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
+
+                    if wls_filter is not None and right_matcher is not None:
+                        disp_left = stereo.compute(img1_rectified, img2_rectified)
+                        disp_right = right_matcher.compute(img2_rectified, img1_rectified)
+                        disp_wls = wls_filter.filter(disp_left, img1_rectified, None, disp_right)
+                        disparity_filtered = disp_wls.astype(np.float32) / 16.0
+                        disparity_filtered[disparity_filtered <= 0] = 0
+                        # 轻度去噪，避免把边缘抹得太干净
+                        disparity_filtered = cv2.medianBlur(disparity_filtered, 5)
+                    else:
+                        disparity_raw = stereo.compute(img1_rectified, img2_rectified).astype(np.float32) / 16.0
+                        disparity_filtered = cv2.medianBlur(disparity_raw, 5)
+                else:
+                    disparity_filtered = np.zeros(left_rectified.shape[:2], dtype=np.float32)
 
                 detected = False
                 distance = None
@@ -437,7 +455,11 @@ class RangingService:
                         dist_text = "N/A"
                     else:
                         dist_text = f"{smooth_distance:.3f} m"
-                    print(f"[{frame_count} 帧] 距离 = {dist_text} (原始: {distance if distance is not None else 'None'})")
+                    print(
+                        f"[{frame_count} 帧] 距离 = {dist_text} "
+                        f"(原始: {distance if distance is not None else 'None'}, "
+                        f"rectify={int(enable_rectify)}, stereo={int(enable_stereo)}, wls={int(enable_wls)})"
+                    )
 
                 time.sleep(1.0 / 30.0)
         finally:
