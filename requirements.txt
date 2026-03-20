@@ -7,7 +7,7 @@ flask>=2.2,<4
 opencv-contrib-python>=4.8,<5
 
 # RKNN inference (install the vendor-provided wheel if pip cannot resolve)
-rknnlite
+#rknnlite
 
 # Serial / GPS
 pyserial>=3.5
