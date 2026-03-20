@@ -38,7 +38,7 @@ DETECT_SCORE_MIN = 0.536  # 最终检测分数门槛，用于二次过滤，避�
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
-MODEL_LAYOUT = "NCHW"  # 当前 bucket.rknn 导出布局为 NCHW
+MODEL_LAYOUT = "NHWC"  # 运行时实际要求 NHWC 输入
 
 # ==================== 全局变量 ====================
 color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
