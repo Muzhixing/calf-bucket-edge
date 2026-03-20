@@ -131,11 +131,6 @@ class AppController:
             # 定期检查服务状态，避免 CPU 占用过高
             while self.ranging_service.is_active():
                 time.sleep(0.5)
-
-        except KeyboardInterrupt:
-            # 用户按下 Ctrl+C，优雅退出
-            print("\n用户中断程序")
-            self.ranging_service.stop()
         finally:
             # 确保资源清理：停止测距服务
             self.ranging_service.stop()

@@ -274,16 +274,11 @@ class RangingService:
             if ximgproc is None:
                 print("警告: OpenCV ximgproc 不可用，无法启用 WLS 视差滤波，将退回 medianBlur。")
             else:
-                try:
-                    right_matcher = ximgproc.createRightMatcher(stereo)
-                    wls_filter = ximgproc.createDisparityWLSFilter(matcher_left=stereo)
-                    wls_filter.setLambda(float(self.wls_lambda))
-                    wls_filter.setSigmaColor(float(self.wls_sigma))
-                    print(f"WLS 视差滤波已启用: lambda={self.wls_lambda}, sigma={self.wls_sigma}")
-                except Exception as exc:
-                    print(f"警告: 启用 WLS 失败，将退回 medianBlur: {exc}")
-                    right_matcher = None
-                    wls_filter = None
+                right_matcher = ximgproc.createRightMatcher(stereo)
+                wls_filter = ximgproc.createDisparityWLSFilter(matcher_left=stereo)
+                wls_filter.setLambda(float(self.wls_lambda))
+                wls_filter.setSigmaColor(float(self.wls_sigma))
+                print(f"WLS 视差滤波已启用: lambda={self.wls_lambda}, sigma={self.wls_sigma}")
 
         print("摄像头初始化完成，开始采集...")
 
@@ -337,13 +332,9 @@ class RangingService:
 
                 if enable_detector and not detector_init_attempted:
                     detector_init_attempted = True
-                    try:
-                        print("开始初始化 RKNN 检测器...")
-                        detector_instance = detector.RknnDetector()
-                        print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
-                    except Exception as exc:
-                        print(f"RKNN 检测器初始化失败: {exc}")
-                        detector_instance = None
+                    print("开始初始化 RKNN 检测器...")
+                    detector_instance = detector.RknnDetector()
+                    print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
 
                 if detector_instance is not None:
                     if frame_count == 0:
@@ -460,57 +451,48 @@ class RangingService:
     def _display_loop(self):
         if not self.enable_display:
             print("显示功能已禁用（ENABLE_DISPLAY=False），仅运行 Flask 服务器。")
-            try:
-                while self.camera_active:
-                    time.sleep(0.5)
-            except KeyboardInterrupt:
-                self.camera_active = False
+            while self.camera_active:
+                time.sleep(0.5)
             return
 
         print("显示线程启动...")
-        try:
-            cv2.namedWindow('Left Camera', cv2.WINDOW_AUTOSIZE)
-            cv2.namedWindow('Right Camera', cv2.WINDOW_AUTOSIZE)
-            cv2.namedWindow('Disparity Map', cv2.WINDOW_AUTOSIZE)
-            cv2.namedWindow('Ranging Display', cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Left Camera', cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Right Camera', cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Disparity Map', cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Ranging Display', cv2.WINDOW_AUTOSIZE)
 
-            while self.camera_active:
-                with self.data_lock:
-                    frame = self.latest_frame
-                    disparity = self.latest_disparity
-                    display_frame = self.latest_display_frame
+        while self.camera_active:
+            with self.data_lock:
+                frame = self.latest_frame
+                disparity = self.latest_disparity
+                display_frame = self.latest_display_frame
 
-                if frame is not None:
-                    left_frame = frame[self.left_roi[1]:self.left_roi[1] + self.left_roi[3],
-                                       self.left_roi[0]:self.left_roi[0] + self.left_roi[2]]
-                    right_frame = frame[self.right_roi[1]:self.right_roi[1] + self.right_roi[3],
-                                        self.right_roi[0]:self.right_roi[0] + self.right_roi[2]]
-                    cv2.imshow('Left Camera', left_frame)
-                    cv2.imshow('Right Camera', right_frame)
+            if frame is not None:
+                left_frame = frame[self.left_roi[1]:self.left_roi[1] + self.left_roi[3],
+                                   self.left_roi[0]:self.left_roi[0] + self.left_roi[2]]
+                right_frame = frame[self.right_roi[1]:self.right_roi[1] + self.right_roi[3],
+                                    self.right_roi[0]:self.right_roi[0] + self.right_roi[2]]
+                cv2.imshow('Left Camera', left_frame)
+                cv2.imshow('Right Camera', right_frame)
 
-                if display_frame is not None:
-                    cv2.imshow('Ranging Display', display_frame)
+            if display_frame is not None:
+                cv2.imshow('Ranging Display', display_frame)
 
-                if disparity is not None:
-                    disp_norm = cv2.normalize(disparity, None, alpha=0, beta=255,
-                                              norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    disp_color = cv2.applyColorMap(disp_norm, cv2.COLORMAP_JET)
-                    cv2.imshow('Disparity Map', disp_color)
+            if disparity is not None:
+                disp_norm = cv2.normalize(disparity, None, alpha=0, beta=255,
+                                          norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+                disp_color = cv2.applyColorMap(disp_norm, cv2.COLORMAP_JET)
+                cv2.imshow('Disparity Map', disp_color)
 
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    self.camera_active = False
-                    break
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                self.camera_active = False
+                break
 
-                time.sleep(0.03)
+            time.sleep(0.03)
 
-            cv2.destroyAllWindows()
-            print("显示窗口已关闭。")
-
-        except Exception as exc:
-            print(f"显示线程异常（可能无显示环境）：{exc}")
-            while self.camera_active:
-                time.sleep(0.5)
+        cv2.destroyAllWindows()
+        print("显示窗口已关闭。")
 
     def start(self):
         self.camera_active = True
@@ -557,11 +539,7 @@ class RangingService:
         if not self.webrtc_signal_url:
             print("WebRTC 推送已启用，但 WEBRTC_SIGNAL_URL 未配置，已跳过。")
             return
-        try:
-            from app.infrastructure.webrtc_push import WebRTCPushClient
-        except Exception as exc:
-            print(f"WebRTC 推送不可用: {exc}")
-            return
+        from app.infrastructure.webrtc_push import WebRTCPushClient
         stun_urls = []
         if isinstance(self.webrtc_stun_urls, str) and self.webrtc_stun_urls.strip():
             stun_urls = [u.strip() for u in self.webrtc_stun_urls.split(",") if u.strip()]
@@ -594,8 +572,5 @@ class RangingService:
             if payload["ts"] is None:
                 time.sleep(0.05)
                 continue
-            try:
-                if self._webrtc_client is not None:
-                    self._webrtc_client.send_meta(payload)
-            except Exception:
-                time.sleep(0.2)
+            if self._webrtc_client is not None:
+                self._webrtc_client.send_meta(payload)
