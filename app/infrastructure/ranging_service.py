@@ -21,6 +21,16 @@ from app.domain.events import RangingUpdateEvent
 from app.infrastructure import camera_config, detector
 
 
+def _ximgproc_supports_wls():
+    """检查当前 OpenCV ximgproc 构建是否具备 WLS 所需接口。"""
+    if ximgproc is None:
+        return False
+    return all(
+        hasattr(ximgproc, attr)
+        for attr in ("createRightMatcher", "createDisparityWLSFilter")
+    )
+
+
 class RangingService:
     """双目测距服务"""
 
@@ -282,8 +292,11 @@ class RangingService:
         right_matcher = None
         wls_filter = None
         if enable_stereo and self.use_wls and enable_wls:
-            if ximgproc is None:
-                print("警告: OpenCV ximgproc 不可用，无法启用 WLS 视差滤波，将退回 medianBlur。")
+            if not _ximgproc_supports_wls():
+                print(
+                    "警告: 当前 OpenCV 缺少完整 ximgproc WLS 接口，"
+                    "无法启用 WLS 视差滤波，将退回 medianBlur。"
+                )
             else:
                 right_matcher = ximgproc.createRightMatcher(stereo)
                 wls_filter = ximgproc.createDisparityWLSFilter(matcher_left=stereo)
