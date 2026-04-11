@@ -13,13 +13,16 @@ RKNN 目标检测模块（bucket）
 - 检测框绘制和可视化
 """
 
+import os
 import threading
+from pathlib import Path
 import cv2
 import numpy as np
 from rknnlite.api import RKNNLite
 
 # ==================== 模型配置 ====================
-RKNN_MODEL = "/mnt/tfcard/work/calf/model/bucket.rknn"  # RKNN 模型文件路径
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+RKNN_MODEL = str(_PROJECT_ROOT / "model" / "bucket.rknn")  # 默认优先使用仓库内模型文件
 
 # ==================== 类别配置 ====================
 CLASSES = ['bucket']  # 类别名称列表，索引对应类别ID
@@ -517,6 +520,25 @@ class RknnDetector:
         >>> detector.release()
     """
 
+    @staticmethod
+    def resolve_model_path(model_path=None):
+        """解析并校验 RKNN 模型路径。"""
+        candidates = []
+        if model_path:
+            candidates.append(Path(model_path).expanduser())
+        candidates.extend([
+            _PROJECT_ROOT / "model" / "bucket.rknn",
+            Path("/mnt/tfcard/work/calf/model/bucket.rknn"),
+            Path("/userdata/project/calf-bucket-edge/model/bucket.rknn"),
+        ])
+
+        for candidate in candidates:
+            resolved = candidate.resolve(strict=False)
+            if resolved.is_file():
+                return str(resolved)
+
+        raise FileNotFoundError("未找到 RKNN 模型文件。")
+
     def __init__(self, model_path=RKNN_MODEL):
         """
         初始化检测器，加载并初始化 RKNN 模型
@@ -527,10 +549,12 @@ class RknnDetector:
         Raises:
             RuntimeError: 如果模型加载失败或运行时环境初始化失败
         """
+        resolved_model_path = self.resolve_model_path(model_path)
+        self.model_path = resolved_model_path
         self.rknn = RKNNLite()
         
         # 加载 RKNN 模型文件
-        ret = self.rknn.load_rknn(model_path)
+        ret = self.rknn.load_rknn(resolved_model_path)
         if ret != 0:
             raise RuntimeError(f"加载 RKNN 模型失败，错误代码: {ret}")
         
