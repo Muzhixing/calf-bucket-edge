@@ -18,16 +18,16 @@ def main():
     print("CWD =", os.getcwd())
 
     enable_push = os.getenv("ENABLE_PUSH", "0") == "1"
-    webrtc_signal_url = os.getenv("WEBRTC_SIGNAL_URL")
-    webrtc_stun_urls = os.getenv("WEBRTC_STUN_URLS")
+    video_push_url = os.getenv("VIDEO_PUSH_URL")
+    meta_push_url = os.getenv("META_PUSH_URL")
     push_fps = float(os.getenv("PUSH_FPS", "8"))
     event_bus = AsyncEventBus(max_queue=8, worker_threads=4)
     state_store = RangingStateStore()
     serial_gateway = SerialPortGateway(enabled=False)
     service = RangingService(
         enable_push=enable_push,
-        webrtc_signal_url=webrtc_signal_url,
-        webrtc_stun_urls=webrtc_stun_urls,
+        video_push_url=video_push_url,
+        meta_push_url=meta_push_url,
         push_fps=push_fps,
         render_on_device=False,
         event_bus=event_bus

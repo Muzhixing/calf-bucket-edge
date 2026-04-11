@@ -13,30 +13,13 @@ RKNN 目标检测模块（bucket）
 - 检测框绘制和可视化
 """
 
-import os
 import threading
-from pathlib import Path
-
 import cv2
 import numpy as np
 from rknnlite.api import RKNNLite
 
-
-def _env_float(name, default):
-    """读取浮点环境变量，非法值时回退默认值。"""
-    raw = os.getenv(name)
-    if raw is None or raw == "":
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
 # ==================== 模型配置 ====================
-DEFAULT_MODEL_ENV = "RKNN_MODEL_PATH"
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RKNN_MODEL = str(_PROJECT_ROOT / "model" / "bucket.rknn")  # 默认优先使用仓库内模型文件
+RKNN_MODEL = "/mnt/tfcard/work/calf/model/bucket.rknn"  # RKNN 模型文件路径
 
 # ==================== 类别配置 ====================
 CLASSES = ['bucket']  # 类别名称列表，索引对应类别ID
@@ -44,13 +27,12 @@ TARGET_CLASS_IDS = [0]  # 仅保留指定类别ID（与 CLASSES 索引对应）�
 
 # ==================== 检测阈值配置 ====================
 # 依据训练评估曲线：F1 在 conf≈0.536 附近达到最佳，因此将阈值对齐到该位置
-OBJ_THRESH = _env_float("RKNN_OBJ_THRESH", 0.536)  # 置信度阈值（用于初筛：obj_conf * class_conf）
-NMS_THRESH = _env_float("RKNN_NMS_THRESH", 0.45)   # NMS（非极大值抑制）阈值
-DETECT_SCORE_MIN = _env_float("RKNN_DETECT_SCORE_MIN", 0.536)  # 最终检测分数门槛
+OBJ_THRESH = 0.536  # 置信度阈值（用于初筛：obj_conf * class_conf），低于此值的检测框将被过滤
+NMS_THRESH = 0.45   # NMS（非极大值抑制）阈值，用于去除重叠的检测框
+DETECT_SCORE_MIN = 0.536  # 最终检测分数门槛，用于二次过滤，避免低分检测框
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
-MODEL_LAYOUT = os.getenv("RKNN_MODEL_LAYOUT", "NCHW").upper()  # 当前 bucket.rknn 默认使用 NCHW
 
 # ==================== 全局变量 ====================
 color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
@@ -82,11 +64,9 @@ def infer(rknn, inp):
     assert inp.ndim == 4, f"输入维度应为4，实际为 {inp.ndim}"
     assert inp.dtype in (np.uint8, np.float32), f"输入数据类型应为 uint8 或 float32，实际为 {inp.dtype}"
 
-    data_format = "nchw" if MODEL_LAYOUT == "NCHW" else "nhwc"
-
     # 关键：使用线程锁防止多线程并发访问导致推理错误
     with _rknn_lock:
-        return rknn.inference(inputs=[inp], data_format=[data_format])
+        return rknn.inference(inputs=[inp])
 
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
@@ -459,21 +439,6 @@ def scale_boxes(image_shape, boxes):
     return pixel_boxes
 
 
-def prepare_input(image_bgr):
-    """
-    根据模型布局准备输入张量。
-
-    根据 RKNN_MODEL_LAYOUT 返回 NHWC 或 NCHW 的连续数组。
-    """
-    img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    if MODEL_LAYOUT == "NCHW":
-        img = np.transpose(img, (2, 0, 1))
-    elif MODEL_LAYOUT != "NHWC":
-        raise ValueError(f"不支持的模型输入布局: {MODEL_LAYOUT}")
-    return np.expand_dims(np.ascontiguousarray(img), axis=0)
-
-
 def draw_detections(img, left, top, right, bottom, score, class_id):
     """
     在图像上绘制单个检测结果
@@ -552,36 +517,6 @@ class RknnDetector:
         >>> detector.release()
     """
 
-    @staticmethod
-    def resolve_model_path(model_path=None):
-        """解析并校验 RKNN 模型路径。"""
-        candidates = []
-        if model_path:
-            candidates.append(Path(model_path).expanduser())
-        env_model_path = Path(os.environ[DEFAULT_MODEL_ENV]).expanduser() if DEFAULT_MODEL_ENV in os.environ else None
-        if env_model_path is not None:
-            candidates.append(env_model_path)
-        candidates.extend([
-            Path(RKNN_MODEL),
-            _PROJECT_ROOT / "model" / "bucket.rknn",
-            Path("/mnt/tfcard/work/calf/model/bucket.rknn"),
-            Path("/userdata/project/calf-bucket-edge/model/bucket.rknn"),
-        ])
-
-        checked = []
-        for candidate in candidates:
-            resolved = candidate.resolve(strict=False)
-            resolved_str = str(resolved)
-            if resolved_str not in checked:
-                checked.append(resolved_str)
-            if resolved.is_file():
-                return resolved_str
-
-        checked_desc = ", ".join(checked)
-        raise FileNotFoundError(
-            f"未找到 RKNN 模型文件。请设置 {DEFAULT_MODEL_ENV} 或确认以下路径存在: {checked_desc}"
-        )
-
     def __init__(self, model_path=RKNN_MODEL):
         """
         初始化检测器，加载并初始化 RKNN 模型
@@ -592,21 +527,16 @@ class RknnDetector:
         Raises:
             RuntimeError: 如果模型加载失败或运行时环境初始化失败
         """
-        self.rknn = None
-        resolved_model_path = self.resolve_model_path(model_path)
-        self.model_path = resolved_model_path
         self.rknn = RKNNLite()
         
         # 加载 RKNN 模型文件
-        ret = self.rknn.load_rknn(resolved_model_path)
+        ret = self.rknn.load_rknn(model_path)
         if ret != 0:
-            self.release()
             raise RuntimeError(f"加载 RKNN 模型失败，错误代码: {ret}")
         
         # 初始化运行时环境
         ret = self.rknn.init_runtime()
         if ret != 0:
-            self.release()
             raise RuntimeError(f"初始化运行时环境失败，错误代码: {ret}")
 
     def infer(self, image_bgr):
@@ -626,8 +556,10 @@ class RknnDetector:
                 - scores: 置信度分数数组，形状为 (N,)
                 如果没有检测到目标，返回 (None, None, None)
         """
-        # 图像预处理：按模型要求组装输入张量
-        input_data = prepare_input(image_bgr)
+        # 图像预处理：调整尺寸并应用 letterbox
+        img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
+        # 添加批次维度：(height, width, 3) -> (1, height, width, 3)
+        input_data = np.expand_dims(img, axis=0)
         # 模型推理
         outputs = infer(self.rknn, input_data)
         # 后处理：解码、过滤、NMS
@@ -641,7 +573,3 @@ class RknnDetector:
         """
         if self.rknn is not None:
             self.rknn.release()
-            self.rknn = None
-
-    def __del__(self):
-        self.release()
