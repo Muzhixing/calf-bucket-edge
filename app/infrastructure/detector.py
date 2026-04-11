@@ -50,7 +50,7 @@ DETECT_SCORE_MIN = _env_float("RKNN_DETECT_SCORE_MIN", 0.536)  # 最终检测分
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
-MODEL_LAYOUT = os.getenv("RKNN_MODEL_LAYOUT", "NHWC").upper()  # 常见为 NHWC，必要时可切到 NCHW
+MODEL_LAYOUT = os.getenv("RKNN_MODEL_LAYOUT", "NCHW").upper()  # 当前 bucket.rknn 默认使用 NCHW
 
 # ==================== 全局变量 ====================
 color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
