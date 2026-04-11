@@ -311,6 +311,7 @@ class RangingService:
         last_distance_ts = 0.0
         detector_instance = None
         enable_detector = os.getenv("ENABLE_RKNN_DETECTOR", "1") == "1"
+        debug_enabled = self.enable_debug or os.getenv("ENABLE_DEBUG", "0") == "1"
         detector_init_attempted = False
         if not enable_detector:
             print("RKNN 检测器已禁用（ENABLE_RKNN_DETECTOR=0）")
@@ -360,12 +361,20 @@ class RangingService:
                 distance = None
                 display_frame = left_rectified.copy()
                 detections = []
+                best_score = None
 
                 if enable_detector and not detector_init_attempted:
                     detector_init_attempted = True
                     print("开始初始化 RKNN 检测器...")
                     detector_instance = detector.RknnDetector()
                     print(f"RKNN 检测器初始化完成: {detector_instance.model_path}")
+                    print(
+                        "RKNN 检测配置: "
+                        f"layout={detector.MODEL_LAYOUT}, "
+                        f"obj_thresh={detector.OBJ_THRESH:.3f}, "
+                        f"score_min={detector.DETECT_SCORE_MIN:.3f}, "
+                        f"nms={detector.NMS_THRESH:.3f}"
+                    )
 
                 if detector_instance is not None:
                     if frame_count == 0:
@@ -397,6 +406,9 @@ class RangingService:
                                 "class_id": int(class_id),
                                 "label": detector.CLASSES[int(class_id)]
                             })
+                            detector.draw_detections(
+                                display_frame, left, top, right, bottom, float(score), int(class_id)
+                            )
 
                 distance_held = False
                 now_ts = time.time()
@@ -423,22 +435,21 @@ class RangingService:
                     smooth_distance = None
                     last_distance = None
 
-                if self.render_on_device:
-                    if smooth_distance is not None and (detected or distance_held):
-                        text = f"Distance: {smooth_distance:.3f} m"
-                        # 沿用上一帧距离时用黄色提示
-                        color_fg = (0, 255, 255) if distance_held else (0, 255, 0)
-                    elif detected:
-                        text = "Measuring..."  # 不显示 N/A，避免干扰
-                        color_fg = (0, 255, 255)
-                    else:
-                        text = "No bucket"
-                        color_fg = (0, 0, 255)
+                if smooth_distance is not None and (detected or distance_held):
+                    text = f"Distance: {smooth_distance:.3f} m"
+                    # 沿用上一帧距离时用黄色提示
+                    color_fg = (0, 255, 255) if distance_held else (0, 255, 0)
+                elif detected:
+                    text = "Measuring..."
+                    color_fg = (0, 255, 255)
+                else:
+                    text = "No bucket"
+                    color_fg = (0, 0, 255)
 
-                    cv2.putText(display_frame, text, (10, 40),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 3, cv2.LINE_AA)
-                    cv2.putText(display_frame, text, (10, 40),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_fg, 2, cv2.LINE_AA)
+                cv2.putText(display_frame, text, (10, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 3, cv2.LINE_AA)
+                cv2.putText(display_frame, text, (10, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, color_fg, 2, cv2.LINE_AA)
 
                 with self.data_lock:
                     frame_copy = frame.copy()
@@ -468,10 +479,20 @@ class RangingService:
                         dist_text = "N/A"
                     else:
                         dist_text = f"{smooth_distance:.3f} m"
-                    print(
+                    log_msg = (
                         f"[{frame_count} 帧] 距离 = {dist_text} "
                         f"(原始: {distance if distance is not None else 'None'}, "
+                        f"detected={int(detected)}, detections={len(detections)}, "
+                        f"best_score={best_score if best_score is not None else 'None'}, "
                         f"rectify={int(enable_rectify)}, stereo={int(enable_stereo)}, wls={int(enable_wls)})"
+                    )
+                    print(log_msg)
+                elif debug_enabled and (frame_count % 10 == 0):
+                    print(
+                        f"[debug][{frame_count} 帧] "
+                        f"detections={len(detections)}, "
+                        f"best_score={best_score if best_score is not None else 'None'}, "
+                        f"distance={distance if distance is not None else 'None'}"
                     )
 
                 time.sleep(1.0 / 30.0)

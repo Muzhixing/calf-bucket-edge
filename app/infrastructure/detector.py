@@ -21,6 +21,18 @@ import cv2
 import numpy as np
 from rknnlite.api import RKNNLite
 
+
+def _env_float(name, default):
+    """读取浮点环境变量，非法值时回退默认值。"""
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
 # ==================== 模型配置 ====================
 DEFAULT_MODEL_ENV = "RKNN_MODEL_PATH"
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,13 +44,13 @@ TARGET_CLASS_IDS = [0]  # 仅保留指定类别ID（与 CLASSES 索引对应）�
 
 # ==================== 检测阈值配置 ====================
 # 依据训练评估曲线：F1 在 conf≈0.536 附近达到最佳，因此将阈值对齐到该位置
-OBJ_THRESH = 0.536  # 置信度阈值（用于初筛：obj_conf * class_conf），低于此值的检测框将被过滤
-NMS_THRESH = 0.45   # NMS（非极大值抑制）阈值，用于去除重叠的检测框
-DETECT_SCORE_MIN = 0.536  # 最终检测分数门槛，用于二次过滤，避免低分检测框
+OBJ_THRESH = _env_float("RKNN_OBJ_THRESH", 0.536)  # 置信度阈值（用于初筛：obj_conf * class_conf）
+NMS_THRESH = _env_float("RKNN_NMS_THRESH", 0.45)   # NMS（非极大值抑制）阈值
+DETECT_SCORE_MIN = _env_float("RKNN_DETECT_SCORE_MIN", 0.536)  # 最终检测分数门槛
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
-MODEL_LAYOUT = "NHWC"  # 运行时实际要求 NHWC 输入
+MODEL_LAYOUT = os.getenv("RKNN_MODEL_LAYOUT", "NHWC").upper()  # 常见为 NHWC，必要时可切到 NCHW
 
 # ==================== 全局变量 ====================
 color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
@@ -451,7 +463,7 @@ def prepare_input(image_bgr):
     """
     根据模型布局准备输入张量。
 
-    当前模型为 NCHW，返回形状为 (1, 3, H, W) 的连续数组。
+    根据 RKNN_MODEL_LAYOUT 返回 NHWC 或 NCHW 的连续数组。
     """
     img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
