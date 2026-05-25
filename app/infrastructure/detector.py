@@ -71,7 +71,7 @@ def infer(rknn, inp):
 
     # 关键：使用线程锁防止多线程并发访问导致推理错误
     with _rknn_lock:
-        return rknn.inference(inputs=[inp])
+        return rknn.inference([inp])
 
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
@@ -346,12 +346,42 @@ def post_process(input_data):
     return boxes, classes, scores
 
 
+def letter_box(im, new_shape, pad_color=(0, 0, 0)):
+    """
+    按参考 RKNN YOLOv8 程序的方式进行等比例缩放和填充。
+
+    Args:
+        im: 输入图像，OpenCV BGR 格式。
+        new_shape: 目标尺寸，格式为 (height, width)。
+        pad_color: 填充颜色，默认黑色。
+
+    Returns:
+        np.ndarray: 处理后的图像，形状为 (height, width, 3)。
+    """
+    shape = im.shape[:2]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+    dw /= 2
+    dh /= 2
+
+    if shape[::-1] != new_unpad:
+        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
+
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    return cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=pad_color)
+
+
 def resize_image(image, size, letterbox_image=True):
     """
-    调整图像尺寸，支持 letterbox 模式
-    
-    将输入图像调整到指定尺寸。letterbox 模式会保持图像宽高比，
-    在图像周围填充灰色区域（128），避免图像变形。
+    调整图像尺寸，支持 letterbox 模式。
+
+    letterbox 路径使用 OpenCV BGR 输入、等比例缩放、黑色填充，
+    不归一化、不转 RGB、不转 CHW。
     
     Args:
         image: 输入图像，BGR 格式，形状为 (height, width, 3)
@@ -361,26 +391,12 @@ def resize_image(image, size, letterbox_image=True):
     Returns:
         np.ndarray: 调整后的图像，形状为 (height, width, 3)，数据类型为 uint8
     """
-    ih, iw, _ = image.shape  # 原始图像高度和宽度
-    h, w = size  # 目标高度和宽度
-    
+    target_w, target_h = size
+
     if letterbox_image:
-        # 计算缩放比例，保持宽高比
-        scale = min(w / iw, h / ih)
-        nw = int(iw * scale)  # 缩放后的宽度
-        nh = int(ih * scale)  # 缩放后的高度
-        
-        # 缩放图像
-        image = cv2.resize(image, (nw, nh), interpolation=cv2.INTER_LINEAR)
-        
-        # 创建灰色背景（128）并居中放置缩放后的图像
-        image_back = np.ones((h, w, 3), dtype=np.uint8) * 128
-        image_back[(h - nh) // 2: (h - nh) // 2 + nh, (w - nw) // 2:(w - nw) // 2 + nw, :] = image
-    else:
-        # 直接拉伸到目标尺寸（不保持宽高比）
-        image_back = image
-    
-    return image_back
+        return letter_box(image, (target_h, target_w), pad_color=(0, 0, 0))
+
+    return cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
 
 
 def scale_boxes(image_shape, boxes):
@@ -459,31 +475,33 @@ def draw_detections(img, left, top, right, bottom, score, class_id):
         score: 置信度分数（0-1）
         class_id: 类别ID，用于获取类别名称和颜色
     """
-    # 获取该类别对应的颜色
-    color = color_palette[class_id]
-    
-    # 绘制检测框（矩形）
-    cv2.rectangle(img, (int(left), int(top)), (int(right), int(bottom)), color, 2)
+    color = (0, 255, 0)
+    thickness = max(3, int(round(min(img.shape[:2]) / 220)))
+
+    cv2.rectangle(img, (int(left), int(top)), (int(right), int(bottom)), color, thickness)
     
     # 绘制中心点（红色实心圆）
     center_point = (int((left + right) / 2), int((top + bottom) / 2))
-    cv2.circle(img, center_point, 5, (0, 0, 255), -1)
+    cv2.circle(img, center_point, thickness + 3, (0, 0, 255), -1)
     
     # 准备标签文本：类别名称 + 置信度分数
     label = f"{CLASSES[class_id]}: {score:.2f}"
-    (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    font_scale = 0.75
+    text_thickness = 2
+    (label_width, label_height), baseline = cv2.getTextSize(
+        label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness
+    )
     
     # 计算标签位置：优先放在检测框上方，如果空间不足则放在下方
     label_x = left
     label_y = top - 10 if top - 10 > label_height else top + 10
     
     # 绘制标签背景（填充矩形）
-    cv2.rectangle(img, (label_x, label_y - label_height),
-                  (label_x + label_width, label_y + label_height), color, cv2.FILLED)
+    cv2.rectangle(img, (label_x, label_y - label_height - baseline - 6),
+                  (label_x + label_width + 8, label_y + baseline + 6), color, cv2.FILLED)
     
-    # 绘制标签文本（黑色文字）
     cv2.putText(img, label, (label_x, label_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), text_thickness, cv2.LINE_AA)
 
 
 def draw(image, boxes, scores, classes):

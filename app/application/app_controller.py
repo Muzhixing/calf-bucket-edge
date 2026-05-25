@@ -99,8 +99,9 @@ class AppController:
         
         # 如果启用了推送功能，显示推送配置
         if self.ranging_service.enable_push:
-            print(f"视频推送: {self.ranging_service.video_push_url or '未配置'}")
-            print(f"结果推送: {self.ranging_service.meta_push_url or '未配置'}")
+            print("推送模式: webrtc")
+            print(f"WebRTC 信令: {self.ranging_service.webrtc_signal_url or '未配置'}")
+            print(f"WebRTC STUN: {self.ranging_service.webrtc_stun_urls or '未配置'}")
         
         print("退出方式: Ctrl+C（终端）")
         print("=" * 60)
@@ -130,11 +131,6 @@ class AppController:
             # 定期检查服务状态，避免 CPU 占用过高
             while self.ranging_service.is_active():
                 time.sleep(0.5)
-
-        except KeyboardInterrupt:
-            # 用户按下 Ctrl+C，优雅退出
-            print("\n用户中断程序")
-            self.ranging_service.stop()
         finally:
             # 确保资源清理：停止测距服务
             self.ranging_service.stop()
