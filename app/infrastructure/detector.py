@@ -473,31 +473,33 @@ def draw_detections(img, left, top, right, bottom, score, class_id):
         score: 置信度分数（0-1）
         class_id: 类别ID，用于获取类别名称和颜色
     """
-    # 获取该类别对应的颜色
-    color = color_palette[class_id]
-    
-    # 绘制检测框（矩形）
-    cv2.rectangle(img, (int(left), int(top)), (int(right), int(bottom)), color, 2)
+    color = (0, 255, 0)
+    thickness = max(3, int(round(min(img.shape[:2]) / 220)))
+
+    cv2.rectangle(img, (int(left), int(top)), (int(right), int(bottom)), color, thickness)
     
     # 绘制中心点（红色实心圆）
     center_point = (int((left + right) / 2), int((top + bottom) / 2))
-    cv2.circle(img, center_point, 5, (0, 0, 255), -1)
+    cv2.circle(img, center_point, thickness + 3, (0, 0, 255), -1)
     
     # 准备标签文本：类别名称 + 置信度分数
     label = f"{CLASSES[class_id]}: {score:.2f}"
-    (label_width, label_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    font_scale = 0.75
+    text_thickness = 2
+    (label_width, label_height), baseline = cv2.getTextSize(
+        label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness
+    )
     
     # 计算标签位置：优先放在检测框上方，如果空间不足则放在下方
     label_x = left
     label_y = top - 10 if top - 10 > label_height else top + 10
     
     # 绘制标签背景（填充矩形）
-    cv2.rectangle(img, (label_x, label_y - label_height),
-                  (label_x + label_width, label_y + label_height), color, cv2.FILLED)
+    cv2.rectangle(img, (label_x, label_y - label_height - baseline - 6),
+                  (label_x + label_width + 8, label_y + baseline + 6), color, cv2.FILLED)
     
-    # 绘制标签文本（黑色文字）
     cv2.putText(img, label, (label_x, label_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), text_thickness, cv2.LINE_AA)
 
 
 def draw(image, boxes, scores, classes):
