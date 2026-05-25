@@ -69,7 +69,7 @@ def infer(rknn, inp):
 
     # 关键：使用线程锁防止多线程并发访问导致推理错误
     with _rknn_lock:
-        return rknn.inference(inputs=[inp])
+        return rknn.inference([inp])
 
 
 def filter_boxes(boxes, box_confidences, box_class_probs):
@@ -344,12 +344,42 @@ def post_process(input_data):
     return boxes, classes, scores
 
 
+def letter_box(im, new_shape, pad_color=(0, 0, 0)):
+    """
+    按参考 RKNN YOLOv8 程序的方式进行等比例缩放和填充。
+
+    Args:
+        im: 输入图像，OpenCV BGR 格式。
+        new_shape: 目标尺寸，格式为 (height, width)。
+        pad_color: 填充颜色，默认黑色。
+
+    Returns:
+        np.ndarray: 处理后的图像，形状为 (height, width, 3)。
+    """
+    shape = im.shape[:2]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+    dw /= 2
+    dh /= 2
+
+    if shape[::-1] != new_unpad:
+        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
+
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    return cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=pad_color)
+
+
 def resize_image(image, size, letterbox_image=True):
     """
-    调整图像尺寸，支持 letterbox 模式
-    
-    将输入图像调整到指定尺寸。letterbox 模式会保持图像宽高比，
-    在图像周围填充灰色区域（128），避免图像变形。
+    调整图像尺寸，支持 letterbox 模式。
+
+    letterbox 路径保持与可正常运行的 RKNN YOLOv8 程序一致：
+    OpenCV BGR 输入、等比例缩放、黑色填充，不做 RGB 转换、不归一化、不转 CHW。
     
     Args:
         image: 输入图像，BGR 格式，形状为 (height, width, 3)
@@ -359,26 +389,12 @@ def resize_image(image, size, letterbox_image=True):
     Returns:
         np.ndarray: 调整后的图像，形状为 (height, width, 3)，数据类型为 uint8
     """
-    ih, iw, _ = image.shape  # 原始图像高度和宽度
-    h, w = size  # 目标高度和宽度
-    
+    target_w, target_h = size
+
     if letterbox_image:
-        # 计算缩放比例，保持宽高比
-        scale = min(w / iw, h / ih)
-        nw = int(iw * scale)  # 缩放后的宽度
-        nh = int(ih * scale)  # 缩放后的高度
-        
-        # 缩放图像
-        image = cv2.resize(image, (nw, nh), interpolation=cv2.INTER_LINEAR)
-        
-        # 创建灰色背景（128）并居中放置缩放后的图像
-        image_back = np.ones((h, w, 3), dtype=np.uint8) * 128
-        image_back[(h - nh) // 2: (h - nh) // 2 + nh, (w - nw) // 2:(w - nw) // 2 + nw, :] = image
-    else:
-        # 直接拉伸到目标尺寸（不保持宽高比）
-        image_back = image
-    
-    return image_back
+        return letter_box(image, (target_h, target_w), pad_color=(0, 0, 0))
+
+    return cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
 
 
 def scale_boxes(image_shape, boxes):
