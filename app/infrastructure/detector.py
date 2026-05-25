@@ -378,8 +378,8 @@ def resize_image(image, size, letterbox_image=True):
     """
     调整图像尺寸，支持 letterbox 模式。
 
-    letterbox 路径使用 OpenCV BGR 输入、等比例缩放、黑色填充。
-    RknnDetector.infer 会在送入 RKNN 前转换为 RGB，不归一化、不转 CHW。
+    letterbox 路径使用 OpenCV BGR 输入、等比例缩放、黑色填充，
+    不归一化、不转 RGB、不转 CHW。
     
     Args:
         image: 输入图像，BGR 格式，形状为 (height, width, 3)
@@ -598,8 +598,6 @@ class RknnDetector:
         """
         # 图像预处理：调整尺寸并应用 letterbox
         img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
-        # bucket.rknn 对 RGB 输入有响应；OpenCV 摄像头帧为 BGR。
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # 添加批次维度：(height, width, 3) -> (1, height, width, 3)
         input_data = np.expand_dims(img, axis=0)
         # 模型推理

@@ -344,6 +344,7 @@ class RangingService:
                 boxes, classes, scores = detector_instance.infer(left_rectified)
                 if boxes is not None and len(boxes) > 0:
                     pixel_boxes = detector.scale_boxes(left_rectified.shape, boxes)
+                    detector.draw(display_frame, boxes, scores, classes)
                     best_idx = int(np.argmax(scores))
                     best_score = float(scores[best_idx])
                     if best_score >= detector.DETECT_SCORE_MIN:

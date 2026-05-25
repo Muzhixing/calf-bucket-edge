@@ -117,4 +117,4 @@ def run_web_server(state_store, lifecycle, host='0.0.0.0', port=5050):
     print(f"Flask 服务器启动: http://<板卡IP>:{port}/")
     app = create_app(state_store, lifecycle)
     app.run(host=host, port=port,
-            debug=False, threaded=False, use_reloader=False)
+            debug=False, threaded=True, use_reloader=False)
