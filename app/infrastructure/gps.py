@@ -8,12 +8,13 @@ GPS NMEA 解析模块
 """
 
 import argparse
+import copy
 import math
 import time
+from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Dict
-
-import serial
+from statistics import median
+from typing import Deque, Dict, Optional, Tuple
 
 
 @dataclass
@@ -53,6 +54,119 @@ class FixState:
     # GGA 和 RMC 消息共有的字段
     lat_deg: Optional[float] = None  # 纬度（十进制度数）
     lon_deg: Optional[float] = None  # 经度（十进制度数）
+
+
+@dataclass
+class FilterConfig:
+    """GPS 坐标稳定滤波参数。"""
+
+    window_size: int = 9
+    alpha: float = 0.2
+    static_speed_mps: float = 0.35
+    static_hold_radius_m: float = 1.5
+    max_static_jump_m: float = 8.0
+    max_hdop: float = 5.0
+    min_sats: int = 4
+    stationary_mode: bool = False
+
+
+class StableGpsFilter:
+    """基于局部 ENU 坐标的 GPS 稳定滤波器。
+
+    过滤流程：
+    1. 质量门限过滤无效定位。
+    2. 最近窗口中值滤波，抑制单点跳变。
+    3. 静止低速时小范围保持，减少坐标来回抖动。
+    4. EMA 低通滤波，让输出平滑收敛。
+    """
+
+    def __init__(self, config: FilterConfig):
+        self.config = config
+        self.anchor: Optional[Tuple[float, float]] = None
+        self.samples: Deque[Tuple[float, float, Optional[float]]] = deque(maxlen=max(1, config.window_size))
+        self.filtered_east: Optional[float] = None
+        self.filtered_north: Optional[float] = None
+        self.filtered_alt: Optional[float] = None
+        self.accepted_samples = 0
+        self.rejected_samples = 0
+        self.hold_samples = 0
+
+    def update(self, st: FixState) -> Optional[FixState]:
+        if not self._is_usable_fix(st):
+            self.rejected_samples += 1
+            return None
+
+        assert st.lat_deg is not None
+        assert st.lon_deg is not None
+
+        if self.anchor is None:
+            self.anchor = (st.lat_deg, st.lon_deg)
+
+        raw = enu_from_latlon(st.lat_deg, st.lon_deg, self.anchor[0], self.anchor[1])
+        self.samples.append((raw["east_m"], raw["north_m"], st.altitude_m))
+
+        candidate_east = median([p[0] for p in self.samples])
+        candidate_north = median([p[1] for p in self.samples])
+        alt_values = [p[2] for p in self.samples if p[2] is not None]
+        candidate_alt = median(alt_values) if alt_values else None
+
+        speed_mps = knots_to_mps(st.speed_knots)
+        is_static = speed_mps is not None and speed_mps <= self.config.static_speed_mps
+
+        if self.filtered_east is None or self.filtered_north is None:
+            self.filtered_east = candidate_east
+            self.filtered_north = candidate_north
+            self.filtered_alt = candidate_alt
+        elif self.config.stationary_mode:
+            jump_m = math.hypot(candidate_east - self.filtered_east, candidate_north - self.filtered_north)
+            if jump_m >= self.config.max_static_jump_m:
+                self.rejected_samples += 1
+            else:
+                next_count = self.accepted_samples + 1
+                self.filtered_east += (candidate_east - self.filtered_east) / next_count
+                self.filtered_north += (candidate_north - self.filtered_north) / next_count
+                if candidate_alt is not None:
+                    if self.filtered_alt is None:
+                        self.filtered_alt = candidate_alt
+                    else:
+                        self.filtered_alt += (candidate_alt - self.filtered_alt) / next_count
+        else:
+            jump_m = math.hypot(candidate_east - self.filtered_east, candidate_north - self.filtered_north)
+            if is_static and jump_m <= self.config.static_hold_radius_m:
+                self.hold_samples += 1
+            elif is_static and jump_m >= self.config.max_static_jump_m:
+                self.rejected_samples += 1
+            else:
+                alpha = min(1.0, max(0.01, self.config.alpha))
+                self.filtered_east = alpha * candidate_east + (1.0 - alpha) * self.filtered_east
+                self.filtered_north = alpha * candidate_north + (1.0 - alpha) * self.filtered_north
+                if candidate_alt is not None:
+                    if self.filtered_alt is None:
+                        self.filtered_alt = candidate_alt
+                    else:
+                        self.filtered_alt = alpha * candidate_alt + (1.0 - alpha) * self.filtered_alt
+
+        self.accepted_samples += 1
+        filtered = copy.copy(st)
+        lat, lon = latlon_from_enu(self.filtered_east, self.filtered_north, self.anchor[0], self.anchor[1])
+        filtered.lat_deg = lat
+        filtered.lon_deg = lon
+        if self.filtered_alt is not None:
+            filtered.altitude_m = self.filtered_alt
+        return filtered
+
+    def _is_usable_fix(self, st: FixState) -> bool:
+        if st.lat_deg is None or st.lon_deg is None:
+            return False
+        if (st.fix_quality or 0) <= 0:
+            return False
+        if st.valid is False:
+            return False
+        if st.sats is not None and st.sats < self.config.min_sats:
+            return False
+        if st.hdop is not None and st.hdop > self.config.max_hdop:
+            return False
+        return True
 
 
 def nmea_checksum_ok(line: str) -> bool:
@@ -290,6 +404,34 @@ def enu_from_latlon(lat: float, lon: float, lat0: float, lon0: float) -> Dict[st
     return {"east_m": east, "north_m": north}
 
 
+def latlon_from_enu(east_m: float, north_m: float, lat0: float, lon0: float) -> Tuple[float, float]:
+    """将局部 ENU 米制坐标转换回经纬度。"""
+    R = 6378137.0
+    phi0 = math.radians(lat0)
+    lat = lat0 + math.degrees(north_m / R)
+    phi = math.radians(lat)
+    mean_phi = (phi + phi0) / 2.0
+    lon = lon0 + math.degrees(east_m / (R * math.cos(mean_phi)))
+    return lat, lon
+
+
+def knots_to_mps(speed_knots: Optional[float]) -> Optional[float]:
+    """节转换为米/秒。"""
+    if speed_knots is None:
+        return None
+    return speed_knots * 1.852 / 3.6
+
+
+def has_valid_fix(st: FixState) -> bool:
+    """判断当前状态是否可作为有效定位点使用。"""
+    return (
+        st.lat_deg is not None and
+        st.lon_deg is not None and
+        (st.fix_quality or 0) > 0 and
+        st.valid is True
+    )
+
+
 def fmt(st: FixState, origin: Optional[tuple]) -> str:
     """
     格式化 GPS 定位状态为可读字符串
@@ -362,6 +504,8 @@ def main():
     - --baud: 波特率（默认：9600，常用值：9600 或 115200）
     - --origin: 原点坐标（纬度 经度），用于计算相对位置的 ENU 坐标
     - --set-origin-on-fix: 自动将第一个有效定位点设置为原点
+    - --filter: 启用坐标稳定滤波，降低静止时的坐标抖动
+    - --stationary: 固定设备长期平均模式，进一步稳定静止坐标
     - --no-checksum: 跳过 NMEA 校验和验证
     """
     ap = argparse.ArgumentParser(
@@ -377,10 +521,48 @@ def main():
                     help="如果设置，自动将第一个有效定位点（状态为A且fix_quality>0）设置为原点")
     ap.add_argument("--no-checksum", action="store_true", 
                     help="不验证 NMEA 校验和（不推荐，可能导致错误数据）")
+    ap.add_argument("--filter", action="store_true",
+                    help="启用坐标稳定滤波，适合静止或低速场景减少漂移")
+    ap.add_argument("--stationary", action="store_true",
+                    help="固定点模式：假定 GPS 不移动，使用长期平均输出更稳定坐标")
+    ap.add_argument("--filter-window", type=int, default=9,
+                    help="中值滤波窗口大小，默认 9")
+    ap.add_argument("--filter-alpha", type=float, default=0.2,
+                    help="EMA 低通滤波系数，越小越稳但响应越慢，默认 0.2")
+    ap.add_argument("--static-speed", type=float, default=0.35,
+                    help="低于该速度(m/s)视为静止/低速，默认 0.35")
+    ap.add_argument("--static-hold-radius", type=float, default=1.5,
+                    help="静止时小于该半径(m)的变化保持上一稳定坐标，默认 1.5")
+    ap.add_argument("--max-static-jump", type=float, default=8.0,
+                    help="静止时超过该距离(m)的跳点会被抑制，默认 8.0")
+    ap.add_argument("--max-hdop", type=float, default=5.0,
+                    help="滤波模式下接受的最大 HDOP，默认 5.0")
+    ap.add_argument("--min-sats", type=int, default=4,
+                    help="滤波模式下接受的最少卫星数，默认 4")
+    ap.add_argument("--origin-warmup-samples", type=int, default=8,
+                    help="滤波模式下自动设置原点前等待的有效样本数，默认 8")
+    ap.add_argument("--show-raw", action="store_true",
+                    help="滤波模式下同时显示原始经纬度，便于对比")
     args = ap.parse_args()
 
     origin = tuple(args.origin) if args.origin else None
     st = FixState()
+    gps_filter = None
+    last_filtered_state: Optional[FixState] = None
+    last_filter_key = None
+    if args.filter or args.stationary:
+        gps_filter = StableGpsFilter(FilterConfig(
+            window_size=max(1, args.filter_window),
+            alpha=args.filter_alpha,
+            static_speed_mps=args.static_speed,
+            static_hold_radius_m=args.static_hold_radius,
+            max_static_jump_m=args.max_static_jump,
+            max_hdop=args.max_hdop,
+            min_sats=max(0, args.min_sats),
+            stationary_mode=args.stationary,
+        ))
+
+    import serial
 
     # 配置串口参数
     ser = serial.Serial(
@@ -423,17 +605,44 @@ def main():
             elif msg.endswith("RMC"):
                 parse_rmc(fields, st)
 
+            display_st = st
+            if gps_filter is not None:
+                filter_key = (
+                    st.time_hhmmss,
+                    st.date_ddmmyy,
+                    st.lat_deg,
+                    st.lon_deg,
+                    st.altitude_m,
+                )
+                if filter_key != last_filter_key:
+                    filtered_state = gps_filter.update(st)
+                    last_filter_key = filter_key
+                    if filtered_state is not None:
+                        last_filtered_state = filtered_state
+                if last_filtered_state is not None:
+                    display_st = last_filtered_state
+
             # 自动设置原点：当获得第一个有效定位时
             if args.set_origin_on_fix and origin is None:
-                if (st.lat_deg is not None and st.lon_deg is not None and
-                        (st.fix_quality or 0) > 0 and (st.valid is True)):
-                    origin = (st.lat_deg, st.lon_deg)
+                origin_ready = True
+                if gps_filter is not None:
+                    origin_ready = gps_filter.accepted_samples >= max(1, args.origin_warmup_samples)
+                if origin_ready and has_valid_fix(display_st):
+                    origin = (display_st.lat_deg, display_st.lon_deg)
                     print(f"\n[OK] 原点已设置为 lat0={origin[0]:.6f}, lon0={origin[1]:.6f}\n")
 
             # 限制输出频率为最大 2 Hz（每 0.5 秒一次）
             now = time.time()
             if now - last_print >= 0.5:
-                print(fmt(st, origin))
+                line_out = fmt(display_st, origin)
+                if gps_filter is not None:
+                    line_out += (
+                        f" | filter={'stationary' if args.stationary else 'on'} samples={gps_filter.accepted_samples}"
+                        f" hold={gps_filter.hold_samples} rejected={gps_filter.rejected_samples}"
+                    )
+                    if args.show_raw and st.lat_deg is not None and st.lon_deg is not None:
+                        line_out += f" | raw_lat={st.lat_deg:.6f} raw_lon={st.lon_deg:.6f}"
+                print(line_out)
                 last_print = now
 
     except KeyboardInterrupt:

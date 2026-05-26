@@ -104,6 +104,52 @@ python main.py
 
 ---
 
+## GPS 工具
+
+`app/infrastructure/gps.py` 可以独立运行，用于读取串口 NMEA 数据并输出定位状态。
+
+```bash
+python -m app.infrastructure.gps --port /dev/ttyS9 --baud 9600
+```
+
+常用参数：
+
+```bash
+# 指定原点，输出相对原点的 ENU 米制坐标
+python -m app.infrastructure.gps --origin 31.123456 121.123456
+
+# 在首次有效定位时自动设置原点
+python -m app.infrastructure.gps --set-origin-on-fix
+
+# 启用稳定滤波，降低静止时 GPS 坐标抖动
+python -m app.infrastructure.gps --port /dev/ttyS9 --baud 9600 --filter --set-origin-on-fix
+
+# 固定点场景：假定 GPS 模块静止，使用长期平均进一步稳定坐标
+python -m app.infrastructure.gps --port /dev/ttyS9 --baud 9600 --stationary --set-origin-on-fix
+
+# 跳过 NMEA 校验和检查
+python -m app.infrastructure.gps --no-checksum
+```
+
+滤波模式会对经纬度做中值滤波、EMA 低通滤波、静止小范围保持和异常跳点抑制。常用调参：
+
+```bash
+python -m app.infrastructure.gps \
+  --port /dev/ttyS9 \
+  --baud 9600 \
+  --filter \
+  --filter-window 9 \
+  --filter-alpha 0.2 \
+  --static-hold-radius 1.5 \
+  --origin-warmup-samples 8 \
+  --show-raw
+```
+
+`--filter-alpha` 越小输出越稳定但响应越慢；`--static-hold-radius` 越大，静止时越不容易抖动，但低速移动时响应也会更慢。
+如果 GPS 模块固定不动，优先使用 `--stationary`；该模式会把当前位置当作固定点持续平均，输出会随样本数增加越来越稳定，但不适合移动场景。
+
+---
+
 ## 串口层占位说明
 
 `app/infrastructure/serial_port.py` 中的 `SerialPortGateway` 已预留，
