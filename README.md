@@ -148,6 +148,70 @@ python -m app.infrastructure.gps \
 `--filter-alpha` 越小输出越稳定但响应越慢；`--static-hold-radius` 越大，静止时越不容易抖动，但低速移动时响应也会更慢。
 如果 GPS 模块固定不动，优先使用 `--stationary`；该模式会把当前位置当作固定点持续平均，输出会随样本数增加越来越稳定，但不适合移动场景。
 
+## IMU 与 GPS+IMU 融合
+
+MPU-6050 可通过 40Pin 的 I2C4 读取，默认连接参数：
+
+- `VCC -> 3.3V`
+- `GND -> GND`
+- `SDA -> pin3 / I2C4_SDA`
+- `SCL -> pin5 / I2C4_SCL`
+- 默认 I2C 设备：`/dev/i2c-4`
+- 默认 I2C 地址：`0x68`
+
+单独读取 IMU：
+
+```bash
+sudo python -m app.infrastructure.imu \
+  --bus 4 \
+  --address 0x68 \
+  --rate 50 \
+  --calibrate 200
+```
+
+运行 GPS+IMU 融合：
+
+```bash
+sudo python -m app.infrastructure.gps_imu_fusion \
+  --gps-port /dev/ttyS9 \
+  --gps-baud 9600 \
+  --imu-bus 4 \
+  --imu-address 0x68 \
+  --imu-rate 50 \
+  --calibrate-samples 200
+```
+
+测试 30 秒：
+
+```bash
+sudo python -m app.infrastructure.gps_imu_fusion \
+  --gps-port /dev/ttyS9 \
+  --gps-baud 9600 \
+  --duration 30
+```
+
+融合程序会先要求车辆静止，采集 IMU 零偏；随后使用 GPS 首个有效定位点作为本地 ENU 原点。输出字段中：
+
+- `fused_lat/fused_lon` 是融合后的经纬度。
+- `E/N` 是相对启动原点的东向/北向米制坐标。
+- `speed` 是融合速度。
+- `heading` 是航向角，0 度为正北，顺时针增加。
+- `sigma` 是当前水平位置不确定度估计，越小越稳定。
+- `gps_age` 是距离最近一次 GPS 修正的时间。
+
+如果 IMU 安装方向与车体方向不一致，需要调整轴映射。例如模块的 `Y` 轴朝车头、`X` 轴朝车右：
+
+```bash
+sudo python -m app.infrastructure.gps_imu_fusion \
+  --forward-axis y \
+  --right-axis x \
+  --yaw-gyro-axis z
+```
+
+如果转弯时航向变化方向反了，把 `--yaw-gyro-axis z` 改为 `--yaw-gyro-axis -z`。
+
+注意：普通 GPS + MPU-6050 不能达到 RTK 的厘米级绝对精度。该融合主要用于降低抖动、让短时速度/航向更稳定、在短暂 GPS 弱信号时保持连续轨迹。想要车载绝对定位达到 0.1m 级甚至厘米级，需要 RTK GPS、双天线航向、轮速计/编码器和更完整的标定。
+
 ---
 
 ## 串口层占位说明
