@@ -9,10 +9,13 @@ GPS NMEA 解析模块
 
 import argparse
 import copy
+import csv
 import math
+import os
 import time
 from collections import deque
 from dataclasses import dataclass
+from datetime import datetime
 from statistics import median
 from typing import Deque, Dict, Optional, Tuple
 
@@ -432,6 +435,104 @@ def has_valid_fix(st: FixState) -> bool:
     )
 
 
+class GpsCsvLogger:
+    """Line-buffered CSV logger for GPS trajectory analysis."""
+
+    FIELDNAMES = [
+        "wall_time",
+        "elapsed_s",
+        "source",
+        "origin_lat",
+        "origin_lon",
+        "lat",
+        "lon",
+        "east_m",
+        "north_m",
+        "altitude_m",
+        "speed_knots",
+        "speed_mps",
+        "course_deg",
+        "fix_quality",
+        "valid",
+        "sats",
+        "hdop",
+        "utc",
+        "date",
+        "raw_lat",
+        "raw_lon",
+        "filter_mode",
+        "filter_samples",
+        "filter_hold",
+        "filter_rejected",
+    ]
+
+    def __init__(self, path: str, start_ts: float):
+        self.path = os.path.abspath(path)
+        self.start_ts = start_ts
+        parent = os.path.dirname(self.path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        should_write_header = not os.path.exists(self.path) or os.path.getsize(self.path) == 0
+        self._file = open(self.path, "a", newline="", buffering=1, encoding="utf-8")
+        self._writer = csv.DictWriter(self._file, fieldnames=self.FIELDNAMES)
+        if should_write_header:
+            self._writer.writeheader()
+
+    def close(self) -> None:
+        self._file.close()
+
+    def log(
+        self,
+        display_st: FixState,
+        raw_st: FixState,
+        origin: Optional[tuple],
+        source: str,
+        gps_filter: Optional[StableGpsFilter],
+    ) -> None:
+        east = None
+        north = None
+        if origin is not None and display_st.lat_deg is not None and display_st.lon_deg is not None:
+            en = enu_from_latlon(display_st.lat_deg, display_st.lon_deg, origin[0], origin[1])
+            east = en["east_m"]
+            north = en["north_m"]
+        row = {
+            "wall_time": datetime.now().isoformat(timespec="milliseconds"),
+            "elapsed_s": time.monotonic() - self.start_ts,
+            "source": source,
+            "origin_lat": origin[0] if origin is not None else None,
+            "origin_lon": origin[1] if origin is not None else None,
+            "lat": display_st.lat_deg,
+            "lon": display_st.lon_deg,
+            "east_m": east,
+            "north_m": north,
+            "altitude_m": display_st.altitude_m,
+            "speed_knots": display_st.speed_knots,
+            "speed_mps": knots_to_mps(display_st.speed_knots),
+            "course_deg": display_st.course_deg,
+            "fix_quality": display_st.fix_quality,
+            "valid": "A" if display_st.valid else "V",
+            "sats": display_st.sats,
+            "hdop": display_st.hdop,
+            "utc": display_st.time_hhmmss,
+            "date": display_st.date_ddmmyy,
+            "raw_lat": raw_st.lat_deg,
+            "raw_lon": raw_st.lon_deg,
+            "filter_mode": source,
+            "filter_samples": gps_filter.accepted_samples if gps_filter is not None else None,
+            "filter_hold": gps_filter.hold_samples if gps_filter is not None else None,
+            "filter_rejected": gps_filter.rejected_samples if gps_filter is not None else None,
+        }
+        self._writer.writerow({key: _csv_value(row.get(key)) for key in self.FIELDNAMES})
+
+
+def _csv_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.10f}"
+    return str(value)
+
+
 def fmt(st: FixState, origin: Optional[tuple]) -> str:
     """
     格式化 GPS 定位状态为可读字符串
@@ -543,6 +644,10 @@ def main():
                     help="滤波模式下自动设置原点前等待的有效样本数，默认 8")
     ap.add_argument("--show-raw", action="store_true",
                     help="滤波模式下同时显示原始经纬度，便于对比")
+    ap.add_argument("--log-file",
+                    help="把 GPS 输出记录为 CSV 文件，便于停止后分析轨迹和误差")
+    ap.add_argument("--log-rate", type=float, default=0.0,
+                    help="CSV 日志频率(Hz)，0 表示跟随终端输出频率 2Hz")
     args = ap.parse_args()
 
     origin = tuple(args.origin) if args.origin else None
@@ -561,6 +666,10 @@ def main():
             min_sats=max(0, args.min_sats),
             stationary_mode=args.stationary,
         ))
+    start_ts = time.monotonic()
+    logger = GpsCsvLogger(args.log_file, start_ts) if args.log_file else None
+    effective_log_rate = args.log_rate if args.log_rate > 0 else 2.0
+    log_period_s = 1.0 / max(0.001, effective_log_rate)
 
     import serial
 
@@ -579,8 +688,11 @@ def main():
 
     print(f"[OK] 已打开串口 {args.port} @ {args.baud} 波特率")
     print("[INFO] 等待 NMEA 数据... (按 Ctrl+C 退出)")
+    if logger is not None:
+        print(f"[OK] GPS log: {logger.path} @ {effective_log_rate:.2f} Hz")
 
     last_print = 0.0
+    last_log = 0.0
     try:
         while True:
             # 从串口读取一行数据
@@ -633,6 +745,13 @@ def main():
 
             # 限制输出频率为最大 2 Hz（每 0.5 秒一次）
             now = time.time()
+            now_mono = time.monotonic()
+            source = "raw"
+            if gps_filter is not None:
+                source = "stationary" if args.stationary else "filter"
+            if logger is not None and now_mono - last_log >= log_period_s:
+                logger.log(display_st, st, origin, source, gps_filter)
+                last_log = now_mono
             if now - last_print >= 0.5:
                 line_out = fmt(display_st, origin)
                 if gps_filter is not None:
@@ -649,6 +768,9 @@ def main():
         print("\n[EXIT] 程序退出")
     finally:
         ser.close()
+        if logger is not None:
+            logger.close()
+            print(f"[OK] GPS log saved: {logger.path}")
 
 
 if __name__ == "__main__":

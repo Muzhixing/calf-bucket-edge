@@ -148,6 +148,21 @@ python -m app.infrastructure.gps \
 `--filter-alpha` 越小输出越稳定但响应越慢；`--static-hold-radius` 越大，静止时越不容易抖动，但低速移动时响应也会更慢。
 如果 GPS 模块固定不动，优先使用 `--stationary`；该模式会把当前位置当作固定点持续平均，输出会随样本数增加越来越稳定，但不适合移动场景。
 
+记录纯 GPS 测试日志：
+
+```bash
+mkdir -p logs
+python -m app.infrastructure.gps \
+  --port /dev/ttyS9 \
+  --baud 9600 \
+  --filter \
+  --set-origin-on-fix \
+  --show-raw \
+  --log-file logs/gps_$(date +%Y%m%d_%H%M%S).csv
+```
+
+日志为 CSV 格式，包含时间、经纬度、ENU 米制坐标、速度、航向、HDOP、卫星数、原始坐标和滤波状态。程序用 `Ctrl+C` 停止后会自动关闭日志文件。
+
 ## IMU 与 GPS+IMU 融合
 
 MPU-6050 可通过 40Pin 的 I2C4 读取，默认连接参数：
@@ -189,6 +204,35 @@ sudo python -m app.infrastructure.gps_imu_fusion \
   --gps-baud 9600 \
   --duration 30
 ```
+
+记录融合轨迹日志：
+
+```bash
+mkdir -p logs
+sudo python -m app.infrastructure.gps_imu_fusion \
+  --gps-port /dev/ttyS9 \
+  --gps-baud 9600 \
+  --imu-bus 4 \
+  --imu-address 0x68 \
+  --imu-rate 50 \
+  --calibrate-samples 200 \
+  --log-file logs/fusion_$(date +%Y%m%d_%H%M%S).csv \
+  --log-rate 5
+```
+
+融合日志字段包含 `fused_lat/fused_lon`、`fused_east_m/fused_north_m`、GPS 原始坐标、速度、航向、`sigma`、HDOP、卫星数、IMU 前向/右向加速度和偏航角速度。`--log-rate` 控制 CSV 记录频率，0 表示跟随终端输出频率。
+
+停止后分析日志：
+
+```bash
+python tools/analyze_gps_log.py logs/fusion_20260531_120000.csv
+
+# 如果有已知参考点，输入参考经纬度可直接估计误差
+python tools/analyze_gps_log.py logs/fusion_20260531_120000.csv \
+  --reference 38.4947700 106.1086836
+```
+
+分析脚本会输出点数、时长、首尾坐标、轨迹长度、首尾位移、ENU 坐标范围，以及 RMS / P50 / P95 / 最大漂移或误差。
 
 融合程序会先要求车辆静止，采集 IMU 零偏；随后使用 GPS 首个有效定位点作为本地 ENU 原点。输出字段中：
 

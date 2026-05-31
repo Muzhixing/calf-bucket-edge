@@ -17,9 +17,12 @@ more stable vehicle state for navigation logic.
 
 import argparse
 import copy
+import csv
 import math
+import os
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Tuple
 
 import numpy as np
@@ -76,6 +79,115 @@ class FusedState:
     heading_deg: float
     position_sigma_m: float
     last_gps_age_s: Optional[float]
+
+
+class CsvTrajectoryLogger:
+    """Line-buffered CSV logger for later trajectory/error analysis."""
+
+    FIELDNAMES = [
+        "wall_time",
+        "elapsed_s",
+        "monotonic_s",
+        "origin_lat",
+        "origin_lon",
+        "fused_lat",
+        "fused_lon",
+        "fused_east_m",
+        "fused_north_m",
+        "velocity_east_mps",
+        "velocity_north_mps",
+        "fused_speed_mps",
+        "heading_deg",
+        "position_sigma_m",
+        "gps_age_s",
+        "gps_lat",
+        "gps_lon",
+        "gps_east_m",
+        "gps_north_m",
+        "gps_speed_mps",
+        "gps_course_deg",
+        "gps_fix_quality",
+        "gps_valid",
+        "gps_sats",
+        "gps_hdop",
+        "gps_altitude_m",
+        "gps_utc",
+        "gps_date",
+        "gps_rejected_count",
+        "accel_forward_mps2",
+        "accel_right_mps2",
+        "accel_east_mps2",
+        "accel_north_mps2",
+        "yaw_rate_rad_s",
+    ]
+
+    def __init__(self, path: str, start_ts: float):
+        self.path = os.path.abspath(path)
+        self.start_ts = start_ts
+        parent = os.path.dirname(self.path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        should_write_header = not os.path.exists(self.path) or os.path.getsize(self.path) == 0
+        self._file = open(self.path, "a", newline="", buffering=1, encoding="utf-8")
+        self._writer = csv.DictWriter(self._file, fieldnames=self.FIELDNAMES)
+        if should_write_header:
+            self._writer.writeheader()
+
+    def close(self) -> None:
+        self._file.close()
+
+    def log(
+        self,
+        state: FusedState,
+        origin: Tuple[float, float],
+        gps: Optional[GpsMeasurement],
+        gps_rejected_count: int,
+        accel_forward_mps2: float,
+        accel_right_mps2: float,
+        accel_east_mps2: float,
+        accel_north_mps2: float,
+        yaw_rate_rad_s: float,
+    ) -> None:
+        row = {
+            "wall_time": datetime.now().isoformat(timespec="milliseconds"),
+            "elapsed_s": state.timestamp_s - self.start_ts,
+            "monotonic_s": state.timestamp_s,
+            "origin_lat": origin[0],
+            "origin_lon": origin[1],
+            "fused_lat": state.lat_deg,
+            "fused_lon": state.lon_deg,
+            "fused_east_m": state.east_m,
+            "fused_north_m": state.north_m,
+            "velocity_east_mps": state.velocity_east_mps,
+            "velocity_north_mps": state.velocity_north_mps,
+            "fused_speed_mps": state.speed_mps,
+            "heading_deg": state.heading_deg,
+            "position_sigma_m": state.position_sigma_m,
+            "gps_age_s": state.last_gps_age_s,
+            "gps_rejected_count": gps_rejected_count,
+            "accel_forward_mps2": accel_forward_mps2,
+            "accel_right_mps2": accel_right_mps2,
+            "accel_east_mps2": accel_east_mps2,
+            "accel_north_mps2": accel_north_mps2,
+            "yaw_rate_rad_s": yaw_rate_rad_s,
+        }
+        if gps is not None:
+            row.update({
+                "gps_lat": gps.fix.lat_deg,
+                "gps_lon": gps.fix.lon_deg,
+                "gps_east_m": gps.east_m,
+                "gps_north_m": gps.north_m,
+                "gps_speed_mps": gps.speed_mps,
+                "gps_course_deg": gps.course_deg,
+                "gps_fix_quality": gps.fix.fix_quality,
+                "gps_valid": "A" if gps.fix.valid else "V",
+                "gps_sats": gps.fix.sats,
+                "gps_hdop": gps.fix.hdop,
+                "gps_altitude_m": gps.fix.altitude_m,
+                "gps_utc": gps.fix.time_hhmmss,
+                "gps_date": gps.fix.date_ddmmyy,
+            })
+        self._writer.writerow({key: _csv_value(row.get(key)) for key in self.FIELDNAMES})
 
 
 class GpsAccumulator:
@@ -326,6 +438,14 @@ def _wrap_rad(angle: float) -> float:
     return angle
 
 
+def _csv_value(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.10f}"
+    return str(value)
+
+
 def _axis_value(values: Tuple[float, float, float], axis_spec: str) -> float:
     spec = axis_spec.strip().lower().replace("neg-", "-")
     sign = -1.0 if spec.startswith("-") else 1.0
@@ -396,6 +516,11 @@ def run(args: argparse.Namespace) -> None:
         gps_course_min_speed_mps=config.gps_course_min_speed_mps,
     )
     kf = PositionVelocityKalman(config)
+    start_ts = time.monotonic()
+    logger = CsvTrajectoryLogger(args.log_file, start_ts) if args.log_file else None
+    effective_log_rate = args.log_rate if args.log_rate > 0 else args.print_rate
+    log_period_s = 1.0 / max(0.001, effective_log_rate)
+    last_log_ts = 0.0
 
     ser = serial.Serial(
         port=args.gps_port,
@@ -437,14 +562,15 @@ def run(args: argparse.Namespace) -> None:
                 f"accel_rest=({calibration.accel_rest_mps2[0]:+.3f},"
                 f"{calibration.accel_rest_mps2[1]:+.3f},"
                 f"{calibration.accel_rest_mps2[2]:+.3f})m/s^2"
-            )
+        )
 
-        start_ts = time.monotonic()
         next_sample_ts = start_ts
         last_imu_ts: Optional[float] = None
         last_print_ts = 0.0
         last_gps: Optional[GpsMeasurement] = None
         serial_buffer = bytearray()
+        if logger is not None:
+            print(f"[OK] trajectory log: {logger.path} @ {effective_log_rate:.2f} Hz")
 
         try:
             while True:
@@ -491,14 +617,33 @@ def run(args: argparse.Namespace) -> None:
                 accel_east, accel_north = _body_to_enu(accel_forward, accel_right, heading.heading_rad)
                 kf.predict(sample.timestamp_s, accel_east, accel_north)
 
+                state = None
+                if kf.initialized and gps_acc.origin is not None:
+                    if logger is not None and sample.timestamp_s - last_log_ts >= log_period_s:
+                        state = kf.fused_state(sample.timestamp_s, gps_acc.origin, heading.heading_deg)
+                        logger.log(
+                            state,
+                            gps_acc.origin,
+                            last_gps,
+                            kf.rejected_gps_updates,
+                            accel_forward,
+                            accel_right,
+                            accel_east,
+                            accel_north,
+                            yaw_rate,
+                        )
+                        last_log_ts = sample.timestamp_s
+
                 if (
                     kf.initialized
                     and gps_acc.origin is not None
                     and sample.timestamp_s - last_print_ts >= 1.0 / args.print_rate
                 ):
+                    if state is None:
+                        state = kf.fused_state(sample.timestamp_s, gps_acc.origin, heading.heading_deg)
                     print(
                         _format_state(
-                            kf.fused_state(sample.timestamp_s, gps_acc.origin, heading.heading_deg),
+                            state,
                             last_gps,
                             kf.rejected_gps_updates,
                         )
@@ -508,6 +653,9 @@ def run(args: argparse.Namespace) -> None:
             print("\n[EXIT] fusion stopped")
         finally:
             ser.close()
+            if logger is not None:
+                logger.close()
+                print(f"[OK] trajectory log saved: {logger.path}")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -521,6 +669,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--duration", type=float, default=0.0, help="run seconds, 0 means forever")
     parser.add_argument("--origin", nargs=2, type=float, metavar=("LAT0", "LON0"), help="fixed origin lat lon")
     parser.add_argument("--no-checksum", action="store_true", help="skip NMEA checksum validation")
+    parser.add_argument("--log-file", help="write fused trajectory CSV to this path")
+    parser.add_argument("--log-rate", type=float, default=0.0, help="CSV log rate in Hz, 0 means same as print-rate")
 
     parser.add_argument("--calibrate-samples", type=int, default=200, help="static IMU calibration samples")
     parser.add_argument("--accel-range", type=int, default=2, choices=(2, 4, 8, 16), help="accelerometer range")
