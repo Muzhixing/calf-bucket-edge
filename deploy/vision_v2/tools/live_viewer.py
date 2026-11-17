@@ -6,10 +6,10 @@ from support import ROOT, save, sha
 
 PAGE='''<!doctype html><meta charset="utf-8"><title>V2 实时视觉</title>
 <style>body{background:#152024;color:#edf2f4;font:18px sans-serif;margin:24px}img{max-width:100%;width:1280px}#info{padding:14px 0}small{color:#b9c8cc}</style>
-<h2>V2 实时视觉预览</h2><div id="info">等待相机画面…</div><img id="video"><p><small>绿色为桶框，橙色为测距区域。沿用值显示来源帧；预览不驱动设备。正式留存左右图请使用采集入口。</small></p>
+<h2>V2 实时视觉预览</h2><div id="info">等待相机画面…</div><img src="/stream.mjpg"><p><small>绿色为桶框，橙色为测距区域。沿用值显示来源帧；预览不驱动设备。正式留存左右图请使用采集入口。</small></p>
 <script>let last=-1;async function tick(){try{let s=await(await fetch('/status',{cache:'no-store'})).json();
 document.getElementById('info').textContent=`帧 ${s.frame_id??0} · 检测 ${s.detected?'有桶':'未检出'} · 距离 ${s.distance_m==null?'无有效值':(s.distance_m*100).toFixed(1)+' cm'} · ${s.measurement_status??'等待'} · 来源帧 ${s.distance_source_frame??'—'} · 处理 ${s.processing_fps?.toFixed(2)??'—'} FPS · 画面延迟 ${s.frame_age_s?.toFixed(1)??'—'} s`;
-if(s.frame_id&&s.frame_id!==last){document.getElementById('video').src='/frame.jpg?n='+s.frame_id;last=s.frame_id;}}
+}
 catch(e){document.getElementById('info').textContent='预览连接已断开';}setTimeout(tick,250)}tick();</script>'''
 
 def main():
@@ -24,7 +24,8 @@ def main():
     import cv2, numpy as np
     from app.infrastructure import detector, ranging_service as ranging, camera_config as calib
     from diagnostics import range_audit
-    cv2.setNumThreads(1)
+    from bucket_decode import decode
+    cv2.setNumThreads(4)
     cfg=json.loads((ROOT/'conditions.json').read_text());model=json.loads((ROOT/'models.json').read_text())[0];mp=(ROOT/model['path']).resolve()
     assert sha(mp)==model['sha256'];os.environ['RKNN_MODEL_PATH']=str(mp);os.environ['RKNN_CORE_MASK']=cfg['core_mask']
     folder=ROOT/'logs'/a.id;folder.mkdir(parents=True,exist_ok=False)
@@ -41,7 +42,7 @@ def main():
         save(folder/'environment.json',receipt)
         return idx,cap,im
     service._open_camera_capture=checked_open
-    lock=threading.Lock();state={};image=[None];times=[];new_times=[];infer_ms=[];npu_ms=[];rows=[];pending={};last_sample=[None];last_roi=[None]
+    lock=threading.Condition();state={};image=[None];times=[];new_times=[];infer_ms=[];npu_ms=[];rows=[];pending={};last_sample=[None];last_roi=[None]
     logfile=(folder/'frames.jsonl').open('x',buffering=1)
     base=detector.RknnDetector;raw_infer=detector.infer;measure=service._calculate_distance_for_box
     def timed_raw(rknn,inp):
@@ -53,7 +54,11 @@ def main():
             super().__init__(model_path=str(mp));assert Path(self.model_path).resolve()==mp
             print('V2_MODEL_LOADED='+str(mp)+' SHA256='+sha(mp),flush=True)
         def infer(self,im):
-            start=time.perf_counter();answer=super().infer(im);infer_ms.append((time.perf_counter()-start)*1000);return answer
+            start = time.perf_counter()
+            inputs = detector.resize_image(im, detector.MODEL_SIZE, True)[None]
+            answer, _ = decode(detector, timed_raw(self.rknn, inputs))
+            infer_ms.append((time.perf_counter() - start) * 1000)
+            return answer
     def measured(*args):
         value=measure(*args);audit=range_audit(service,calib,*args);assert value==audit['value_m']
         pending.update(raw=value,attempt=audit);return value
@@ -78,13 +83,38 @@ def main():
             text=f"V2 {status} Z={event.distance_m if event.distance_m is not None else 'NA'} source_frame={row['distance_source_frame']}"
             cv2.putText(im,text,(10,26),0,.6,(0,0,0),3);cv2.putText(im,text,(10,26),0,.6,(255,255,255),1)
             if event.frame_id==1:assert cv2.imwrite(str(folder/'first_preview.jpg'),im)
-            with lock:state.update(row);image[0]=im
+            with lock:
+                state.update(row)
+                image[0] = im
+                lock.notify_all()
             pending.clear()
             if now-times[0]>=a.seconds:service.camera_active=False
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
+        def stream_frames(self):
+            self.send_response(200)
+            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=frame')
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            previous = 0
+            while service.camera_active:
+                with lock:
+                    ready = lock.wait_for(lambda: state.get('frame_id', 0) > previous, 1)
+                    if not ready:
+                        continue
+                    previous, frame = state['frame_id'], image[0]
+                ok, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if ok:
+                    header = f'--frame\r\nContent-Type: image/jpeg\r\nX-Frame-Id: {previous}\r\nContent-Length: {jpeg.size}\r\n\r\n'
+                    try:
+                        self.wfile.write(header.encode() + jpeg.tobytes() + b'\r\n')
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
+
         def do_GET(self):
             path=self.path.split('?')[0];ctype='text/html; charset=utf-8';code=200
+            if path == '/stream.mjpg':
+                return self.stream_frames()
             if path=='/':body=PAGE.encode()
             elif path=='/status':
                 with lock:data=dict(state)

@@ -14,21 +14,14 @@ def save(p, value):
     Path(p).write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
 
 
-def traced_detections(detector, raw, image_shape):
-    """Use unmodified app postprocessing and recover its original anchor identity."""
-    import numpy as np
-    boxes, classes, scores = detector.post_process(raw)
+def traced_detections(detector, decoded, anchors, image_shape):
+    boxes, classes, scores = decoded
     if boxes is None:
         return []
-    all_boxes = np.concatenate([detector.box_process(raw[i]).transpose(0, 2, 3, 1).reshape(-1, 4) for i in (0, 3, 6)])
-    all_scores = np.concatenate([raw[i].ravel() for i in (1, 4, 7)])
     pixel_boxes = detector.scale_boxes(image_shape, boxes)
     result = []
-    for b, s, c, pixels in zip(boxes, scores, classes, pixel_boxes):
-        ids = np.flatnonzero(all_scores == s)
-        errors = np.max(np.abs(all_boxes[ids] - b), axis=1)
-        anchor = int(ids[np.argmin(errors)])
-        assert float(errors.min()) < 1e-3, 'anchor recovery failed'
+    for b, s, c, pixels, anchor in zip(boxes, scores, classes, pixel_boxes, anchors):
+        anchor = int(anchor)
         stride, offset, width = (8, 0, 80) if anchor < 6400 else (16, 6400, 40) if anchor < 8000 else (32, 8000, 20)
         cell = anchor - offset
         left, top, right, bottom = map(int, pixels)

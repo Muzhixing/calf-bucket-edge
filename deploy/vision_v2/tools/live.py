@@ -1,6 +1,8 @@
 import argparse,importlib.metadata,json,os,platform,re,signal,sys,time
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from support import ROOT,sha,save,traced_detections
+from bucket_decode import decode
 from diagnostics import range_audit,overlay
 
 
@@ -18,7 +20,7 @@ def main():
     import cv2,numpy as np
     from app.infrastructure import detector,ranging_service as ranging,camera_config as calib
     assert Path(detector.__file__).resolve()==ROOT/'app/infrastructure/detector.py'
-    cv2.setNumThreads(1)
+    cv2.setNumThreads(4)
     cfg=json.loads((ROOT/'conditions.json').read_text());model=json.loads((ROOT/'models.json').read_text())[0];mp=(ROOT/model['path']).resolve()
     assert sha(mp)==model['sha256']
     os.environ['RKNN_MODEL_PATH']=str(mp);os.environ['RKNN_CORE_MASK']=cfg['core_mask']
@@ -66,15 +68,23 @@ def main():
       capture_status='RECORDING',device=service.camera_device,timestamp_kind='host monotonic read arrival; NOT exposure timestamp',
       start_wall_ns=time.time_ns(),stereo_sync='one SBS buffer; exposure sync and physical order need confirmation')
     if a.sequence is None:save(seq/'sequence.json',meta)
+    # Bound memory to the current frame. Publish its receipt only after all writes succeed.
+    writers = ThreadPoolExecutor(max_workers=3)
+    def write_sbs(path, image):
+        if not cv2.imwrite(str(path), image):
+            raise IOError(f'Failed to save {path}')
+        return sha(path), time.monotonic_ns()
+
     class Capture:
         def __init__(self,cap):self.cap=cap
         def read(self):
             before=time.monotonic_ns();ok,im=self.cap.read();after=time.monotonic_ns()
             assert ok and im is not None and im.shape==(720,2560,3),'camera read/size failure'
-            fid=len(capture_rows)+1;p=seq/'frames'/f'{fid-1:06d}.png';assert cv2.imwrite(str(p),im,[cv2.IMWRITE_PNG_COMPRESSION,1])
-            row=dict(frame_id=fid,path=str(p.relative_to(seq)),sha256=sha(p),read_start_ns=before,monotonic_ns=after,
-              wall_ns=time.time_ns(),left_timestamp_ns=after,right_timestamp_ns=after,same_sbs_buffer=True,save_done_ns=time.monotonic_ns())
-            capture_rows.append(row);capture_log.write(json.dumps(row)+'\n');current.update(input=row,sbs=im,trace=[],raw_distance=None,range_attempt=None)
+            fid=len(capture_rows)+1;p=seq/'frames'/f'{fid-1:06d}.png'
+            current['sbs_write'] = writers.submit(write_sbs, p, im)
+            row=dict(frame_id=fid,path=str(p.relative_to(seq)),read_start_ns=before,monotonic_ns=after,
+              wall_ns=time.time_ns(),left_timestamp_ns=after,right_timestamp_ns=after,same_sbs_buffer=True)
+            current.update(input=row,sbs=im,trace=[],raw_distance=None,range_attempt=None)
             return True,im
         def get(self,prop):return self.cap.get(prop)
         def release(self):self.cap.release()
@@ -96,9 +106,10 @@ def main():
             inferences[0]+=1
             raw=detector.infer(self.rknn,detector.resize_image(im,detector.MODEL_SIZE,True)[None])
             assert len(raw)==9 and all(list(v.shape)==e['shape'] for v,e in zip(raw,model['expected_outputs']))
-            np.savez_compressed(folder/'raw'/f"{current['input']['frame_id']:06d}.npz",**{f'output_{i}':v for i,v in enumerate(raw)})
-            current['trace']=traced_detections(detector,raw,im.shape)
-            return detector.post_process(raw)
+            current['tensor_write'] = writers.submit(np.savez_compressed, folder/'raw'/f"{current['input']['frame_id']:06d}.npz",**{f'output_{i}':v for i,v in enumerate(raw)})
+            decoded, anchors = decode(detector, raw)
+            current['trace'] = traced_detections(detector, decoded, anchors, im.shape)
+            return decoded
     orig_measure=service._calculate_distance_for_box
     def measure(*args):
         value=orig_measure(*args);audit=range_audit(service,calib,*args)
@@ -111,6 +122,11 @@ def main():
     class Sink:
         def publish(self,event):
             fid=current['input']['frame_id'];assert event.frame_id==fid
+            if capture_log is not None:
+                source = current['input']
+                source['sha256'], source['save_done_ns'] = current['sbs_write'].result()
+                capture_rows.append(source)
+                capture_log.write(json.dumps(source) + '\n')
             trace=current['trace'];s=max(trace,key=lambda d:d['score']) if trace else None;md=service.latest_metadata;z=event.distance_m
             status='new' if current['raw_distance'] is not None else 'held' if md['distance_held'] else 'invalid'
             attempted=current['range_attempt'] is not None
@@ -123,10 +139,13 @@ def main():
               center_x_px=s['center_x'] if s else None,center_y_px=(s['top']+s['bottom'])/2 if s else None,
               centered=abs(s['center_x']-640)<=51.2 if s else None,close_enough=z<=.5 if z is not None else None,
               rectified_left=f'rectified_left/{fid:06d}.png',real_actuation=False)
-            assert cv2.imwrite(str(folder/row['rectified_left']),event.left_frame)
+            left_write = writers.submit(cv2.imwrite, str(folder/row['rectified_left']), event.left_frame)
             right=cv2.remap(current['sbs'][:,1280:],calib.right_map1,calib.right_map2,cv2.INTER_LINEAR)
-            assert cv2.imwrite(str(folder/'rectified_right'/f'{fid:06d}.png'),right)
+            right_write = writers.submit(cv2.imwrite, str(folder/'rectified_right'/f'{fid:06d}.png'), right)
             assert cv2.imwrite(str(folder/'overlays'/f'{fid:06d}.jpg'),overlay(event.left_frame,row))
+            current['tensor_write'].result()
+            if not left_write.result() or not right_write.result():
+                raise IOError('Could not save rectified pair')
             result_rows.append(row);result_log.write(json.dumps(row,allow_nan=False)+'\n')
             print(f"profile={a.calibration_profile} frame={fid} detected={s is not None} box_cx={row['center_x_px']} Z={z} status={status} source={row['distance_source']} reason={row['measurement_reason']}",flush=True)
             if a.sequence is not None and fid>=len(source_rows):
@@ -163,6 +182,7 @@ def main():
     finally:
         service.camera_active=False
         if service.cap is not None:service.cap.release()
+        writers.shutdown(wait=True)
         detector.RknnDetector=base
         if capture_log is not None:capture_log.close()
         result_log.close()
