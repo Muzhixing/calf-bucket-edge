@@ -34,6 +34,10 @@ def main():
     params=dict(cfg['ranging']);params.update(cache_display_frame=False,enable_display=False,render_on_device=False)
     params['camera_device']=str(Path(params['camera_device']).resolve(strict=True))
     service=ranging.RangingService(**params)
+    from guidance import VisionGuidance
+    guidance = VisionGuidance(a.id, cfg['controller']['center_tolerance'],
+                              cfg['reference_contract']['vertical_tolerance_fraction_of_half_height'],
+                              calib.P1[0, 0], calib.P1[1, 1])
     original_open=service._open_camera_capture
     def checked_open():
         idx,cap,im=original_open()
@@ -95,6 +99,9 @@ def main():
                            attempt_reason=details.get('attempt_reason'))
                 if status=='invalid' and not row['attempt_reason']:
                     row['attempt_reason']='waiting_for_depth' if event.detected else 'no_detected_bucket'
+            height, width = event.left_frame.shape[:2]
+            guide = guidance.update(row, width, height)
+            row['guidance'] = guide
             if not first_row:
                 first_row.update(row)
             counts[status] += 1
@@ -105,11 +112,18 @@ def main():
                     fresh_age_ms.append(row['distance_age_ms'])
             logfile.write(json.dumps(row,allow_nan=False)+'\n')
             im=event.left_frame.copy()
+            center = (width // 2, height // 2)
+            cv2.drawMarker(im, center, (32, 32, 32), cv2.MARKER_CROSS, 23, 4)
+            cv2.drawMarker(im, center, (255, 255, 255), cv2.MARKER_CROSS, 23, 2)
             if event.detected and selected:
                 corner = (selected['left'], selected['top'])
                 opposite = (selected['right'], selected['bottom'])
                 cv2.rectangle(im, corner, opposite, (24, 44, 34), 4)
-                cv2.rectangle(im, corner, opposite, (138, 236, 90), 2)
+                color = (138, 236, 90) if guide['aligned_xy'] else (76, 193, 252)
+                cv2.rectangle(im, corner, opposite, color, 2)
+                target = tuple(round(v) for v in guide['target_center_px'])
+                cv2.line(im, center, target, color, 1, cv2.LINE_AA)
+                cv2.circle(im, target, 4, color, -1, cv2.LINE_AA)
             if event.frame_id==1:assert cv2.imwrite(str(folder/'first_preview.jpg'),im)
             with lock:
                 state.update(row)

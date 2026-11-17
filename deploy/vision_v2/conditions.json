@@ -79,6 +79,7 @@
     "operation_position": "coarse body-relative range; nozzle above bucket opening; precise mouth centre deferred",
     "system_range": "f_rect * norm(T)/median(disparity), rectified forward Z in m; not slant",
     "center_target_px": 640,
+    "vertical_tolerance_fraction_of_half_height": 0.08,
     "center_tolerance_px": 51.2,
     "close_boundary_m": 0.5,
     "calibration_identity": "selected V2 dual-radial calibration; physical left/right confirmed; single-pose coarse range accepted by user",

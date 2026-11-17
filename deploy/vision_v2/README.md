@@ -37,6 +37,22 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 -u tools/live_viewer.py --id li
 
 全分辨率下申请三核 `--cores 0_1_2` 实测收图 30.02 FPS、新测 2.97 Hz，默认使用 AUTO。每次预览在板端 `logs/<运行编号>/` 保存 `environment.json`、逐帧 `frames.jsonl` 和结束汇总 `completion.json`。完整留存左右图、张量使用采集入口，前次 14 帧实测 4.98 FPS。采集并行编码同一帧的文件，写入成功后才发布该帧记录。原始双目 PNG 采用默认无损编码，本次每帧约 1.23 MB。
 
+## 两轴对齐与投喂预演
+
+白色十字为校正左目画面中心 (640, 360)，圆点为当前整桶检测框的中点。橙框表示仍需调整，绿框表示左右、上下均在容差内。左右容差沿用 `controller.center_tolerance`，上下容差由 `reference_contract.vertical_tolerance_fraction_of_half_height` 配置。当前各取对应半幅的 0.08，即横向 ±51.2 px、纵向 ±28.8 px，含边界。纵向数值为初始联调值。
+
+在运行预览的电脑或板上读取 `curl -s http://127.0.0.1:8788/status`。同一份 `guidance` 随每帧写入 `logs/<运行编号>/frames.jsonl`。
+
+| 字段 | 对接含义 |
+| --- | --- |
+| `guidance.offset_px` | 桶框中心减画面中心的 [dx, dy]，右、下为正。目标丢失时为 null。 |
+| `guidance.estimated_offset_mm` | 按当前有效桶身深度估算的横、纵偏移，依次为 dx × Z / fx、dy × Z / fy，Z 用毫米，焦距来自校正投影矩阵 P1。相同深度平面内以画面中心射线为基准；距离无效时为 null。 |
+| `guidance.state` | `no_target` 未检出，`adjust` 至少一轴超差，`aligned_wait_depth` 两轴已对齐并等待本次对齐后的新测距，`ready_dry_run` 具备视觉预演条件。 |
+| `guidance.reference_depth_mm` | 就绪时的桶身前向深度，单位 mm，供后续计算伸长量。其余状态为 null。 |
+| `guidance.cycle_id`、`guidance.feed_preview_started` | 每次连续对齐使用同一个周期编号，首次收到来源帧也在本次连续对齐期间的新深度时，仅一帧标记 true。轮询端按周期编号去重；离开容差、丢失或更换目标后重新判定。 |
+
+同步消费同一条记录的 `frame_id`、`measurement_status`、`distance_source_frame` 和 `guidance`。实时轮询端同时检查 `frame_age_s`、帧号是否继续推进及距离的新旧，沿用值供显示。视觉周期用于预演，实际一次投喂任务仍由控制器管理启动、完成回执和重复执行。前向参考深度以相机为起点，出水口的零位、轴向、桶前壁到投放点偏移以及可用行程须在装配后实测，再换算电机方向和伸长量。
+
 ## 桶身距离采集
 
 相机固定，桶完整可见即可，暂不要求精确桶口中心。量尺起点D为左镜头外壳前沿，终点B为朝向相机的桶前壁实体表面；水平量尺读数与相机前向深度分开记录。0.85是以下命令的填写示例，须替换为实际米数：

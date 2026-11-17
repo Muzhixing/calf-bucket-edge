@@ -19,6 +19,7 @@ small { font-size: 16px; color: #bdcbc6; }
 #state::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; background: currentColor; border-radius: 50%; }
 main[data-tone="ok"] #state { color: #73e7b2; }
 main[data-tone="wait"] #state { color: #f2c073; }
+#offset { margin-top: 4px; color: #e3ebe7; font-size: 14px; font-variant-numeric: tabular-nums; }
 .rates { gap: 18px; font-variant-numeric: tabular-nums; font-size: 13px; color: #bdcbc6; }
 .rates span { white-space: nowrap; }
 .rates b { font-weight: 550; color: #f3f8f6; }
@@ -26,7 +27,8 @@ main[data-tone="wait"] #state { color: #f2c073; }
 main.offline #feed { visibility: hidden; }
 @media (max-width: 540px) {
   main { padding-top: 12px; }
-  .reading { gap: 12px; }
+  .reading { gap: 10px; }
+  #offset { font-size: 12px; }
   .rates { flex-direction: column; align-items: end; gap: 4px; font-size: 12px; }
 }
 </style>
@@ -36,7 +38,7 @@ main.offline #feed { visibility: hidden; }
 <header>
   <div class="reading">
     <div><h1>桶身距离</h1><span class="value" id="distance">—</span> <small>cm</small></div>
-    <span id="state" role="status">等待画面</span>
+    <div><span id="state" role="status">等待画面</span><div id="offset"></div></div>
   </div>
   <div class="rates"><span>画面 <b id="fps">—</b> FPS</span><span>测距 <b id="hz">—</b> Hz</span></div>
 </header>
@@ -49,7 +51,8 @@ let lastSource = null, sourceSeenAt = 0;
 function show(data) {
   const offline = !data || data.frame_age_s > 1.5;
   const active = !offline && Boolean(data.frame_id);
-  const valid = active && data.detected && Number.isFinite(data.distance_m);
+  const valid = active && data.detected && Number.isFinite(data.distance_m) &&
+                (!data.guidance || data.guidance.estimated_offset_mm !== null);
   const now = performance.now();
   if (!valid || data.distance_source_frame !== lastSource) sourceSeenAt = now;
   lastSource = valid ? data.distance_source_frame : null;
@@ -61,6 +64,20 @@ function show(data) {
   else if (active && !valid) { state = '已检出桶 · 暂无距离'; tone = 'wait'; }
   else if (held) { state = '沿用上次距离'; tone = 'wait'; }
   else if (valid) { state = '已检出桶'; tone = 'ok'; }
+  const guide = active && data.guidance;
+  let offset = '';
+  if (guide && guide.offset_px) {
+    const [dx, dy] = guide.offset_px;
+    const axis = (v, negative, positive, zero) => v === 0 ? zero : (v < 0 ? negative : positive) + Math.abs(v);
+    const metric = guide.estimated_offset_mm;
+    const amount = (v, i, neg, pos, zero) => axis(v, neg, pos, zero) + ' px' +
+        (metric ? '（约 ' + Math.round(Math.abs(metric[i])) + ' mm）' : '');
+    offset = amount(dx, 0, '左 ', '右 ', '水平 0') + ' · ' + amount(dy, 1, '上 ', '下 ', '垂直 0');
+    if (!guide.aligned_xy) { state = '待对齐'; tone = 'wait'; }
+    else if (guide.state === 'aligned_wait_depth') { state = '已对齐 · 等待新测距'; tone = 'wait'; }
+    else if (!held) { state = '已对齐 · 投喂预演就绪'; tone = 'ok'; }
+  }
+  el('offset').textContent = offset;
   monitor.classList.toggle('offline', offline);
   monitor.dataset.tone = tone;
   el('state').textContent = state;

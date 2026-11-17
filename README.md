@@ -14,6 +14,8 @@ cd deploy/vision_v2
 
 实时预览默认使用快速双目测距。固定机位单桶实测 45 秒，电脑收图 30.01 FPS，桶身新距离更新 9.92 次/秒。运行 `./view_live.sh --depth-scale 1` 可切换到全分辨率双目，实测收图 30.02 FPS、新距离更新 2.98 次/秒。
 
+预览页以画面中心的白色十字为基准，显示桶框中心的左右、上下偏差。两轴对齐并取得新距离后，板端生成带周期编号的投喂预演结果，后续控制器可从 `/status` 的 `guidance` 字段读取。
+
 - [视觉部署、测距及启动说明](deploy/vision_v2/README.md)
 - [完整应用结构](docs/runtime.md)
 - [应用接口](docs/interfaces/api-rules.md)

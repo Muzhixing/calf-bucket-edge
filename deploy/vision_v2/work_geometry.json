@@ -3,7 +3,7 @@
   "work_part": "water_outlet",
   "mounting": "beside the camera; moved by telescopic arm",
   "operation": "outlet moves above bucket opening to deliver water",
-  "current_phase": "body_relative_range_only",
+  "current_phase": "image_xy_alignment_and_body_depth_dry_run",
   "precise_mouth_center_required": false,
   "eventual_arrival_target": "outlet vertical projection lies inside bucket opening, with outlet above rim",
   "nozzle_retracted_forward_offset_m": null,

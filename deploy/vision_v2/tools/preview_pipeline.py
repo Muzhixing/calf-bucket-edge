@@ -12,6 +12,7 @@ import numpy as np
 from app.domain.events import RangingUpdateEvent
 from app.infrastructure import camera_config as calib, detector
 from diagnostics import range_audit
+from guidance import same_target
 
 
 class Latest:
@@ -101,16 +102,6 @@ def detect(image, model):
         for (x1, y1, x2, y2), cls, score in
         zip(detector.scale_boxes(image.shape, boxes), classes, scores)
     ]
-
-
-def same_target(a, b):
-    if a is None or b is None:
-        return False
-    x1, y1, x2, y2 = a
-    u1, v1, u2, v2 = b
-    overlap = max(0, min(x2, u2) - max(x1, u1)) * max(0, min(y2, v2) - max(y1, v1))
-    union = (x2-x1)*(y2-y1) + (u2-u1)*(v2-v1) - overlap
-    return union > 0 and overlap / union >= 0.5
 
 
 def crop(frame, roi):

@@ -1,8 +1,9 @@
 {
   "tools/bucket_decode.py": "f59d05a282305cfce2dd2b9da5321992582d630de76f6a8bb2785cde3e70f80b",
-  "tools/live_viewer.py": "7be0138530904cd1d4c97d6c1f64ec627244c37497b5a245c3933d072a43268b",
-  "tools/preview.html": "3fb762b982db146b8a81de10b3f142b2b1b353ed16b9906fa99158e20f8813d1",
-  "tools/preview_pipeline.py": "d22b2bc76e2d30a5760fdebc449b71275a0b66d56d7b2d4bff569535683b5e61",
+  "tools/guidance.py": "1bf0e982b376de64f76b83019006fda01e63c4bf512668ecc1a7743f6550cec2",
+  "tools/live_viewer.py": "4cbd9ff98f9d0364b0e7c9a0ca23d780a2b61af00d545b4a2c2fdea4b98e3889",
+  "tools/preview.html": "c4e69340e0c1f481cc8e1141d3e963727d0ddc446157495308319a72edc55eb9",
+  "tools/preview_pipeline.py": "8625d09b33c4fd8e69adfaea1f72fcb938c4ec9b25c5cb4f08706788c2b4573e",
   "tools/viewer_entry.py": "5e866cfd3f0a797991995230f9f1fdf4e54cd98d077ebba9ba4ad84081f264b3",
   "view_live.sh": "4252cafefeb9346c60198df6d1e8d32c413d22f54e65d1d47927a044b2f4b262"
 }
