@@ -5,14 +5,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from support import ROOT, save, sha
 
-PAGE='''<!doctype html><meta charset="utf-8"><title>V2 实时视觉</title>
-<style>body{background:#152024;color:#edf2f4;font:18px sans-serif;margin:24px}img{max-width:100%;width:1280px}#info{padding:14px 0}small{color:#b9c8cc}</style>
-<h2>V2 实时视觉预览</h2><div id="info">等待相机画面…</div><img src="/stream.mjpg"><p><small>绿色为桶框，橙色为测距区域。沿用值显示来源帧；预览不驱动设备。正式留存左右图请使用采集入口。</small></p>
-<script>let last=-1;async function tick(){try{let s=await(await fetch('/status',{cache:'no-store'})).json();
-document.getElementById('info').textContent=`帧 ${s.frame_id??0} · 检测 ${s.detected?'有桶':'未检出'} · 距离 ${s.distance_m==null?'无有效值':(s.distance_m*100).toFixed(1)+' cm'} · ${s.measurement_status??'等待'} · 来源帧 ${s.distance_source_frame??'—'} · 处理 ${s.processing_fps?.toFixed(2)??'—'} FPS · 近 3 秒新测 ${s.fresh_distance_hz?.toFixed(1)??'—'} Hz · 双目 ${s.depth_scale===0.5?'半分辨率':'全分辨率'} · 取帧至检测 ${s.capture_to_detection_ms?.toFixed(0)??'—'} ms · 距离样本年龄 ${s.distance_age_ms?.toFixed(0)??'—'} ms · 距上次发布 ${s.frame_age_s?.toFixed(1)??'—'} s`;
-}
-catch(e){document.getElementById('info').textContent='预览连接已断开';}setTimeout(tick,250)}tick();</script>'''
-
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--port',type=int,default=8788);ap.add_argument('--seconds',type=float,default=3600);ap.add_argument('--id',required=True);ap.add_argument('--mode', choices=['async','sync'], default='async')
     ap.add_argument('--cores', choices=['auto','0_1_2'], default='auto')
@@ -28,6 +20,7 @@ def main():
     from verify import verify
     verify()
     for p,h in json.loads((ROOT/'config/viewer_tool_hashes.json').read_text()).items():assert sha(ROOT/p)==h
+    page=(ROOT/'tools/preview.html').read_bytes()
     os.environ['BUCKET_CALIBRATION_PROFILE']='v2_radial2';sys.path.insert(0,str(ROOT))
     import cv2, numpy as np
     from app.infrastructure import detector, ranging_service as ranging, camera_config as calib
@@ -50,7 +43,7 @@ def main():
         save(folder/'environment.json',receipt)
         return idx,cap,im
     service._open_camera_capture=checked_open
-    lock=threading.Condition();state={};image=[None];times=array('d');new_times=array('d');infer_ms=array('d');npu_ms=array('d');pending={};last_sample=[None];last_roi=[None]
+    lock=threading.Condition();state={};image=[None];times=array('d');new_times=array('d');infer_ms=array('d');npu_ms=array('d');pending={};last_sample=[None]
     recent_depth = collections.deque()
     counts = collections.Counter()
     capture_ms, fresh_age_ms = array('d'), array('d')
@@ -87,8 +80,6 @@ def main():
                 recent_depth.append(now)
             while recent_depth and recent_depth[0] <= now-3:
                 recent_depth.popleft()
-            if event.distance_m is None:last_roi[0]=None
-            if fresh and pending.get('attempt'):last_roi[0]=dict(frame_id=last_sample[0],audit=pending['attempt'])
             recent=times[-30:];fps=(len(recent)-1)/(recent[-1]-recent[0]) if len(recent)>1 else None
             selected=max(event.detections,key=lambda x:x['score']) if event.detections else None
             row=dict(frame_id=event.frame_id,monotonic_s=now,detected=event.detected,selected=selected,distance_m=event.distance_m,
@@ -114,12 +105,11 @@ def main():
                     fresh_age_ms.append(row['distance_age_ms'])
             logfile.write(json.dumps(row,allow_nan=False)+'\n')
             im=event.left_frame.copy()
-            for s in event.detections:cv2.rectangle(im,(s['left'],s['top']),(s['right'],s['bottom']),(0,220,0),2)
-            if last_roi[0]:
-                for q in last_roi[0]['audit']['attempts']:
-                    x1,y1,x2,y2=q['sample_xyxy'];cv2.rectangle(im,(x1,y1),(x2,y2),(0,170,255),1)
-            text=f"V2 {status} Z={event.distance_m if event.distance_m is not None else 'NA'} source_frame={row['distance_source_frame']}"
-            cv2.putText(im,text,(10,26),0,.6,(0,0,0),3);cv2.putText(im,text,(10,26),0,.6,(255,255,255),1)
+            if event.detected and selected:
+                corner = (selected['left'], selected['top'])
+                opposite = (selected['right'], selected['bottom'])
+                cv2.rectangle(im, corner, opposite, (24, 44, 34), 4)
+                cv2.rectangle(im, corner, opposite, (138, 236, 90), 2)
             if event.frame_id==1:assert cv2.imwrite(str(folder/'first_preview.jpg'),im)
             with lock:
                 state.update(row)
@@ -153,7 +143,7 @@ def main():
             path=self.path.split('?')[0];ctype='text/html; charset=utf-8';code=200
             if path == '/stream.mjpg':
                 return self.stream_frames()
-            if path=='/':body=PAGE.encode()
+            if path=='/':body=page
             elif path=='/status':
                 with lock:data=dict(state)
                 data['frame_age_s']=time.monotonic()-data['monotonic_s'] if data else None

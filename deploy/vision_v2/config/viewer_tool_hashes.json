@@ -1,6 +1,7 @@
 {
   "tools/bucket_decode.py": "f59d05a282305cfce2dd2b9da5321992582d630de76f6a8bb2785cde3e70f80b",
-  "tools/live_viewer.py": "6e61974310cb7d9176d3b2723d187accc7d70053c309b06d492124db27e88ae6",
+  "tools/live_viewer.py": "7be0138530904cd1d4c97d6c1f64ec627244c37497b5a245c3933d072a43268b",
+  "tools/preview.html": "3fb762b982db146b8a81de10b3f142b2b1b353ed16b9906fa99158e20f8813d1",
   "tools/preview_pipeline.py": "d22b2bc76e2d30a5760fdebc449b71275a0b66d56d7b2d4bff569535683b5e61",
   "tools/viewer_entry.py": "5e866cfd3f0a797991995230f9f1fdf4e54cd98d077ebba9ba4ad84081f264b3",
   "view_live.sh": "4252cafefeb9346c60198df6d1e8d32c413d22f54e65d1d47927a044b2f4b262"
