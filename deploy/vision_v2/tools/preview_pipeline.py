@@ -87,7 +87,7 @@ class CameraStages:
                     tail = pool.submit(remap_rows, raw_left, left, split, left.shape[0])
                     remap_rows(raw_left, left, 0, split)
                     tail.result()
-                    self.rectified.put((seq, arrival, crop(image, self.right_roi), left))
+                    self.rectified.put((seq, arrival, raw_left, crop(image, self.right_roi), left))
         except Exception as exc:
             self.rectified.fail(exc)
 
@@ -114,7 +114,8 @@ def stereo_images(buffer):
 
 
 class StereoWorker:
-    def __init__(self, buffer, params, scale):
+    def __init__(self, buffer, params, scale, display):
+        self.display = display
         from app.infrastructure.ranging_service import RangingService
         self.images = stereo_images(buffer)
         self.service = RangingService(**params)
@@ -136,10 +137,14 @@ class StereoWorker:
         z = self.service._calculate_distance_for_box(disparity, *box)
         audit = range_audit(self.service, calib, disparity, *box)
         assert audit['value_m'] == z
-        return z, audit
+        thumb = None
+        if self.display and z is not None:
+            small = cv2.resize(disparity, (336,189), interpolation=cv2.INTER_NEAREST)
+            thumb = np.clip(small * (255/self.service.sgbm_num_disparities), 0, 255).astype(np.uint8)
+        return z, audit, thumb
 
 
-def start_stereo(buffer, params, scale):
+def start_stereo(buffer, params, scale, display):
     global stereo_worker
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
@@ -150,14 +155,14 @@ def start_stereo(buffer, params, scale):
         except ProcessLookupError:
             pass  # An OpenCV startup thread already exited.
     cv2.setNumThreads(3)
-    stereo_worker = StereoWorker(buffer, params, scale)
+    stereo_worker = StereoWorker(buffer, params, scale, display)
 
 
 def measure_shared(box):
     return stereo_worker.measure(box)
 
 
-def run(service, publish, params, scale):
+def run(service, publish, params, scale, display=False):
     # Keep the full-resolution rectifier on its own Cortex-A76.
     assert service.disparity_mode == 'full'
     cv2.setNumThreads(1)
@@ -176,11 +181,11 @@ def run(service, publish, params, scale):
         camera.rectifier.start()
         try:
             with ProcessPoolExecutor(max_workers=1, mp_context=ctx, initializer=start_stereo,
-                                     initargs=(buffer, params, scale)) as pool:
+                                     initargs=(buffer, params, scale, display)) as pool:
                 seq = frame_id = epoch = 0
                 previous = accepted = value = job = None
                 while service.camera_active:
-                    seq, arrival, right, left = camera.rectified.after(seq)
+                    seq, arrival, raw_left, right, left = camera.rectified.after(seq)
                     frame_id += 1
                     detections = detect(left, model)
                     best = max(detections, key=lambda item: item['score'], default=None)
@@ -197,7 +202,7 @@ def run(service, publish, params, scale):
                         accepted = value = None
                     details = dict(camera_seq=seq, capture_monotonic_s=arrival)
                     if job and job.done():
-                        raw, audit = job.result()
+                        raw, audit, thumb = job.result()
                         job = None
                         details['attempt_frame'] = source['id']
                         if (epoch == source['epoch'] and same_target(box, source['box'])
@@ -208,6 +213,9 @@ def run(service, publish, params, scale):
                             if raw is not None:
                                 value = raw if value is None else service.smooth_alpha * raw + (1-service.smooth_alpha) * value
                                 accepted = source
+                                if display:
+                                    accepted['disparity'] = thumb
+                                    accepted['roi'] = audit['attempts'][-1]['sample_xyxy']
                         else:
                             details.update(discarded_attempt=True, attempt_reason='target_changed_or_expired')
                     if box and job is None:
@@ -219,6 +227,9 @@ def run(service, publish, params, scale):
                     if accepted:
                         details.update(source_frame=accepted['id'], source_time=accepted['time'],
                                        source_camera_seq=accepted['camera_seq'])
+                    if display:
+                        details['display_views'] = (raw_left, right,
+                            accepted['disparity'] if accepted else None, accepted['roi'] if accepted else None)
                     service.latest_metadata = dict(distance_source=f'full@{scale:g}' if accepted else 'none',
                                                    distance_held=value is not None and details.get('raw') is None,
                                                    profile_ms={})

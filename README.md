@@ -16,6 +16,8 @@ cd deploy/vision_v2
 
 预览页以画面中心的白色十字为基准，显示桶框中心的左右、上下偏差。两轴对齐并取得新距离后，板端生成带周期编号的投喂预演结果，后续控制器可从 `/status` 的 `guidance` 字段读取。
 
+板端外接 HDMI 也可直接显示同一视觉管线：在板端 `/home/elf/deploy/vision_v2` 运行 `./view_hdmi.sh`。桌面临时切换与恢复命令见下方部署说明。
+
 - [视觉部署、测距及启动说明](deploy/vision_v2/README.md)
 - [完整应用结构](docs/runtime.md)
 - [应用接口](docs/interfaces/api-rules.md)

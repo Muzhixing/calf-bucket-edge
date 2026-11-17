@@ -1,4 +1,4 @@
-"""Local HTTP preview of the frozen V2 vision modules, without controller imports."""
+"""Local HDMI or HTTP preview of the frozen V2 vision modules, without controller imports."""
 import argparse, collections, json, os, platform, signal, statistics, sys, threading, time
 from array import array
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -9,7 +9,10 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('--port',type=int,default=8788);ap.add_argument('--seconds',type=float,default=3600);ap.add_argument('--id',required=True);ap.add_argument('--mode', choices=['async','sync'], default='async')
     ap.add_argument('--cores', choices=['auto','0_1_2'], default='auto')
     ap.add_argument('--depth-scale', type=float, choices=[1.0,0.5], help='async default: 0.5 (fast); 1.0: full resolution')
+    ap.add_argument('--hdmi', action='store_true', help='Direct HDMI-A-1 KMS display, no HTTP listener')
     a=ap.parse_args()
+    if a.hdmi and a.mode != 'async':
+        ap.error('HDMI uses the asynchronous stereo pipeline')
     if a.depth_scale is None:
         a.depth_scale = 1.0 if a.mode == 'sync' else 0.5
     if a.mode == 'sync' and a.depth_scale != 1:
@@ -20,7 +23,7 @@ def main():
     from verify import verify
     verify()
     for p,h in json.loads((ROOT/'config/viewer_tool_hashes.json').read_text()).items():assert sha(ROOT/p)==h
-    page=(ROOT/'tools/preview.html').read_bytes()
+    page=None if a.hdmi else (ROOT/'tools/preview.html').read_bytes()
     os.environ['BUCKET_CALIBRATION_PROFILE']='v2_radial2';sys.path.insert(0,str(ROOT))
     import cv2, numpy as np
     from app.infrastructure import detector, ranging_service as ranging, camera_config as calib
@@ -125,10 +128,13 @@ def main():
                 cv2.line(im, center, target, color, 1, cv2.LINE_AA)
                 cv2.circle(im, target, 4, color, -1, cv2.LINE_AA)
             if event.frame_id==1:assert cv2.imwrite(str(folder/'first_preview.jpg'),im)
+            if display:
+                display.offer(row, im, details['display_views'])
             with lock:
                 state.update(row)
-                image[0] = im
-                lock.notify_all()
+                if not display:
+                    image[0] = im
+                    lock.notify_all()
             pending.clear()
             if now-times[0]>=a.seconds:service.camera_active=False
     class Handler(BaseHTTPRequestHandler):
@@ -172,8 +178,13 @@ def main():
             try:self.wfile.write(body)
             except (BrokenPipeError,ConnectionResetError):pass
     # Bind before touching the camera, so an occupied port cannot strand a capture.
-    server=ThreadingHTTPServer(('127.0.0.1',a.port),Handler)
-    threading.Thread(target=server.serve_forever,daemon=True).start()
+    server = display = None
+    if a.hdmi:
+        from hdmi_display import HdmiDisplay
+        display = HdmiDisplay(folder, mp.stem, calib.CALIBRATION_PROFILE)
+    else:
+        server=ThreadingHTTPServer(('127.0.0.1',a.port),Handler)
+        threading.Thread(target=server.serve_forever,daemon=True).start()
     service.event_bus=Sink();service._calculate_distance_for_box=measured;detector.infer=timed_raw;detector.RknnDetector=ExplicitDetector
     signal.signal(signal.SIGINT,lambda *_:setattr(service,'camera_active',False));signal.signal(signal.SIGTERM,lambda *_:setattr(service,'camera_active',False))
     signal.signal(signal.SIGHUP,lambda *_:setattr(service,'camera_active',False))
@@ -186,12 +197,16 @@ def main():
             wls_enabled=params['use_wls'] and a.depth_scale == 1 and
                         hasattr(getattr(cv2,'ximgproc',None),'createRightMatcher'),
             association_iou=0.5, clear_on_detection_loss=True)
-    save(folder/'environment.json',receipt);print(f'PREVIEW_HTTP http://127.0.0.1:{a.port}/ SERIAL=ABSENT',flush=True)
+    receipt['output'] = 'HDMI-A-1' if display else 'HTTP'
+    if display:
+        receipt['kms_connector_id'] = display.connector
+    save(folder/'environment.json',receipt)
+    print('PREVIEW_HDMI HDMI-A-1' if display else f'PREVIEW_HTTP http://127.0.0.1:{a.port}/', flush=True)
     service.camera_active=True;success=False
     try:
         if a.mode == 'async':
             from preview_pipeline import run
-            run(service, service.event_bus.publish, params, a.depth_scale)
+            run(service, service.event_bus.publish, params, a.depth_scale, display=a.hdmi)
         else:
             service._camera_loop()
         assert times and len(times)==len(infer_ms)==len(npu_ms)
@@ -200,7 +215,20 @@ def main():
     finally:
         service.camera_active=False
         if service.cap is not None:service.cap.release()
-        server.shutdown();server.server_close();logfile.close();detector.infer=raw_infer;detector.RknnDetector=base
+        if server:
+            server.shutdown()
+            server.server_close()
+        logfile.close()
+        detector.infer=raw_infer
+        detector.RknnDetector=base
+        display_stats = None
+        display_error = None
+        if display:
+            try:
+                display_stats = display.close()
+            except Exception as exc:
+                success = False
+                display_error = exc
         duration=times[-1]-times[0] if len(times)>1 else None
         report=dict(passed=success,frames=len(times),detected=counts['detected'],measurement_states={s:counts[s] for s in ['new','held','invalid']},
             processing_fps=(len(times)-1)/duration if duration else None,npu_call_mean_ms=statistics.mean(npu_ms) if npu_ms else None,
@@ -214,5 +242,11 @@ def main():
             for field, samples in [('capture_to_detection_ms',capture_ms), ('distance_age_ms',fresh_age_ms)]:
                 if samples:
                     report[field+'_p50_p95'] = np.percentile(samples,[50,95]).tolist()
+        if display:
+            report['hdmi'] = display_stats
+            if display_error:
+                report['hdmi_error'] = str(display_error)
         save(folder/'completion.json',report);print('PREVIEW_STOPPED',json.dumps(report),flush=True)
+        if display_error:
+            raise display_error
 if __name__=='__main__':main()

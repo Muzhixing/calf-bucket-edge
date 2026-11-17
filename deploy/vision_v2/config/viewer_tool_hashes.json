@@ -1,9 +1,11 @@
 {
   "tools/bucket_decode.py": "f59d05a282305cfce2dd2b9da5321992582d630de76f6a8bb2785cde3e70f80b",
   "tools/guidance.py": "1bf0e982b376de64f76b83019006fda01e63c4bf512668ecc1a7743f6550cec2",
-  "tools/live_viewer.py": "4cbd9ff98f9d0364b0e7c9a0ca23d780a2b61af00d545b4a2c2fdea4b98e3889",
+  "tools/hdmi_display.py": "97d595eeab39e3f8fa64117df04255bc99a5d0a6cbfae8061143b22d1429f39f",
+  "tools/live_viewer.py": "139773dcfb6de21bf583856dc0fd822adc7714009871f9dd1ce15a6db45e5102",
   "tools/preview.html": "c4e69340e0c1f481cc8e1141d3e963727d0ddc446157495308319a72edc55eb9",
-  "tools/preview_pipeline.py": "8625d09b33c4fd8e69adfaea1f72fcb938c4ec9b25c5cb4f08706788c2b4573e",
+  "tools/preview_pipeline.py": "93b7c7058be40c77c7503c99b931fd9444be59a49a573d92216df7368d665a17",
   "tools/viewer_entry.py": "5e866cfd3f0a797991995230f9f1fdf4e54cd98d077ebba9ba4ad84081f264b3",
+  "view_hdmi.sh": "fc6d90d551c05f2df4a98332ec170078b64ae9c92a9b8c61d97b5105f8b9ebd1",
   "view_live.sh": "4252cafefeb9346c60198df6d1e8d32c413d22f54e65d1d47927a044b2f4b262"
 }

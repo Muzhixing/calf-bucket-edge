@@ -37,6 +37,30 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 -u tools/live_viewer.py --id li
 
 全分辨率下申请三核 `--cores 0_1_2` 实测收图 30.02 FPS、新测 2.97 Hz，默认使用 AUTO。每次预览在板端 `logs/<运行编号>/` 保存 `environment.json`、逐帧 `frames.jsonl` 和结束汇总 `completion.json`。完整留存左右图、张量使用采集入口，前次 14 帧实测 4.98 FPS。采集并行编码同一帧的文件，写入成功后才发布该帧记录。原始双目 PNG 采用默认无损编码，本次每帧约 1.23 MB。
 
+## 外接 HDMI 直显
+
+在板端终端或 SSH 会话运行以下命令。若网页预览或正式采集正在使用相机，先用其启动终端的 Ctrl+C 正常收束并保存记录。停止桌面管理器会结束板上图形登录会话，先保存桌面工作。
+
+```bash
+sudo systemctl stop display-manager
+cd /home/elf/deploy/vision_v2
+./view_hdmi.sh
+```
+
+启动默认使用快速测距，`./view_hdmi.sh --depth-scale 1` 使用全分辨率测距，`--seconds 60` 可限定运行时长。前台按 Ctrl+C 停止。从另一 SSH 会话停止同一用户的直显程序，可运行：
+
+```bash
+pkill -INT -u "$(id -u)" -f '^python3 -u tools/live_viewer.py --hdmi( |$)'
+```
+
+需要桌面时在直显退出后运行 `sudo systemctl start display-manager`。这些命令只改变本次运行状态，板卡保留原开机目标。
+
+本地输出复用一份双目输入、检测和测距，通过独立显示线程和单帧缓冲送入 GStreamer appsrc / kmssink。HDMI 模式不启动 HTTP、WebRTC 或浏览器。运行依赖包括板上已有的 GStreamer 1.20.3、kmssink、Python GI、Pillow、Noto CJK 字体及 libdrm。程序从 Rockchip 显示卡枚举已连接的 HDMI-A-1，核对支持 1280×720 后选用其 connector ID。板上实测 HDMI-A-1 为 432，输出 1280×720、60 Hz；DSI 使用另一个显示管线。
+
+主图显示校正左目、桶框、画面十字和桶框中心。原始左右图取自该帧的同一双目缓冲。橙框是最近有效距离来源帧的实际采样区域，缩略视差图来自同一次 SGBM 结果，以黑色标出无效像素。顶部标记新测、沿用或无有效值，底部显示偏差、当前帧和深度来源帧。桶口作业中心待独立定位。日志目录 `logs/hdmi_*/` 下的 `hdmi_stats.json` 按约 5 秒刷新，分别统计提交给 GStreamer 和 sink 已渲染的帧；退出汇总写入 `completion.json`，合成画面样例为 `hdmi_preview.jpg`。
+
+2026-11-17 实测外屏画面经现场确认。60 秒现场窗口没有检出桶，处理 1,802 帧，KMS 统计已渲染 1,801 帧，约 30 FPS。保持同一网页视觉进程运行，仅临时停止桌面管理器，系统 MemAvailable 从 2,447,612 KiB 增至 3,118,756 KiB（约 +655 MiB）。HDMI 无桶窗口中，视觉进程树 PSS 约 237 MiB，双目工作进程尚未因检测到桶而启动。历史有桶图像离屏复核得到 0.8873 m，实际采样矩形为 [430,234,874,642]，显示用视差缩略图与该工程采集帧已保存的视差下采样逐像素相同。
+
 ## 两轴对齐与投喂预演
 
 白色十字为校正左目画面中心 (640, 360)，圆点为当前整桶检测框的中点。橙框表示仍需调整，绿框表示左右、上下均在容差内。左右容差沿用 `controller.center_tolerance`，上下容差由 `reference_contract.vertical_tolerance_fraction_of_half_height` 配置。当前各取对应半幅的 0.08，即横向 ±51.2 px、纵向 ±28.8 px，含边界。纵向数值为初始联调值。
