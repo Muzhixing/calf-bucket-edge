@@ -16,8 +16,10 @@ catch(e){document.getElementById('info').textContent='预览连接已断开';}se
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--port',type=int,default=8788);ap.add_argument('--seconds',type=float,default=3600);ap.add_argument('--id',required=True);ap.add_argument('--mode', choices=['async','sync'], default='async')
     ap.add_argument('--cores', choices=['auto','0_1_2'], default='auto')
-    ap.add_argument('--depth-scale', type=float, choices=[1.0,0.5], default=1.0)
+    ap.add_argument('--depth-scale', type=float, choices=[1.0,0.5], help='async default: 0.5 (fast); 1.0: full resolution')
     a=ap.parse_args()
+    if a.depth_scale is None:
+        a.depth_scale = 1.0 if a.mode == 'sync' else 0.5
     if a.mode == 'sync' and a.depth_scale != 1:
         ap.error('--depth-scale applies to async preview only')
     import re
