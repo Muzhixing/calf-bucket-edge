@@ -19,7 +19,12 @@ import time
 import cv2
 import numpy as np
 
-from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer
+from aiortc import (
+    RTCPeerConnection,
+    RTCSessionDescription,
+    RTCConfiguration,
+    RTCIceServer,
+)
 from aiortc import VideoStreamTrack
 from av import VideoFrame
 import websockets
@@ -70,18 +75,24 @@ async def run(signal_url, device_id, fps, width, height, camera_index, ice_serve
 
     async with websockets.connect(ws_url, ping_interval=20, ping_timeout=20) as ws:
         pc = RTCPeerConnection(configuration=ice)
-        pc.addTrack(CameraTrack(device=camera_index, width=width, height=height, fps=fps))
+        pc.addTrack(
+            CameraTrack(device=camera_index, width=width, height=height, fps=fps)
+        )
 
         @pc.on("icecandidate")
         async def on_icecandidate(candidate):
             if candidate is None:
                 return
-            await ws.send(json.dumps({
-                "type": "candidate",
-                "candidate": candidate.to_sdp(),
-                "sdpMid": candidate.sdpMid,
-                "sdpMLineIndex": candidate.sdpMLineIndex,
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "candidate",
+                        "candidate": candidate.to_sdp(),
+                        "sdpMid": candidate.sdpMid,
+                        "sdpMLineIndex": candidate.sdpMLineIndex,
+                    }
+                )
+            )
 
         offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
@@ -95,11 +106,13 @@ async def run(signal_url, device_id, fps, width, height, camera_index, ice_serve
                     RTCSessionDescription(sdp=msg.get("sdp", ""), type="answer")
                 )
             elif msg.get("type") == "candidate":
-                await pc.addIceCandidate({
-                    "candidate": msg.get("candidate"),
-                    "sdpMid": msg.get("sdpMid"),
-                    "sdpMLineIndex": msg.get("sdpMLineIndex"),
-                })
+                await pc.addIceCandidate(
+                    {
+                        "candidate": msg.get("candidate"),
+                        "sdpMid": msg.get("sdpMid"),
+                        "sdpMLineIndex": msg.get("sdpMLineIndex"),
+                    }
+                )
 
 
 def main():
@@ -114,15 +127,17 @@ def main():
     args = parser.parse_args()
 
     ice_servers = [s.strip() for s in args.ice.split(",") if s.strip()]
-    asyncio.run(run(
-        signal_url=args.signal,
-        device_id=args.device_id,
-        fps=args.fps,
-        width=args.width,
-        height=args.height,
-        camera_index=args.camera,
-        ice_servers=ice_servers
-    ))
+    asyncio.run(
+        run(
+            signal_url=args.signal,
+            device_id=args.device_id,
+            fps=args.fps,
+            width=args.width,
+            height=args.height,
+            camera_index=args.camera,
+            ice_servers=ice_servers,
+        )
+    )
 
 
 if __name__ == "__main__":

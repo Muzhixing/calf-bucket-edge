@@ -1,0 +1,25 @@
+{
+  "taskID": "bucket-feed-smoke-001",
+  "deviceID": "robot001",
+  "movementSteps": [
+    {
+      "seq": 1,
+      "action": "move",
+      "forward_speed": 30,
+      "duration_s": 1.0
+    },
+    {
+      "seq": 2,
+      "action": "feed",
+      "target_distance_m": 0.45,
+      "center_tolerance": 0.08,
+      "arm_extend_mm": 180,
+      "tracking_timeout_s": 20.0
+    },
+    {
+      "seq": 3,
+      "action": "stop",
+      "duration_s": 0.0
+    }
+  ]
+}

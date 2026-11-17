@@ -1,0 +1,127 @@
+{
+  "seed2_REG_FP16": {
+    "name": "seed2_REG_FP16",
+    "path": "/home/elf/research/rk3588_regression_crossseed_20261029/models/seed2_REG_FP16.rknn",
+    "sha256": "bb3d9d9deacf3f099232414139040eae81ea3c362976cbf3a7a13af5cca06c4d",
+    "expected_outputs": [
+      {
+        "name": "s8_dfl",
+        "shape": [
+          1,
+          64,
+          80,
+          80
+        ],
+        "elements": 409600,
+        "native_type": "INT8",
+        "logical_native_bytes": 409600,
+        "float32_API_bytes": 1638400
+      },
+      {
+        "name": "s8_class",
+        "shape": [
+          1,
+          1,
+          80,
+          80
+        ],
+        "elements": 6400,
+        "native_type": "INT8",
+        "logical_native_bytes": 6400,
+        "float32_API_bytes": 25600
+      },
+      {
+        "name": "s8_sum",
+        "shape": [
+          1,
+          1,
+          80,
+          80
+        ],
+        "elements": 6400,
+        "native_type": "INT8",
+        "logical_native_bytes": 6400,
+        "float32_API_bytes": 25600
+      },
+      {
+        "name": "s16_dfl",
+        "shape": [
+          1,
+          64,
+          40,
+          40
+        ],
+        "elements": 102400,
+        "native_type": "INT8",
+        "logical_native_bytes": 102400,
+        "float32_API_bytes": 409600
+      },
+      {
+        "name": "s16_class",
+        "shape": [
+          1,
+          1,
+          40,
+          40
+        ],
+        "elements": 1600,
+        "native_type": "INT8",
+        "logical_native_bytes": 1600,
+        "float32_API_bytes": 6400
+      },
+      {
+        "name": "s16_sum",
+        "shape": [
+          1,
+          1,
+          40,
+          40
+        ],
+        "elements": 1600,
+        "native_type": "INT8",
+        "logical_native_bytes": 1600,
+        "float32_API_bytes": 6400
+      },
+      {
+        "name": "s32_dfl",
+        "shape": [
+          1,
+          64,
+          20,
+          20
+        ],
+        "elements": 25600,
+        "native_type": "INT8",
+        "logical_native_bytes": 25600,
+        "float32_API_bytes": 102400
+      },
+      {
+        "name": "s32_class",
+        "shape": [
+          1,
+          1,
+          20,
+          20
+        ],
+        "elements": 400,
+        "native_type": "INT8",
+        "logical_native_bytes": 400,
+        "float32_API_bytes": 1600
+      },
+      {
+        "name": "s32_sum",
+        "shape": [
+          1,
+          1,
+          20,
+          20
+        ],
+        "elements": 400,
+        "native_type": "INT8",
+        "logical_native_bytes": 400,
+        "float32_API_bytes": 1600
+      }
+    ],
+    "compact": false
+  }
+}

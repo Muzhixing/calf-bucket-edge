@@ -1,0 +1,19 @@
+{
+  "source": "operator confirmation 2026-11-17",
+  "work_part": "water_outlet",
+  "mounting": "beside the camera; moved by telescopic arm",
+  "operation": "outlet moves above bucket opening to deliver water",
+  "current_phase": "body_relative_range_only",
+  "precise_mouth_center_required": false,
+  "eventual_arrival_target": "outlet vertical projection lies inside bucket opening, with outlet above rim",
+  "nozzle_retracted_forward_offset_m": null,
+  "nozzle_extended_forward_offset_m": null,
+  "nozzle_lateral_offset_m": null,
+  "nozzle_height_relative_to_rim_m": null,
+  "camera_forward_to_vehicle_forward_transform": null,
+  "current_body_ruler_reference_m": null,
+  "physical_geometry_verified": false,
+  "used_by_runtime_or_controller": false,
+  "serial_enabled": false,
+  "actuator_enabled": false
+}

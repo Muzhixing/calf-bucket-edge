@@ -1,0 +1,3 @@
+# Use verified installed vendor/system packages; do not pip-upgrade OpenCV or RKNN.
+# Python 3.10; numpy 2.2.1; OpenCV 4.10.0; rknn-toolkit-lite2 2.3.2
+# Annotation HTTP server uses Python standard library. No Flask/WebRTC required.

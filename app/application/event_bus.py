@@ -19,14 +19,18 @@ class AsyncEventBus:
         self._subscribers: Dict[Type, List[Callable]] = {}
         self._stop = threading.Event()
         self._dispatcher = None
-        self._executor = ThreadPoolExecutor(max_workers=worker_threads, thread_name_prefix="event-bus")
+        self._executor = ThreadPoolExecutor(
+            max_workers=worker_threads, thread_name_prefix="event-bus"
+        )
         self._running = False
 
     def start(self):
         if self._running:
             return
         self._stop.clear()
-        self._dispatcher = threading.Thread(target=self._run, name="event-bus-dispatcher", daemon=True)
+        self._dispatcher = threading.Thread(
+            target=self._run, name="event-bus-dispatcher", daemon=True
+        )
         self._dispatcher.start()
         self._running = True
 

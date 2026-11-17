@@ -1,0 +1,9 @@
+{
+  "app/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "app/infrastructure/detector.py": "e69517bb39a118aa6e96dc0fcfb85483318e564bdab286d33ba5330bb5917fd6",
+  "app/infrastructure/ranging_service.py": "a7d990839b276b8778200d17cd767e56b97b0341ea0fa34c6c2ea7065e0fad97",
+  "app/infrastructure/camera_config.py": "12d293b067fe575d5af11ff2fe296653722bdf96511361a8e6d3ff3926b3d316",
+  "app/infrastructure/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "app/domain/events.py": "2c96ea937f465bc6fa613341c5ad8ff374ee43671cbfe093682777aacd906b81",
+  "app/domain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

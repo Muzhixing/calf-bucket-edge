@@ -1,0 +1,36 @@
+{
+  "active": "v2_radial2",
+  "profiles": {
+    "v1_original": {
+      "path": "calibrations/v1_original.json",
+      "sha256": "9d91c5e67e6981202dab7bfcc6d4b835bf5a13314b8478c3dfc4bb0cee12f863"
+    },
+    "v2_radial2": {
+      "path": "calibrations/v2_radial2.json",
+      "sha256": "21c1c049edc92503f26fee3ce0ba9e70984db5155f48ded53b67002eb976a12a"
+    }
+  },
+  "camera": {
+    "stable_by_id": "/dev/v4l/by-id/usb-USB_Camera_USB_Camera_01.00.00-video-index0",
+    "sbs_size": [
+      2560,
+      720
+    ],
+    "eye_size": [
+      1280,
+      720
+    ],
+    "left_half": [
+      0,
+      1280
+    ],
+    "right_half": [
+      1280,
+      2560
+    ],
+    "physical_order_confirmed_from": "screen_calibration_20261116/calibration/SCREEN_EST_20261116_214335/physical_checks.json"
+  },
+  "authorization": "user explicitly authorized V2 calibration activation after accepted approximately0.95m single-pose rough check; no full-field metric accuracy claim",
+  "serial_enabled": false,
+  "actuator_enabled": false
+}

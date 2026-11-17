@@ -16,14 +16,16 @@ def create_app(state_store, lifecycle):
         while lifecycle.is_active():
             frame = state_store.get_latest_display_frame()
             if frame is not None:
-                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                ret, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ret:
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
+                    )
             else:
                 time.sleep(0.1)
 
-    @app.route('/')
+    @app.route("/")
     def index():
         html = """
         <!DOCTYPE html>
@@ -93,19 +95,20 @@ def create_app(state_store, lifecycle):
         """
         return render_template_string(html)
 
-    @app.route('/video')
+    @app.route("/video")
     def video_feed():
-        return Response(generate_frames(),
-                        mimetype='multipart/x-mixed-replace; boundary=frame')
+        return Response(
+            generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame"
+        )
 
-    @app.route('/distance')
+    @app.route("/distance")
     def get_distance():
         d = state_store.get_latest_distance()
         if d is not None:
             return f"{d:.3f} m"
         return "N/A"
 
-    @app.route('/status')
+    @app.route("/status")
     def get_status():
         detected = state_store.get_latest_detected()
         return "bucket" if detected else "未检测到 bucket"
@@ -113,8 +116,7 @@ def create_app(state_store, lifecycle):
     return app
 
 
-def run_web_server(state_store, lifecycle, host='0.0.0.0', port=5050):
+def run_web_server(state_store, lifecycle, host="0.0.0.0", port=5050):
     print(f"Flask 服务器启动: http://<板卡IP>:{port}/")
     app = create_app(state_store, lifecycle)
-    app.run(host=host, port=port,
-            debug=False, threaded=True, use_reloader=False)
+    app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)

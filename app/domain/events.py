@@ -14,5 +14,8 @@ class RangingUpdateEvent:
     detected: bool
     distance_m: Optional[float]
     detections: Sequence[Mapping[str, Any]]
+    frame_id: int = 0
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
     display_frame: Any = None
     left_frame: Any = None

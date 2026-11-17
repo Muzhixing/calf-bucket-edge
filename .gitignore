@@ -1,4 +1,48 @@
-__pycache__/
-*.py[cod]
+# System metadata, IDE state, environments and caches
 .DS_Store
 .idea/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.swp
+*.swo
+/tmp/
+
+# Local research, validation and historical records are preserved outside Git.
+/research/
+/outputs/
+/v1/
+/v2/
+/tests/
+/calibration_assets/
+/docs/history/
+/docs/hardware/
+/docs/maintenance/
+/docs/field_validation_20261117/
+/docs/research-status.md
+/docs/README.md
+/HANDOFF_BACKBONE_STUDY.md
+/CONTRIBUTING.md
+/pyproject.toml
+/requirements-dev.txt
+/tools/package_field_evidence.py
+/tools/stm32_uart_diagnostic.py
+/tools/vehicle_motion_test.py
+/tools/workspace_cleanup.py
+/release_artifacts/
+
+# Generated data from the engineering runtime
+/deploy/vision_v2/captures/
+/deploy/vision_v2/results/
+/deploy/vision_v2/logs/
+/deploy/vision_v2/trial_records/
+
+# Local mock/motion task fixtures
+/config/mock_task.json
+/config/vehicle_motion_task.json

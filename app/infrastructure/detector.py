@@ -16,58 +16,102 @@ RKNN 目标检测模块（bucket）
 import os
 import threading
 from pathlib import Path
-
 import cv2
 import numpy as np
 from rknnlite.api import RKNNLite
 
 # ==================== 模型配置 ====================
 DEFAULT_MODEL_ENV = "RKNN_MODEL_PATH"
+DEFAULT_CORE_MASK_ENV = "RKNN_CORE_MASK"
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RKNN_MODEL = str(_PROJECT_ROOT / "model" / "bucket.rknn")  # 默认优先使用仓库内模型文件
 
 # ==================== 类别配置 ====================
-CLASSES = ['bucket']  # 类别名称列表，索引对应类别ID
-TARGET_CLASS_IDS = [0]  # 仅保留指定类别ID（与 CLASSES 索引对应），空列表表示保留所有类别
+CLASSES = ["bucket"]  # 类别名称列表，索引对应类别ID
+TARGET_CLASS_IDS = [
+    0
+]  # 仅保留指定类别ID（与 CLASSES 索引对应），空列表表示保留所有类别
 
 # ==================== 检测阈值配置 ====================
 # 依据训练评估曲线：F1 在 conf≈0.536 附近达到最佳，因此将阈值对齐到该位置
-OBJ_THRESH = 0.536  # 置信度阈值（用于初筛：obj_conf * class_conf），低于此值的检测框将被过滤
-NMS_THRESH = 0.45   # NMS（非极大值抑制）阈值，用于去除重叠的检测框
+OBJ_THRESH = (
+    0.536  # 置信度阈值（用于初筛：obj_conf * class_conf），低于此值的检测框将被过滤
+)
+NMS_THRESH = 0.45  # NMS（非极大值抑制）阈值，用于去除重叠的检测框
 DETECT_SCORE_MIN = 0.536  # 最终检测分数门槛，用于二次过滤，避免低分检测框
 
 # ==================== 模型输入配置 ====================
 MODEL_SIZE = (640, 640)  # 模型输入尺寸（宽，高），单位：像素
 
 # ==================== 全局变量 ====================
-color_palette = np.random.uniform(0, 255, size=(len(CLASSES), 3))  # 随机颜色表，用于绘制不同类别的检测框
+color_palette = np.random.uniform(
+    0, 255, size=(len(CLASSES), 3)
+)  # 随机颜色表，用于绘制不同类别的检测框
 _rknn_lock = threading.Lock()  # RKNN 推理锁，防止多线程并发访问导致错误
+
+
+def resolve_core_mask(value=None):
+    """解析 RKNN NPU core mask。返回 (mask, name)，mask 为 None 表示使用默认 runtime。"""
+    raw = (
+        value if value is not None else os.getenv(DEFAULT_CORE_MASK_ENV, "auto")
+    ).strip()
+    key = raw.upper().replace("-", "_").replace(" ", "")
+    if key in {"", "DEFAULT", "NONE", "OFF", "0_DEFAULT"}:
+        return None, "default"
+
+    aliases = {
+        "AUTO": "NPU_CORE_AUTO",
+        "ALL": "NPU_CORE_ALL",
+        "0": "NPU_CORE_0",
+        "1": "NPU_CORE_1",
+        "2": "NPU_CORE_2",
+        "0_1": "NPU_CORE_0_1",
+        "0_1_2": "NPU_CORE_0_1_2",
+        "NPU_CORE_AUTO": "NPU_CORE_AUTO",
+        "NPU_CORE_ALL": "NPU_CORE_ALL",
+        "NPU_CORE_0": "NPU_CORE_0",
+        "NPU_CORE_1": "NPU_CORE_1",
+        "NPU_CORE_2": "NPU_CORE_2",
+        "NPU_CORE_0_1": "NPU_CORE_0_1",
+        "NPU_CORE_0_1_2": "NPU_CORE_0_1_2",
+    }
+    attr = aliases.get(key)
+    if attr and hasattr(RKNNLite, attr):
+        return getattr(RKNNLite, attr), attr.lower()
+
+    try:
+        return int(raw, 0), raw
+    except ValueError:
+        return None, "default"
 
 
 def infer(rknn, inp):
     """
     执行 RKNN 模型推理
-    
+
     对输入数据进行预处理（确保连续内存布局），然后调用 RKNN 模型进行推理。
     使用线程锁确保推理过程的线程安全。
-    
+
     Args:
         rknn: RKNNLite 实例，已加载并初始化模型
         inp: 输入数据，numpy 数组，形状为 (batch, height, width, channels)
             数据类型为 np.uint8 或 np.float32
-    
+
     Returns:
         list: 模型输出列表，包含多个输出张量
-    
+
     Raises:
         AssertionError: 如果输入维度不是4或数据类型不支持
     """
     # 关键：确保数组在内存中连续存储，RKNN 推理需要连续内存布局
     inp = np.ascontiguousarray(inp)
-    
+
     # 输入验证：确保输入格式正确，避免底层崩溃
     assert inp.ndim == 4, f"输入维度应为4，实际为 {inp.ndim}"
-    assert inp.dtype in (np.uint8, np.float32), f"输入数据类型应为 uint8 或 float32，实际为 {inp.dtype}"
+    assert inp.dtype in (
+        np.uint8,
+        np.float32,
+    ), f"输入数据类型应为 uint8 或 float32，实际为 {inp.dtype}"
 
     # 关键：使用线程锁防止多线程并发访问导致推理错误
     with _rknn_lock:
@@ -77,15 +121,15 @@ def infer(rknn, inp):
 def filter_boxes(boxes, box_confidences, box_class_probs):
     """
     根据置信度阈值过滤检测框
-    
+
     计算每个检测框的综合置信度（类别最大概率 × 目标置信度），
     仅保留置信度高于阈值的检测框。
-    
+
     Args:
         boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)
         box_confidences: 目标置信度数组，形状为 (N,)
         box_class_probs: 类别概率数组，形状为 (N, num_classes)
-    
+
     Returns:
         tuple: (过滤后的检测框, 类别ID数组, 置信度分数数组)
     """
@@ -110,14 +154,14 @@ def filter_boxes(boxes, box_confidences, box_class_probs):
 def nms_boxes(boxes, scores):
     """
     非极大值抑制（Non-Maximum Suppression, NMS）
-    
+
     去除重叠的检测框，保留置信度最高的检测框。
     当两个检测框的 IoU（交并比）超过阈值时，保留分数更高的检测框。
-    
+
     Args:
         boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)
         scores: 置信度分数数组，形状为 (N,)
-    
+
     Returns:
         np.ndarray: 保留的检测框索引数组
     """
@@ -154,21 +198,21 @@ def nms_boxes(boxes, scores):
         # 保留 IoU 小于阈值的检测框（重叠度低）
         inds = np.where(ovr <= NMS_THRESH)[0]
         order = order[inds + 1]  # 更新待处理列表
-    
+
     return np.array(keep)
 
 
 def softmax(x, axis=None):
     """
     计算 Softmax 函数
-    
+
     对输入数组应用 Softmax 归一化，将数值转换为概率分布。
     使用数值稳定的实现方式（减去最大值避免溢出）。
-    
+
     Args:
         x: 输入数组
         axis: 计算 Softmax 的轴，None 表示对整个数组计算
-    
+
     Returns:
         np.ndarray: Softmax 归一化后的数组，所有元素和为1
     """
@@ -181,22 +225,22 @@ def softmax(x, axis=None):
 def dfl(position):
     """
     Distribution Focal Loss (DFL) 解码函数
-    
+
     将模型输出的分布表示转换为具体的坐标值。
     DFL 是 YOLOv8 等模型使用的边界框回归方法，通过预测分布而非直接预测坐标值。
-    
+
     Args:
         position: 位置分布张量，形状为 (batch, channels, height, width)
                  channels 应为 4 * mc，其中 4 表示 4 个坐标（x1, y1, x2, y2），
                  mc 表示每个坐标的分布维度
-    
+
     Returns:
         np.ndarray: 解码后的坐标张量，形状为 (batch, 4, height, width)
     """
     n, c, h, w = position.shape
     p_num = 4  # 4 个坐标值（x1, y1, x2, y2）
     mc = c // p_num  # 每个坐标的分布维度
-    
+
     # 重塑为 (batch, 4, mc, height, width)
     y = position.reshape(n, p_num, mc, h, w)
     # 对分布维度应用 Softmax，转换为概率分布
@@ -211,38 +255,40 @@ def dfl(position):
 def box_process(position):
     """
     处理边界框位置信息，将相对坐标转换为绝对坐标
-    
+
     从模型输出中提取边界框信息，通过 DFL 解码和网格坐标转换，
     将相对位置转换为模型输入尺寸下的绝对坐标（xyxy 格式）。
-    
+
     Args:
         position: 位置分布张量，形状为 (batch, channels, height, width)
                  channels 应为 4 * mc（mc 为分布维度）
-    
+
     Returns:
         np.ndarray: 边界框坐标数组，形状为 (batch, 4, height, width)，
                    格式为 (x1, y1, x2, y2)，单位为像素
     """
     grid_h, grid_w = position.shape[2:4]  # 网格高度和宽度
-    
+
     # 创建网格坐标：每个网格单元的中心点坐标
     col, row = np.meshgrid(np.arange(0, grid_w), np.arange(0, grid_h))
     col = col.reshape(1, 1, grid_h, grid_w)  # x 坐标网格
     row = row.reshape(1, 1, grid_h, grid_w)  # y 坐标网格
     grid = np.concatenate((col, row), axis=1)  # 合并为 (1, 2, h, w)
-    
+
     # 计算每个网格单元对应的像素步长（stride）
-    stride = np.array([MODEL_SIZE[1] // grid_h, MODEL_SIZE[0] // grid_w]).reshape(1, 2, 1, 1)
+    stride = np.array([MODEL_SIZE[1] // grid_h, MODEL_SIZE[0] // grid_w]).reshape(
+        1, 2, 1, 1
+    )
 
     # 使用 DFL 解码位置分布，得到相对坐标偏移
     position = dfl(position)
-    
+
     # 计算边界框的左上角和右下角坐标
     # 左上角：网格中心 - 相对偏移
     box_xy = grid + 0.5 - position[:, 0:2, :, :]
     # 右下角：网格中心 + 相对偏移
     box_xy2 = grid + 0.5 + position[:, 2:4, :, :]
-    
+
     # 将网格坐标转换为像素坐标，并合并为 xyxy 格式
     xyxy = np.concatenate((box_xy * stride, box_xy2 * stride), axis=1)
 
@@ -252,14 +298,14 @@ def box_process(position):
 def post_process(input_data):
     """
     后处理模型输出，提取检测结果
-    
+
     处理模型的多尺度输出，进行边界框解码、置信度过滤、类别过滤和 NMS，
     最终返回检测到的目标框、类别和置信度。
-    
+
     Args:
         input_data: 模型输出列表，包含多个尺度的输出张量
                    每个尺度包含位置信息和类别置信度信息
-    
+
     Returns:
         tuple: (boxes, classes, scores) 或 (None, None, None)
             - boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)
@@ -270,7 +316,7 @@ def post_process(input_data):
     boxes, scores, classes_conf = [], [], []
     defualt_branch = 3  # 默认分支数（多尺度检测）
     pair_per_branch = len(input_data) // defualt_branch  # 每个分支的输出数量
-    
+
     # 处理每个尺度的输出
     for i in range(defualt_branch):
         # 提取位置信息并解码为边界框坐标
@@ -278,7 +324,11 @@ def post_process(input_data):
         # 提取类别置信度
         classes_conf.append(input_data[pair_per_branch * i + 1])
         # 创建分数数组（初始为全1，后续会与类别置信度结合）
-        scores.append(np.ones_like(input_data[pair_per_branch * i + 1][:, :1, :, :], dtype=np.float32))
+        scores.append(
+            np.ones_like(
+                input_data[pair_per_branch * i + 1][:, :1, :, :], dtype=np.float32
+            )
+        )
 
     def sp_flatten(_in):
         """将张量从 (batch, channels, height, width) 展平为 (N, channels)"""
@@ -305,7 +355,7 @@ def post_process(input_data):
         boxes = boxes[keep]
         classes = classes[keep]
         scores = scores[keep]
-    
+
     # 第三步过滤：二次门槛过滤，再按最终分数过滤一次
     # 避免 OBJ_THRESH 调整后带来过多低分检测框
     if DETECT_SCORE_MIN is not None:
@@ -373,7 +423,9 @@ def letter_box(im, new_shape, pad_color=(0, 0, 0)):
 
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    return cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=pad_color)
+    return cv2.copyMakeBorder(
+        im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=pad_color
+    )
 
 
 def resize_image(image, size, letterbox_image=True):
@@ -382,12 +434,12 @@ def resize_image(image, size, letterbox_image=True):
 
     letterbox 路径使用 OpenCV BGR 输入、等比例缩放、黑色填充，
     不归一化、不转 RGB、不转 CHW。
-    
+
     Args:
         image: 输入图像，BGR 格式，形状为 (height, width, 3)
         size: 目标尺寸，元组 (width, height)
         letterbox_image: 是否使用 letterbox 模式，True 表示保持宽高比并填充，False 表示直接拉伸
-    
+
     Returns:
         np.ndarray: 调整后的图像，形状为 (height, width, 3)，数据类型为 uint8
     """
@@ -402,22 +454,22 @@ def resize_image(image, size, letterbox_image=True):
 def scale_boxes(image_shape, boxes):
     """
     将模型坐标映射回原图尺寸，返回像素坐标框列表
-    
+
     由于模型输入使用了 letterbox 预处理（保持宽高比并填充），
     需要将模型输出的坐标（基于模型输入尺寸）转换回原始图像尺寸。
     同时处理坐标偏移（letterbox 填充导致的偏移）和边界裁剪。
-    
+
     Args:
         image_shape: 原始图像形状，元组或数组，至少包含 (height, width)
         boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)，
                坐标基于模型输入尺寸（MODEL_SIZE）
-    
+
     Returns:
         list: 像素坐标框列表，每个元素为 (left, top, right, bottom)，
               坐标已映射到原始图像尺寸，并进行了边界裁剪
     """
     img_h, img_w = image_shape[:2]  # 原始图像高度和宽度
-    
+
     # 根据图像宽高比计算缩放因子和偏移量
     if img_w >= img_h:
         # 横向图像：宽度方向填满，高度方向有填充
@@ -435,7 +487,7 @@ def scale_boxes(image_shape, boxes):
     pixel_boxes = []
     for box in boxes:
         x1, y1, x2, y2 = [int(_b) for _b in box]
-        
+
         # 根据图像方向进行坐标转换
         if img_w >= img_h:
             # 横向图像：x 直接缩放，y 需要减去偏移后缩放
@@ -463,9 +515,9 @@ def scale_boxes(image_shape, boxes):
 def draw_detections(img, left, top, right, bottom, score, class_id):
     """
     在图像上绘制单个检测结果
-    
+
     绘制检测框、中心点、类别标签和置信度分数。
-    
+
     Args:
         img: 输入图像（BGR 格式），会被直接修改
         left: 检测框左边界（像素）
@@ -478,12 +530,14 @@ def draw_detections(img, left, top, right, bottom, score, class_id):
     color = (0, 255, 0)
     thickness = max(3, int(round(min(img.shape[:2]) / 220)))
 
-    cv2.rectangle(img, (int(left), int(top)), (int(right), int(bottom)), color, thickness)
-    
+    cv2.rectangle(
+        img, (int(left), int(top)), (int(right), int(bottom)), color, thickness
+    )
+
     # 绘制中心点（红色实心圆）
     center_point = (int((left + right) / 2), int((top + bottom) / 2))
     cv2.circle(img, center_point, thickness + 3, (0, 0, 255), -1)
-    
+
     # 准备标签文本：类别名称 + 置信度分数
     label = f"{CLASSES[class_id]}: {score:.2f}"
     font_scale = 0.75
@@ -491,25 +545,38 @@ def draw_detections(img, left, top, right, bottom, score, class_id):
     (label_width, label_height), baseline = cv2.getTextSize(
         label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_thickness
     )
-    
+
     # 计算标签位置：优先放在检测框上方，如果空间不足则放在下方
     label_x = left
     label_y = top - 10 if top - 10 > label_height else top + 10
-    
+
     # 绘制标签背景（填充矩形）
-    cv2.rectangle(img, (label_x, label_y - label_height - baseline - 6),
-                  (label_x + label_width + 8, label_y + baseline + 6), color, cv2.FILLED)
-    
-    cv2.putText(img, label, (label_x, label_y),
-                cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), text_thickness, cv2.LINE_AA)
+    cv2.rectangle(
+        img,
+        (label_x, label_y - label_height - baseline - 6),
+        (label_x + label_width + 8, label_y + baseline + 6),
+        color,
+        cv2.FILLED,
+    )
+
+    cv2.putText(
+        img,
+        label,
+        (label_x, label_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        (0, 0, 0),
+        text_thickness,
+        cv2.LINE_AA,
+    )
 
 
 def draw(image, boxes, scores, classes):
     """
     在图像上绘制所有检测结果
-    
+
     将模型输出的检测框坐标映射到原始图像尺寸，然后在图像上绘制所有检测框。
-    
+
     Args:
         image: 输入图像（BGR 格式），会被直接修改
         boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)，
@@ -519,7 +586,7 @@ def draw(image, boxes, scores, classes):
     """
     # 将模型坐标映射回原图尺寸
     pixel_boxes = scale_boxes(image.shape, boxes)
-    
+
     # 绘制每个检测结果
     for (left, top, right, bottom), score, cl in zip(pixel_boxes, scores, classes):
         draw_detections(image, left, top, right, bottom, score, cl)
@@ -528,12 +595,12 @@ def draw(image, boxes, scores, classes):
 class RknnDetector:
     """
     RKNN 目标检测器封装类
-    
+
     封装了 RKNN 模型的加载、推理和资源释放功能，提供简洁的接口进行目标检测。
-    
+
     Attributes:
         rknn: RKNNLite 实例，用于模型推理
-    
+
     Example:
         >>> detector = RknnDetector()
         >>> boxes, classes, scores = detector.infer(image)
@@ -546,15 +613,21 @@ class RknnDetector:
         candidates = []
         if model_path:
             candidates.append(Path(model_path).expanduser())
-        env_model_path = Path(os.environ[DEFAULT_MODEL_ENV]).expanduser() if DEFAULT_MODEL_ENV in os.environ else None
+        env_model_path = (
+            Path(os.environ[DEFAULT_MODEL_ENV]).expanduser()
+            if DEFAULT_MODEL_ENV in os.environ
+            else None
+        )
         if env_model_path is not None:
             candidates.append(env_model_path)
-        candidates.extend([
-            Path(RKNN_MODEL),
-            _PROJECT_ROOT / "model" / "bucket.rknn",
-            Path("/mnt/tfcard/work/calf/model/bucket.rknn"),
-            Path("/userdata/project/calf-bucket-edge/model/bucket.rknn"),
-        ])
+        candidates.extend(
+            [
+                Path(RKNN_MODEL),
+                _PROJECT_ROOT / "model" / "bucket.rknn",
+                Path("/mnt/tfcard/work/calf/model/bucket.rknn"),
+                Path("/userdata/project/calf-bucket-edge/model/bucket.rknn"),
+            ]
+        )
 
         checked = []
         for candidate in candidates:
@@ -573,26 +646,44 @@ class RknnDetector:
     def __init__(self, model_path=RKNN_MODEL):
         """
         初始化检测器，加载并初始化 RKNN 模型
-        
+
         Args:
             model_path: RKNN 模型文件路径，默认为全局配置的路径
-        
+
         Raises:
             RuntimeError: 如果模型加载失败或运行时环境初始化失败
         """
         self.rknn = None
         resolved_model_path = self.resolve_model_path(model_path)
         self.model_path = resolved_model_path
+        self.core_mask_name = "default"
         self.rknn = RKNNLite()
-        
+
         # 加载 RKNN 模型文件
         ret = self.rknn.load_rknn(resolved_model_path)
         if ret != 0:
             self.release()
             raise RuntimeError(f"加载 RKNN 模型失败，错误代码: {ret}")
-        
+
         # 初始化运行时环境
-        ret = self.rknn.init_runtime()
+        core_mask, core_mask_name = resolve_core_mask()
+        self.core_mask_name = core_mask_name
+        if core_mask is None:
+            ret = self.rknn.init_runtime()
+        else:
+            ret = self.rknn.init_runtime(core_mask=core_mask)
+            if ret != 0:
+                print(
+                    f"RKNN core mask {core_mask_name} 初始化失败，回退默认 runtime，错误代码: {ret}"
+                )
+                self.release()
+                self.rknn = RKNNLite()
+                ret_load = self.rknn.load_rknn(resolved_model_path)
+                if ret_load != 0:
+                    self.release()
+                    raise RuntimeError(f"加载 RKNN 模型失败，错误代码: {ret_load}")
+                self.core_mask_name = "default"
+                ret = self.rknn.init_runtime()
         if ret != 0:
             self.release()
             raise RuntimeError(f"初始化运行时环境失败，错误代码: {ret}")
@@ -600,13 +691,13 @@ class RknnDetector:
     def infer(self, image_bgr):
         """
         对输入图像进行目标检测
-        
+
         对输入图像进行预处理（resize、letterbox），然后调用模型推理，
         最后进行后处理得到检测结果。
-        
+
         Args:
             image_bgr: 输入图像，BGR 格式，形状为 (height, width, 3)
-        
+
         Returns:
             tuple: (boxes, classes, scores) 或 (None, None, None)
                 - boxes: 检测框数组，形状为 (N, 4)，格式为 (x1, y1, x2, y2)
@@ -615,7 +706,7 @@ class RknnDetector:
                 如果没有检测到目标，返回 (None, None, None)
         """
         # 图像预处理：调整尺寸并应用 letterbox
-        img = resize_image(image_bgr.copy(), MODEL_SIZE, True)
+        img = resize_image(image_bgr, MODEL_SIZE, True)
         # 添加批次维度：(height, width, 3) -> (1, height, width, 3)
         input_data = np.expand_dims(img, axis=0)
         # 模型推理
@@ -626,7 +717,7 @@ class RknnDetector:
     def release(self):
         """
         释放 RKNN 资源
-        
+
         释放模型占用的内存和资源，应在不再使用检测器时调用。
         """
         if self.rknn is not None:

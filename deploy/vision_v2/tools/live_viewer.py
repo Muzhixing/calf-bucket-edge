@@ -1,0 +1,126 @@
+"""Local HTTP preview of the frozen V2 vision modules, without controller imports."""
+import argparse, collections, json, os, platform, signal, statistics, sys, threading, time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from support import ROOT, save, sha
+
+PAGE='''<!doctype html><meta charset="utf-8"><title>V2 实时视觉</title>
+<style>body{background:#152024;color:#edf2f4;font:18px sans-serif;margin:24px}img{max-width:100%;width:1280px}#info{padding:14px 0}small{color:#b9c8cc}</style>
+<h2>V2 实时视觉预览</h2><div id="info">等待相机画面…</div><img id="video"><p><small>绿色为桶框，橙色为测距区域。沿用值显示来源帧；预览不驱动设备。正式留存左右图请使用采集入口。</small></p>
+<script>let last=-1;async function tick(){try{let s=await(await fetch('/status',{cache:'no-store'})).json();
+document.getElementById('info').textContent=`帧 ${s.frame_id??0} · 检测 ${s.detected?'有桶':'未检出'} · 距离 ${s.distance_m==null?'无有效值':(s.distance_m*100).toFixed(1)+' cm'} · ${s.measurement_status??'等待'} · 来源帧 ${s.distance_source_frame??'—'} · 处理 ${s.processing_fps?.toFixed(2)??'—'} FPS · 画面延迟 ${s.frame_age_s?.toFixed(1)??'—'} s`;
+if(s.frame_id&&s.frame_id!==last){document.getElementById('video').src='/frame.jpg?n='+s.frame_id;last=s.frame_id;}}
+catch(e){document.getElementById('info').textContent='预览连接已断开';}setTimeout(tick,250)}tick();</script>'''
+
+def main():
+    ap=argparse.ArgumentParser();ap.add_argument('--port',type=int,default=8788);ap.add_argument('--seconds',type=float,default=3600);ap.add_argument('--id',required=True);a=ap.parse_args()
+    import re
+    assert re.fullmatch('[A-Za-z0-9_-]+',a.id) and 0<a.seconds<=43200
+    assert platform.machine()=='aarch64' and 'rockchip,rk3588' in Path('/proc/device-tree/compatible').read_text()
+    from verify import verify
+    verify()
+    for p,h in json.loads((ROOT/'config/viewer_tool_hashes.json').read_text()).items():assert sha(ROOT/p)==h
+    os.environ['BUCKET_CALIBRATION_PROFILE']='v2_radial2';sys.path.insert(0,str(ROOT))
+    import cv2, numpy as np
+    from app.infrastructure import detector, ranging_service as ranging, camera_config as calib
+    from diagnostics import range_audit
+    cv2.setNumThreads(1)
+    cfg=json.loads((ROOT/'conditions.json').read_text());model=json.loads((ROOT/'models.json').read_text())[0];mp=(ROOT/model['path']).resolve()
+    assert sha(mp)==model['sha256'];os.environ['RKNN_MODEL_PATH']=str(mp);os.environ['RKNN_CORE_MASK']=cfg['core_mask']
+    folder=ROOT/'logs'/a.id;folder.mkdir(parents=True,exist_ok=False)
+    save(folder/'viewer_tools_build.json',json.loads((ROOT/'config/viewer_tool_hashes.json').read_text()))
+    params=dict(cfg['ranging']);params.update(cache_display_frame=False,enable_display=False,render_on_device=False)
+    params['camera_device']=str(Path(params['camera_device']).resolve(strict=True))
+    service=ranging.RangingService(**params)
+    original_open=service._open_camera_capture
+    def checked_open():
+        idx,cap,im=original_open()
+        assert cap is not None and im is not None and im.shape==(720,2560,3)
+        assert idx==int(Path(params['camera_device']).name.removeprefix('video'))
+        receipt['actual_camera_fps']=cap.get(cv2.CAP_PROP_FPS);receipt['actual_sbs_size']=[im.shape[1],im.shape[0]]
+        save(folder/'environment.json',receipt)
+        return idx,cap,im
+    service._open_camera_capture=checked_open
+    lock=threading.Lock();state={};image=[None];times=[];new_times=[];infer_ms=[];npu_ms=[];rows=[];pending={};last_sample=[None];last_roi=[None]
+    logfile=(folder/'frames.jsonl').open('x',buffering=1)
+    base=detector.RknnDetector;raw_infer=detector.infer;measure=service._calculate_distance_for_box
+    def timed_raw(rknn,inp):
+        start=time.perf_counter();raw=raw_infer(rknn,inp);npu_ms.append((time.perf_counter()-start)*1000)
+        assert len(raw)==9 and all(list(x.shape)==e['shape'] for x,e in zip(raw,model['expected_outputs']))
+        return raw
+    class ExplicitDetector(base):
+        def __init__(self,*args,**kwargs):
+            super().__init__(model_path=str(mp));assert Path(self.model_path).resolve()==mp
+            print('V2_MODEL_LOADED='+str(mp)+' SHA256='+sha(mp),flush=True)
+        def infer(self,im):
+            start=time.perf_counter();answer=super().infer(im);infer_ms.append((time.perf_counter()-start)*1000);return answer
+    def measured(*args):
+        value=measure(*args);audit=range_audit(service,calib,*args);assert value==audit['value_m']
+        pending.update(raw=value,attempt=audit);return value
+    class Sink:
+        def publish(self,event):
+            now=time.monotonic();times.append(now);md=service.latest_metadata
+            fresh=pending.get('raw') is not None
+            status='new' if fresh else 'held' if md['distance_held'] and event.distance_m is not None else 'invalid'
+            if fresh:last_sample[0]=event.frame_id;new_times.append(now)
+            if pending.get('attempt'):last_roi[0]=dict(frame_id=event.frame_id,audit=pending['attempt'])
+            recent=times[-30:];fps=(len(recent)-1)/(recent[-1]-recent[0]) if len(recent)>1 else None
+            selected=max(event.detections,key=lambda x:x['score']) if event.detections else None
+            row=dict(frame_id=event.frame_id,monotonic_s=now,detected=event.detected,selected=selected,distance_m=event.distance_m,
+                raw_distance_m=pending.get('raw'),measurement_status=status,distance_source=md['distance_source'],distance_source_frame=last_sample[0] if event.distance_m is not None else None,
+                processing_fps=fps,npu_call_ms=npu_ms[-1],detect_with_prepost_ms=infer_ms[-1],profile_ms=md['profile_ms'])
+            logfile.write(json.dumps(row,allow_nan=False)+'\n');rows.append(row)
+            im=event.left_frame.copy()
+            for s in event.detections:cv2.rectangle(im,(s['left'],s['top']),(s['right'],s['bottom']),(0,220,0),2)
+            if last_roi[0]:
+                for q in last_roi[0]['audit']['attempts']:
+                    x1,y1,x2,y2=q['sample_xyxy'];cv2.rectangle(im,(x1,y1),(x2,y2),(0,170,255),1)
+            text=f"V2 {status} Z={event.distance_m if event.distance_m is not None else 'NA'} source_frame={row['distance_source_frame']}"
+            cv2.putText(im,text,(10,26),0,.6,(0,0,0),3);cv2.putText(im,text,(10,26),0,.6,(255,255,255),1)
+            if event.frame_id==1:assert cv2.imwrite(str(folder/'first_preview.jpg'),im)
+            with lock:state.update(row);image[0]=im
+            pending.clear()
+            if now-times[0]>=a.seconds:service.camera_active=False
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self,*args):pass
+        def do_GET(self):
+            path=self.path.split('?')[0];ctype='text/html; charset=utf-8';code=200
+            if path=='/':body=PAGE.encode()
+            elif path=='/status':
+                with lock:data=dict(state)
+                data['frame_age_s']=time.monotonic()-data['monotonic_s'] if data else None
+                body=json.dumps(data).encode();ctype='application/json'
+            elif path=='/frame.jpg':
+                with lock:im=image[0]
+                if im is None:body=b'Warming up';code=503;ctype='text/plain'
+                else:
+                    ok,jpeg=cv2.imencode('.jpg',im,[cv2.IMWRITE_JPEG_QUALITY,85]);assert ok;body=jpeg.tobytes();ctype='image/jpeg'
+            else:body=b'Not found';code=404;ctype='text/plain'
+            self.send_response(code);self.send_header('Content-Type',ctype);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(body)));self.end_headers()
+            try:self.wfile.write(body)
+            except (BrokenPipeError,ConnectionResetError):pass
+    # Bind before touching the camera, so an occupied port cannot strand a capture.
+    server=ThreadingHTTPServer(('127.0.0.1',a.port),Handler)
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    service.event_bus=Sink();service._calculate_distance_for_box=measured;detector.infer=timed_raw;detector.RknnDetector=ExplicitDetector
+    signal.signal(signal.SIGINT,lambda *_:setattr(service,'camera_active',False));signal.signal(signal.SIGTERM,lambda *_:setattr(service,'camera_active',False))
+    receipt=dict(model_absolute_path=str(mp),model_sha256=sha(mp),calibration_path=calib.CALIBRATION_FILE,calibration_sha256=calib.CALIBRATION_SHA256,
+        camera_device=params['camera_device'],eye_size=[1280,720],camera_requested_fps=30,actuation=False,serial=False,mode='preview_no_raw_tensor_or_SBS_saving',ranging=params)
+    save(folder/'environment.json',receipt);print(f'PREVIEW_HTTP http://127.0.0.1:{a.port}/ SERIAL=ABSENT',flush=True)
+    service.camera_active=True;success=False
+    try:
+        service._camera_loop()
+        assert rows and len(rows)==len(infer_ms)==len(npu_ms)
+        assert all(x not in sys.modules for x in ['serial','app.infrastructure.serial_port','app.infrastructure.bucket_tracking','app.infrastructure.task_client','main'])
+        success=True
+    finally:
+        service.camera_active=False
+        if service.cap is not None:service.cap.release()
+        server.shutdown();server.server_close();logfile.close();detector.infer=raw_infer;detector.RknnDetector=base
+        duration=times[-1]-times[0] if len(times)>1 else None
+        report=dict(passed=success,frames=len(rows),detected=sum(r['detected'] for r in rows),measurement_states={s:sum(r['measurement_status']==s for r in rows) for s in ['new','held','invalid']},
+            processing_fps=(len(times)-1)/duration if duration else None,npu_call_mean_ms=statistics.mean(npu_ms) if npu_ms else None,
+            detector_with_prepost_mean_ms=statistics.mean(infer_ms) if infer_ms else None,new_distance_samples=len(new_times),new_distance_interval_hz=(len(new_times)-1)/(new_times[-1]-new_times[0]) if len(new_times)>1 else None,
+            no_actuation=True,log_mode='preview only; not raw capture acceptance data')
+        save(folder/'completion.json',report);print('PREVIEW_STOPPED',json.dumps(report),flush=True)
+if __name__=='__main__':main()
