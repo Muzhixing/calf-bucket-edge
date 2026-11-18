@@ -8,7 +8,7 @@ from diagnostics import range_audit,overlay
 
 def main():
     ap=argparse.ArgumentParser(description='V2 camera -> original detector/ranging -> files only')
-    ap.add_argument('--id',required=True);ap.add_argument('--seconds',type=float,default=15);ap.add_argument('--max-frames',type=int,default=0);ap.add_argument('--sequence',type=Path);ap.add_argument('--output-tag');ap.add_argument('--calibration-profile',choices=['v1_original','v2_radial2'],default='v2_radial2')
+    ap.add_argument('--id',required=True);ap.add_argument('--seconds',type=float,default=15);ap.add_argument('--max-frames',type=int,default=0);ap.add_argument('--sequence',type=Path);ap.add_argument('--output-tag');ap.add_argument('--calibration-profile',choices=['v2_radial2'],default='v2_radial2')
     a=ap.parse_args();assert a.output_tag is None or re.fullmatch('[A-Za-z0-9_-]+',a.output_tag)
     assert re.fullmatch('[A-Za-z0-9_-]+',a.id);assert a.seconds>0 and a.max_frames>=0
     assert platform.machine()=='aarch64' and 'rockchip,rk3588' in Path('/proc/device-tree/compatible').read_text()

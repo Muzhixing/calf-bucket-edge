@@ -1,6 +1,6 @@
 # RK3588 原生实时视觉
 
-实时采集、左目校正、冻结 RKNN 检测、独立进程双目测距及网页/HDMI 显示均运行在 C++ 中。部署准备脚本使用 Python 生成标定矩阵与中文标签，实时运行不保留 Python 解释器。原 `vision_v2` Python 应用保留用于采集和回退。
+实时采集、左目校正、冻结 RKNN 检测、独立进程双目测距及网页/HDMI 显示均运行在 C++ 中。部署准备脚本使用 Python 生成标定矩阵与中文标签，实时运行不保留 Python 解释器。`vision_v2` 保留当前模型、标定和 Python 采集模块；旧 Python 实时后端已移除。
 
 ## 使用
 
@@ -10,7 +10,6 @@
 cd deploy/vision_v2
 ./view_live.sh                         # C++，快速双目
 ./view_live.sh --depth-scale 1         # 全分辨率双目
-./view_live.sh --backend python        # 原 Python 版
 ```
 
 板端独立部署目录 `/home/elf/deploy/vision_cpp`：
@@ -21,7 +20,7 @@ cd /home/elf/deploy/vision_cpp
 ./run.sh --hdmi --seconds 3600        # HDMI-A-1，先停止 display-manager
 ```
 
-也可继续使用 `/home/elf/deploy/vision_v2/view_hdmi.sh`，默认进入 C++；加 `--backend python` 回退。前台 Ctrl+C 退出，释放相机与 DRM 显示。其他会话可用 `pkill -INT -u "$(id -u)" -f '^/home/elf/deploy/vision_cpp/vision( |$)'` 停止本用户的原生预览。需要桌面时，在直显退出后运行 `sudo systemctl start display-manager`。
+也可继续使用 `/home/elf/deploy/vision_v2/view_hdmi.sh`，进入 C++。前台 Ctrl+C 退出，释放相机与 DRM 显示。其他会话可用 `pkill -INT -u "$(id -u)" -f '^/home/elf/deploy/vision_cpp/vision( |$)'` 停止本用户的原生预览。需要桌面时，在直显退出后运行 `sudo systemctl start display-manager`。
 
 每次使用新编号。`runs/<id>/` 保留启动绑定、逐帧 JSONL、首组原始左右图、校正叠加图与结束汇总；HDMI 另保存合成图、实际 sink 渲染统计。`rsync -av elf@192.168.31.175:/home/elf/deploy/vision_cpp/runs/ ./outputs/vision_cpp_runs/` 可从仓库根目录取回。生成目录、模型副本、动态库和构建产物均不提交 Git。
 
@@ -37,13 +36,15 @@ cd /home/elf/deploy/vision_cpp
 
 ## 构建与部署
 
-本机运行 `deploy/vision_v2/deploy.sh` 同步原工程后构建原生后端；也可在已部署 V2 的板上单独运行 `deploy/vision_cpp/deploy.sh`。安装只同步源文件白名单，保留已有应用。
+本机运行 `deploy/vision_v2/deploy.sh` 同步原工程后构建原生后端；也可在已部署 V2 的板上单独运行 `deploy/vision_cpp/deploy.sh`。安装只同步源文件白名单，复用当前模型、标定与板端依赖。
 
-该板复用 `/usr/lib/librknnrt.so` 和先前核验的 OpenCV 4.10 构建。`build.sh` 默认使用 `/home/elf/experiments/cpp_vision/deps/install` 头文件/库及 `/home/elf/research/rk3588_regression_crossseed_20261029/package/rknn_api.h`，分别可用 `OPENCV_PREFIX`、`RKNN_SDK_DIR` 覆盖。GStreamer、glib、libdrm、OpenSSL 链接板上现有运行库；缺少的 GStreamer 开发包仅下载解包到 `deps/headers`，不替换系统库。
+该板复用 `/usr/lib/librknnrt.so` 和先前核验的 OpenCV 4.10 构建。`build.sh` 默认使用当前目录 `deps/install` 的 OpenCV 头文件/库及 `deps/rknn/rknn_api.h`，分别可用 `OPENCV_PREFIX`、`RKNN_SDK_DIR` 覆盖。GStreamer、glib、libdrm、OpenSSL 链接板上现有运行库；缺少的 GStreamer 开发包仅下载解包到 `deps/headers`，不替换系统库。
 
 ```sh
 python3 prepare.py /home/elf/deploy/vision_v2
 ./build.sh
 ```
 
-构建将必需的 OpenCV 动态库复制到 `lib/`；运行通过部署目录的库路径加载，不依赖研究目录中的模型、回放图或 Python 环境。实际相机更新率取决于场景、ROI 与温度；相机 30 FPS 不意味着每帧都有新的有效距离。性能证据见本次本地验收报告。
+构建将必需的 OpenCV 动态库复制到 `lib/`；运行通过部署目录的库路径加载，不依赖研究目录中的模型、回放图或 Python 环境。实际相机更新率取决于场景、ROI 与温度；相机 30 FPS 不意味着每帧都有新的有效距离。已核验同源 HDMI 回放稳定约30 FPS、10次/秒新测距，进程树PSS约179.9 MiB。
+
+当前板卡已将核验过的 OpenCV 开发文件和 RKNN 头文件放入上述 `deps/` 目录。新板需准备相同依赖；`build_opencv.sh` 保留4.10.0构建参数，需要事先放入对应OpenCV源码包与CMake3.29.5安装包。厂商头文件、依赖包和二进制不提交Git。

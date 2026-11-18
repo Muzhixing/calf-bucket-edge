@@ -1,10 +1,6 @@
 {
   "active": "v2_radial2",
   "profiles": {
-    "v1_original": {
-      "path": "calibrations/v1_original.json",
-      "sha256": "9d91c5e67e6981202dab7bfcc6d4b835bf5a13314b8478c3dfc4bb0cee12f863"
-    },
     "v2_radial2": {
       "path": "calibrations/v2_radial2.json",
       "sha256": "21c1c049edc92503f26fee3ce0ba9e70984db5155f48ded53b67002eb976a12a"

@@ -2,8 +2,8 @@
 set -eu
 cd "$(dirname "$0")"
 BASE=$(pwd)
-SDK=${RKNN_SDK_DIR:-/home/elf/research/rk3588_regression_crossseed_20261029/package}
-CV=${OPENCV_PREFIX:-/home/elf/experiments/cpp_vision/deps/install}
+SDK=${RKNN_SDK_DIR:-$BASE/deps/rknn}
+CV=${OPENCV_PREFIX:-$BASE/deps/install}
 GST_HEADERS=${GST_INCLUDE_DIR:-$BASE/deps/headers/usr/include/gstreamer-1.0}
 mkdir -p lib
 # Link to local copies and give the runtime a deployment-local library search path.

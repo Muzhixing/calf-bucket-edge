@@ -1,59 +1,23 @@
+# 视觉输出与后续 STM32 对接
 
-## 数据传输格式
-以json格式传输
+网页模式只监听板端 `127.0.0.1:8788`，通过 SSH 转发访问。`/` 为预览页，`/stream.mjpg` 为最新 JPEG 流，`/frame.jpg` 为单帧，`/status` 为 JSON。HDMI 模式不启动 HTTP。
 
-### 1.路由地址`api/basicdata
->描述：由设备机器来提供这些数据
+| 字段 | 含义 |
+|---|---|
+| `frame_id`、`frame_age_s` | 当前来源帧编号、距发布的秒数；超过 1.5 秒或帧号停止推进时视为离线。 |
+| `detected`、`selected` | 是否检出桶与所选框，坐标位于 1280×720 校正左目。 |
+| `distance_m`、`raw_distance_m` | 有效平滑 Z 深度、本次新测原始深度；无值为 null。 |
+| `measurement_status` | `new` 新测、`held` 沿用、`invalid` 无有效距离。 |
+| `distance_source_frame`、`distance_age_ms` | 有效距离的源帧及年龄；不可把沿用值当作当前帧新测。 |
+| `sampling_roi` | 来源帧的实际采样矩形 `[x1,y1,x2,y2]`；不等同于桶口。 |
+| `distance_reason`、`attempt_source`、`discarded` | 最近一次测距结果原因、尝试源帧及是否因过时/换目标被丢弃。 |
+| `guidance.offset_px` | 桶框中心减画面中心的 `[dx,dy]`，右、下为正；丢失为 null。 |
+| `guidance.estimated_offset_mm` | 根据有效深度和校正焦距估算横纵偏移；无有效深度为 null。 |
+| `guidance.aligned_xy` | 两轴均在容差内：横向 ±51.2 px，纵向 ±28.8 px，含边界。 |
+| `guidance.state` | `no_target`、`adjust`、`aligned_wait_depth`、`ready_dry_run`。 |
+| `guidance.reference_depth_mm` | 本次连续对齐期间已取得新距离后，提供桶身前向深度，单位 mm。 |
+| `guidance.cycle_id`、`guidance.feed_preview_started` | 一次连续对齐的预演周期；首次具备条件时仅一帧标记 true，轮询方按周期去重。 |
 
-| 参数名            | 类型     | 是否必填 | 描述         | 数据格式                 |
-| -------------- | ------ | ---- | ---------- | -------------------- |
-| deviceID       | String | 是    | 设备唯一id     | "001"                |
-| deviceName     | String | 是    | 设备名称（不唯一）  | robot001             |
-| farmID         | num    | 是    | 农场区域id     | 01                   |
-| location_x     | double | 是    | 牛的坐标（桶的坐标） | 123.119              |
-| location_y     | double | 是    |            | -50.543              |
-| status         | bool   | 是    | 设备状态       | true(在线)/false(离线)   |
-| put_status     | bool   | 是    | 是否已经投放了水   | true(已投喂)/flase(未投喂) |
-| lastOnlineTime | String | 否    | 设备最后在线时间   | 2026-01-15           |
-### 2. 路由地址`api/videoupload`
->描述：前端上传视频给服务器,由嵌入式设备上传视频帧来实现
+同步读取同一条记录中的位置、距离、状态与源帧。丢失、更换目标或距离超过 1.5 秒会清空旧值。当前容差是视觉联调值，毫米偏差基于同一深度平面估计。
 
-
-| 参数名        | 类型                                      | 是否必填 | 描述  | 数据格式 |
-| ---------- | --------------------------------------- | ---- | --- | ---- |
-| frameImage | jpg(图片压缩直传)/str(base64) ->Object/String | 是    | 视频帧 |      |
-### 3.路由地址`api/video`
->描述：用于前端获取并呈现视频流
-
-| 参数名          | 类型                                      | 是否必填 | 描述  | 数据格式 |
-| ------------ | --------------------------------------- | ---- | --- | ---- |
-| iframe_video | jpg(图片压缩直传)/str(base64) ->Object/String | 是    | 视频帧 |      |
->备注：用ifram来呈现视频。方便移植
-
-### 4.路由地址`api/webget`
->描述：前端页面显示设备信息所需要
-
-| 参数名            | 类型     | 是否必填 | 描述        | 数据格式                 |
-| -------------- | ------ | ---- | --------- | -------------------- |
-| deviceID       | String | 是    | 设备唯一id    | "001"                |
-| deviceName     | String | 是    | 设备名称（不唯一） | robot001             |
-| farmID         | num    | 是    | 农场区域id    | 01                   |
-| status         | bool   | 是    | 设备状态      | true(在线)/false(离线)   |
-| put_status     | bool   | 是    | 是否已经投放了水  | true(已投喂)/flase(未投喂) |
-| lastOnlineTime | String | 否    | 设备最后在线时间  | 2026-01-15           |
-
-### 5.路由地址`api/pathSettings`
->前端设置机器人行进路线
-
-| 参数名       | 类型   | 是否必填 | 描述             | 数据格式                                    |
-| --------- | ---- | ---- | -------------- | --------------------------------------- |
-| robotpath | list | 是    | 列表里存放坐标点元组（有序） | [(121.458,-181,235),(562.465,-324.321)] |
-
-## 通用返回格式
-
-| 参数名  | 类型     | 描述    |
-| ---- | ------ | ----- |
-| code | num    | 返回状态码 |
-| msg  | String | 返回信息  |
-| data | json   | 返回数据  |
-
+这些字段是观察量和预演条件，不是电机脉冲或运行时间。实际接入 STM32 前需确认出水口零位、轴方向、每毫米脉冲数/编码器比例、行程限位、桶前壁到投放点偏移，并由控制器管理任务开始、完成回执和防重复投喂。
