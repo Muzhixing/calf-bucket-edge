@@ -1,0 +1,8 @@
+/assets/
+/deps/
+/lib/
+/runs/
+/vision
+/calibration.sha256
+*.log
+.vision.new

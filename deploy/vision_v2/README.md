@@ -6,6 +6,8 @@
 
 ## 部署和实时画面
 
+2026-11-18 起，`./view_live.sh` 和 `./view_hdmi.sh` 默认使用相邻目录 `vision_cpp` 的 C++ 实时后端，快速/全分辨率选项保持不变。加 `--backend python` 使用保留的原版；`--mode sync` 的本机预览入口仍选择 Python。原生部署、日志和构建说明见 [../vision_cpp/README.md](../vision_cpp/README.md)。以下性能表为原 Python 版本历史记录。
+
 在本机仓库中运行：
 
 ```bash
@@ -20,12 +22,12 @@ cd deploy/vision_v2
 
 ```bash
 cd /home/elf/deploy/vision_v2
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python3 -u tools/live_viewer.py --id live_NEW_ID --seconds 3600
+../vision_cpp/run.sh --id live_NEW_ID --seconds 3600
 ```
 
 直接运行板端命令时另需SSH转发8788端口。不要同时运行预览与采集，它们共用相机。
 
-直接运行 `./view_live.sh` 启用快速测距，运行 `./view_live.sh --depth-scale 1` 切换到全分辨率双目。预览把采集、校正、逐帧检测与双目匹配分开运行。相机使用两个 V4L2 缓冲区，检测读取最新校正左目，双目进程每次只处理一组同源左右图。输出保留测距来源帧号与样本年龄。检测丢失、目标框切换或样本过期时清除旧距离。页面显示最近 3 秒的新距离更新率。持续沿用旧读数时显示黄色提示，未检出桶或距离无效时显示横线。帧号、距离来源及延迟可在 `/status` 和逐帧日志中查看。
+直接运行 `./view_live.sh` 启用快速测距，运行 `./view_live.sh --depth-scale 1` 切换到全分辨率双目。预览把采集、校正、逐帧检测与双目匹配分开运行。相机使用两个 V4L2 缓冲区，检测读取最新校正左目，双目进程每次只处理一组同源左右图。输出保留测距来源帧号与样本年龄。检测丢失、目标框切换或样本过期时清除旧距离。C++ 页面显示最近约 1 秒的新距离更新率，Python 页面采用最近 3 秒窗口。持续沿用旧读数时显示黄色提示，未检出桶或距离无效时显示横线。帧号、距离来源及延迟可在 `/status` 和逐帧日志中查看。
 
 | 固定相机、单桶、单个 SSH 预览客户端 | 电脑收图 FPS | 新距离 Hz | 新样本从取图到发布的中位延迟 |
 | --- | ---: | ---: | ---: |
@@ -47,10 +49,10 @@ cd /home/elf/deploy/vision_v2
 ./view_hdmi.sh
 ```
 
-启动默认使用快速测距，`./view_hdmi.sh --depth-scale 1` 使用全分辨率测距，`--seconds 60` 可限定运行时长。前台按 Ctrl+C 停止。从另一 SSH 会话停止同一用户的直显程序，可运行：
+启动默认使用 C++ 快速测距，`./view_hdmi.sh --backend python` 回到原 Python 直显。`./view_hdmi.sh --depth-scale 1` 使用全分辨率测距，`--seconds 60` 可限定运行时长。前台按 Ctrl+C 停止。从另一 SSH 会话停止同一用户的直显程序，可运行：
 
 ```bash
-pkill -INT -u "$(id -u)" -f '^python3 -u tools/live_viewer.py --hdmi( |$)'
+pkill -INT -u "$(id -u)" -f '^/home/elf/deploy/vision_cpp/vision( |$)'
 ```
 
 需要桌面时在直显退出后运行 `sudo systemctl start display-manager`。这些命令只改变本次运行状态，板卡保留原开机目标。
@@ -65,7 +67,7 @@ pkill -INT -u "$(id -u)" -f '^python3 -u tools/live_viewer.py --hdmi( |$)'
 
 白色十字为校正左目画面中心 (640, 360)，圆点为当前整桶检测框的中点。橙框表示仍需调整，绿框表示左右、上下均在容差内。左右容差沿用 `controller.center_tolerance`，上下容差由 `reference_contract.vertical_tolerance_fraction_of_half_height` 配置。当前各取对应半幅的 0.08，即横向 ±51.2 px、纵向 ±28.8 px，含边界。纵向数值为初始联调值。
 
-在运行预览的电脑或板上读取 `curl -s http://127.0.0.1:8788/status`。同一份 `guidance` 随每帧写入 `logs/<运行编号>/frames.jsonl`。
+在运行预览的电脑或板上读取 `curl -s http://127.0.0.1:8788/status`。同一份 `guidance` 随每帧写入 C++ 的 `../vision_cpp/runs/<运行编号>/frames.jsonl`，Python 回退版仍写入 `logs/<运行编号>/frames.jsonl`。
 
 | 字段 | 对接含义 |
 | --- | --- |

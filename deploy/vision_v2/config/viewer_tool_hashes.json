@@ -5,7 +5,8 @@
   "tools/live_viewer.py": "139773dcfb6de21bf583856dc0fd822adc7714009871f9dd1ce15a6db45e5102",
   "tools/preview.html": "c4e69340e0c1f481cc8e1141d3e963727d0ddc446157495308319a72edc55eb9",
   "tools/preview_pipeline.py": "93b7c7058be40c77c7503c99b931fd9444be59a49a573d92216df7368d665a17",
-  "tools/viewer_entry.py": "5e866cfd3f0a797991995230f9f1fdf4e54cd98d077ebba9ba4ad84081f264b3",
-  "view_hdmi.sh": "fc6d90d551c05f2df4a98332ec170078b64ae9c92a9b8c61d97b5105f8b9ebd1",
-  "view_live.sh": "4252cafefeb9346c60198df6d1e8d32c413d22f54e65d1d47927a044b2f4b262"
+  "tools/viewer_entry.py": "18ea744665604b2dd131001dc3c4c7231bb95799bfa9c6ac0051eaba393177e6",
+  "view_hdmi.sh": "70a7ab86d7ade9fe232dafcdd3491c0e84aee1e49c6d15a7026ab925399a0f83",
+  "view_live.sh": "4252cafefeb9346c60198df6d1e8d32c413d22f54e65d1d47927a044b2f4b262",
+  "tools/runtime_entry.py": "38300ea41515316a1d1be54f95af2c45d35b2a01d68e4f89cead4fdc0d79aea6"
 }

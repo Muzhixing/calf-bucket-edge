@@ -2,7 +2,7 @@
 
 固定相机视觉入口在 [deploy/vision_v2](../deploy/vision_v2/README.md)，显式加载seed2_REG_FP16，模型和标定路径及SHA-256会打印在启动日志中。
 
-本机运行 `deploy/vision_v2/deploy.sh` 部署，`view_live.sh` 打开实时画面。板端工程目录为 `/home/elf/deploy/vision_v2`；旧部署保留。入口只装配相机、检测、测距与画面服务，不导入串口、车辆控制器或执行机构。
+本机运行 `deploy/vision_v2/deploy.sh` 部署，`view_live.sh` 打开实时画面。启动和采集入口位于 `/home/elf/deploy/vision_v2`，实时后端默认使用 `/home/elf/deploy/vision_cpp`；`--backend python` 回退原预览，旧部署保留。原生构建和运行说明见 [C++ 部署说明](../deploy/vision_cpp/README.md)。入口只装配相机、检测、测距与画面服务，不导入串口、车辆控制器或执行机构。
 
 完整应用仍保留原分层结构：
 

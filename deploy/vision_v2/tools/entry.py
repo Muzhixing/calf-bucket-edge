@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 REMOTE='/home/elf/deploy/vision_v2'
 HOST=os.environ.get('BUCKET_V2_HOST','elf@192.168.31.175')
-SOCK='/tmp/bucket-v1-20261116.sock'
+SOCK=os.environ.get('BUCKET_SSH_SOCKET','/tmp/bucket-v1-20261116.sock')
 def call(args,tty=False):
     command=f'cd {REMOTE} && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 '+shlex.join(args)
     subprocess.run(['ssh',*(['-tt'] if tty else []),'-S',SOCK,HOST,command],check=True)

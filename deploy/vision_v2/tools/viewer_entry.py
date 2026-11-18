@@ -5,13 +5,20 @@ def main():
     ap=argparse.ArgumentParser();ap.add_argument('--seconds',type=float,default=3600);ap.add_argument('--port',type=int,default=8788);ap.add_argument('--id');ap.add_argument('--mode', choices=['sync','async'], default='async')
     ap.add_argument('--cores', choices=['auto','0_1_2'], default='auto')
     ap.add_argument('--depth-scale', type=float, choices=[1.0,0.5], help='async default: 0.5 (fast); 1.0: full resolution')
+    ap.add_argument('--backend', choices=['cpp','python'], help='default: cpp; sync mode retains Python')
     a=ap.parse_args()
+    backend=a.backend or ('python' if a.mode=='sync' else 'cpp')
+    if backend=='cpp' and a.mode!='async': ap.error('C++ uses async mode; use --backend python --mode sync')
     ident=a.id or 'preview_live_'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     args = ['python3','-u','tools/live_viewer.py','--id',ident,'--seconds',str(a.seconds),
             '--port',str(a.port),'--mode',a.mode,'--cores',a.cores]
     if a.depth_scale is not None:
         args.extend(['--depth-scale',str(a.depth_scale)])
-    command = f'cd {REMOTE} && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ' + shlex.join(args)
+    if backend=='cpp':
+        args=['../vision_cpp/run.sh','--id',ident,'--seconds',str(a.seconds),'--port',str(a.port),'--cores',a.cores]
+        if a.depth_scale is not None: args.extend(['--depth-scale',str(a.depth_scale)])
+    print('Vision backend: '+backend,flush=True)
+    command = f'cd {shlex.quote(REMOTE)} && OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ' + shlex.join(args)
     if subprocess.run(['ssh','-S',SOCK,'-O','check',HOST],capture_output=True).returncode:
         subprocess.run(['ssh','-M','-S',SOCK,'-o','ControlPersist=2h','-Nf',HOST],check=True)
     url=f'http://127.0.0.1:{a.port}/';print(url+' ; Ctrl+C stops preview and releases camera',flush=True)
