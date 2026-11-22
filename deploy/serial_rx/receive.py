@@ -22,8 +22,8 @@ import time
 PROTOCOL_COMMIT = "9db673c9103d3da79434c08d7217c2c402871855"
 DEFAULT_PORT = "/dev/serial/by-path/platform-fc880000.usb-usb-0:1.2:1.0-port0"
 STATES = {0: "disabled", 1: "ready_holding", 2: "axes_moving", 3: "chassis_moving", 4: "fault", 5: "waiting_stop"}
-RESULTS = {0: "accepted", 1: "format_error", 2: "origins_unconfirmed", 3: "heading_not_ready", 4: "fault", 5: "zero_timing_rejected", 6: "uart_error"}
-FAULTS = {0: "none", 1: "communication", 2: "motor", 3: "HWT_data", 4: "axis_start"}
+RESULTS = {0: "accepted", 1: "format_error", 2: "origins_unconfirmed", 3: "heading_not_ready", 4: "fault", 5: "zero_timing_rejected", 6: "uart_error", 7: "driver_home_not_verified"}
+FAULTS = {0: "none", 1: "communication", 2: "motor", 3: "HWT_data", 4: "axis_start", 5: "driver_origin_lost"}
 MOTOR_FAULTS = {0: "none", 1: "no_feedback", 2: "reverse_feedback", 3: "scheduler_timeout", 4: "driver_initialization"}
 
 
@@ -52,7 +52,8 @@ def decode(frame):
         "flags": flags, "enabled": bool(flags & 1),
         "lift_zero_confirmed": bool(flags & 2), "slide_zero_confirmed": bool(flags & 4),
         "angle_valid": bool(flags & 8), "distance_valid": bool(flags & 16),
-        "heading_reference_established": bool(flags & 32), "unknown_flag_bits": flags & 0xC0,
+        "heading_reference_established": bool(flags & 32), "unknown_flag_bits": 0,
+        "lift_driver_feedback_fresh": bool(flags & 64), "slide_driver_feedback_fresh": bool(flags & 128),
         "lift_position_tenths_mm": u16(6), "slide_position_tenths_mm": u16(8),
         "lift_position_mm": u16(6) / 10, "slide_position_mm": u16(8) / 10,
         "yaw_raw_tenths_deg": yaw,

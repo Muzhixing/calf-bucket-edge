@@ -92,6 +92,7 @@ class ArmPort:
         self.limits,self.log,self.port=limits,log,port
         self.fd=None;self.parser=Parser();self.state=None;self.rx_at=0.
         self.phase='idle';self.expected=None;self.target=None;self.origin=None
+        self.preparing=False
         self.gateway=None;self.attempted=False;self.deadline=0.;self.ready_at=0.;self.arrived_at=None
         if check_holders:holders(port,allow_partial=True)
         try:
@@ -110,10 +111,11 @@ class ArmPort:
             if len(frames)<3:raise RuntimeError('no_fresh_telemetry')
             start=pose(frames[-1]);counter=frames[-1]['command_count_mod256']
             for s in frames:
-                self.check_state(s)
-                if s['enabled'] or s['state']!=0 or pose(s)!=start or s['command_count_mod256']!=counter:
+                self.check_state(s, startup=True)
+                allowed_state=4 if s['system_fault']==1 else 0
+                if s['enabled'] or s['state']!=allowed_state or pose(s)!=start or s['command_count_mod256']!=counter or s.get('uart_error_count_mod256')!=frames[-1].get('uart_error_count_mod256'):
                     raise RuntimeError('arm_not_stopped_or_another_controller')
-            self.limits.check(start)
+            self.check_start_pose(start)
             self.expected=counter
             if sender_factory is None:
                 module=Path(self.limits.sender)
@@ -129,14 +131,67 @@ class ArmPort:
                     return n
             self.gateway=sender_factory(port=port,serial_factory=lambda port,baud:ExistingFD(),command_repeats=1)
             self.gateway._open_serial()
+            if self.state['system_fault']==1:self.acknowledge_startup_communication_fault()
             self.log('arm_ready',self.state)
         except BaseException:
             if self.fd is not None:os.close(self.fd);self.fd=None
             raise
 
+    def acknowledge_startup_communication_fault(self):
+        # One disabled command only, after stopped/fresh/verified-origin preflight.
+        start=pose(self.state);counter=(self.expected+1)%256
+        if not self.gateway.write_control_frame(self.frame([round(v) for v in start],False),repeats=1):
+            raise RuntimeError('startup_disable_write_failed')
+        deadline=time.monotonic()+1.2
+        while time.monotonic()<deadline:
+            for s in self.poll():
+                if s['enabled'] or pose(s)!=start:raise RuntimeError('unexpected_mechanism_motion')
+                if s['command_count_mod256']==counter:
+                    self.check_state(s)
+                    if s['result']!=0 or s['state']!=0:raise RuntimeError('startup_disable_rejected')
+                    self.expected=counter
+                    self.log('startup_communication_fault_acknowledged',s)
+                    return
+                if s['command_count_mod256']!=self.expected:raise RuntimeError('unexpected_external_control')
+            time.sleep(.01)
+        raise RuntimeError('startup_disable_ack_timeout')
+
+    def needs_preparation(self):
+        return pose(self.state)[2] != self.limits.c
+
+    def check_start_pose(self, q):
+        if q[2] == self.limits.c:
+            self.limits.check(q)
+            return
+        # A new firmware origin or an interrupted C preparation; never a re-zero.
+        if not (q[0] == 75 and q[1] == 0 and 0 <= q[2] < self.limits.c
+                and self.state.get('lift_driver_feedback_fresh')
+                and self.state.get('slide_driver_feedback_fresh')):
+            raise RuntimeError('startup_pose_or_driver_feedback_not_ready')
+        self.limits.check([q[0], q[1], self.limits.c])
+
+    def prepare(self):
+        if self.phase != 'idle' or time.monotonic() < self.ready_at:
+            return False
+        self.check_state(self.state)
+        self.check_start_pose(pose(self.state))
+        if not self.needs_preparation():return False
+        if time.monotonic()-self.rx_at > .35:raise RuntimeError('stale_telemetry')
+        self.origin=pose(self.state);self.target=[75,0,self.limits.c]
+        self.preparing=True;self.arrived_at=None
+        self.move_counter=(self.expected+1)%256
+        self.phase='moving';self.attempted=True;self.started=time.monotonic()
+        self.deadline=self.started+8
+        self.log('startup_c_preparation', {'origin': self.origin, 'target': self.target})
+        if not self.gateway.write_control_frame(self.frame(self.target,True),repeats=1):
+            raise RuntimeError('move_write_failed')
+        return True
+
     @staticmethod
-    def check_state(s):
-        if s['system_fault'] or s['motor_fault']:raise RuntimeError('firmware_fault')
+    def check_state(s, startup=False):
+        recoverable_comms=(startup and s['system_fault']==1 and not s['enabled']
+                           and s.get('lift_driver_feedback_fresh') and s.get('slide_driver_feedback_fresh'))
+        if (s['system_fault'] and not recoverable_comms) or s['motor_fault']:raise RuntimeError('firmware_fault')
         if not all(s[k] for k in ('lift_zero_confirmed','slide_zero_confirmed','angle_valid','heading_reference_established')):
             raise RuntimeError('origins_or_heading_not_ready')
         if s['yaw_deg'] is None or not math.isfinite(s['yaw_deg']):raise RuntimeError('heading_invalid')
@@ -201,7 +256,7 @@ class ArmPort:
             if self.phase=='idle':
                 if s['command_count_mod256']!=self.expected or s['enabled']:
                     raise RuntimeError('unexpected_external_control')
-                self.limits.check(pose(s))
+                self.check_start_pose(pose(s))
             else:
                 if s['command_count_mod256'] not in (self.expected,self.move_counter):
                     raise RuntimeError('unexpected_command_counter')
@@ -291,6 +346,12 @@ class ContinuousArmPort(ArmPort):
         return True
 
     def tick(self):
+        if self.preparing:
+            super().tick()
+            if self.phase=='idle':
+                self.preparing=False;self.pending=[];self.pending_counter=None
+                self.b_origin=self.state['lift_position_mm']
+            return
         if self.phase=='stopping':
             frames=self.poll();now=time.monotonic()
             allowed={(self.expected+i)%256 for i in range(1,len(self.pending)+2)}

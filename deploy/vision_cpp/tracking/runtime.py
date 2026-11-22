@@ -393,6 +393,13 @@ class Session:
                                 self.reason='waiting_for_target_frame'
                             self.arm={'phase':'waiting_frame' if waiting else 'reacquiring' if self.vision_state=='reacquiring' else 'searching',
                                       'telemetry':port.state,'timestamp':port.rx_at}
+                    elif getattr(port,'preparing',False) or (hasattr(port,'needs_preparation') and port.needs_preparation()):
+                        # A/B tracking starts only after C reaches its bounded working position
+                        # and the disabled acknowledgment has arrived. Target loss still stops it.
+                        with self.lock:
+                            if self.active and not self.stop_event.is_set():port.prepare()
+                            self.arm={'phase':'preparing','telemetry':port.state,'timestamp':port.rx_at}
+                        policy.reset();alignment.reset();identity=None
                     else:
                         age=now-target['timestamp']
                         with self.lock:

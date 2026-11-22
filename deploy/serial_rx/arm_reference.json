@@ -4,8 +4,8 @@
   "timezone": "Asia/Shanghai",
   "evidence": "现场用户确认真实起点、方向和动作/回位；原协议状态回传交叉核对。未用量具标定角度或距离。",
   "control_policy": {
-    "firmware": "继续使用板上现有原固件，不烧录、不修改固件",
-    "firmware_source_reference_commit": "9db673c9103d3da79434c08d7217c2c402871855",
+    "firmware": "本地候选配套A75/CAN回零反馈固件，基于e58f9dc；尚未烧录或部署。板上实际版本需按现场记录核对。",
+    "firmware_source_reference_commit": "e58f9dc333fe76bafdf414528d04ebd1a1d39924",
     "flash_identity_readback_verified": false,
     "protocol": "原 v1：B3/B4 下行10字节；B5/B6 上行20字节，偏移18为1至17异或",
     "baud": 115200,
@@ -43,8 +43,9 @@
       "decreasing_command": "向外，俯视顺时针；按用户照片黄杆左端偏向左上",
       "nominal_structural_angle_formula": "A协议角度 - 75，正号取向内/逆时针",
       "physical_angle_scale_measured": false,
-      "firmware_startup_command": 90,
-      "startup_equals_structural_zero": false,
+      "firmware_startup_command": 75,
+      "startup_equals_structural_zero": true,
+      "startup_hardware_acceptance_pending": true,
       "commands_observed_in_this_session": [
         60,
         62,
