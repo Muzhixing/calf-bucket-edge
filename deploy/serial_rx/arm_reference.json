@@ -5,7 +5,7 @@
   "evidence": "现场用户确认真实起点、方向和动作/回位；原协议状态回传交叉核对。未用量具标定角度或距离。",
   "control_policy": {
     "firmware": "继续使用板上现有原固件，不烧录、不修改固件",
-    "firmware_source_reference_commit": "9db673c9103d3da79434c08d7217c2c402871855",
+    "firmware_source_reference_commit": "785123b41001efa6e673d0bca2a0376d9a7788ff",
     "flash_identity_readback_verified": false,
     "protocol": "原 v1：B3/B4 下行10字节；B5/B6 上行20字节，偏移18为1至17异或",
     "baud": 115200,
@@ -28,7 +28,8 @@
     "firmware_has_communication_watchdog": false,
     "automatic_runtime_loading": true,
     "usage": "主程序追踪控制器读取工作范围和原发送器路径；此文件不修改固件，也不将历史快照视为当前位置。",
-    "continuous_tracking_exception": "2026-11-21 用户要求自动锁定自动运动和实时平滑跟随：连续模式在使能期间更新 A 目标，保留 B 有限行程；每包最多改变一个目标字段，A 与 B 可同时运动。仅目标丢失、用户停止、故障或退出时禁用。单次人工标定动作仍逐次禁用。"
+    "continuous_tracking_exception": "2026-11-21 用户要求自动锁定自动运动和实时平滑跟随：连续模式在使能期间更新 A 目标，保留 B 有限行程；每包最多改变一个目标字段，A 与 B 可同时运动。仅目标丢失、用户停止、故障或退出时禁用。单次人工标定动作仍逐次禁用。",
+    "firmware_identity_basis": "User reported flashed 785123b in the related chat; no firmware identity readback."
   },
   "mechanisms": {
     "A": {
@@ -145,7 +146,11 @@
       "operator_clearance_confirmed": true,
       "evidence": "docs/arm-angle-range-20261121.md",
       "scope": "本次扩展60–70区间；不代表全部A/C组合或机械极限已验证"
-    }
+    },
+    "C_command_mm": [
+      0,
+      30
+    ]
   },
   "heading_reference": {
     "sensor_mount": "用户确认固定在底盘，不随A转动；摆放方向与A回正后的黄杆平行",
@@ -176,5 +181,27 @@
     "command_count_mod256": 28,
     "yaw_deg": 12.6,
     "chassis_and_pump_power": "现场测试期间用户确认断开；后续需按当时实际状态核对"
+  },
+  "power_cycle_startup": {
+    "mode": "explicit_whole_machine_confirmation",
+    "homing_speed_floor": {
+      "A_deg": null,
+      "B_mm": null,
+      "C_mm": null
+    },
+    "speed_evidence": "",
+    "duration_factor": 1.5,
+    "startup_and_settle_margin_s": 5,
+    "whole_power_on_pose": [
+      90,
+      0,
+      0
+    ],
+    "prepared_pose": [
+      75,
+      0,
+      10
+    ],
+    "evidence": "User reports autonomous return at maximum speed after whole-machine power-on; numerical homing speeds and travel coverage require verification. Timed assumption, not hardware-completion feedback."
   }
 }

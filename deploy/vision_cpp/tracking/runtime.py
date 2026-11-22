@@ -26,13 +26,16 @@ from preview import LatestFrames
 from ego import BackgroundMotion
 from response import ResponseProfile
 from journal import AsyncJournal
+from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile
 
 
 class Session:
     def __init__(self,folder,limits,motion_allowed=True,port_factory=None, smooth=False, automatic=False, intrinsics=None,
-                 motion_compensation=False,response_profile=None):
+                 motion_compensation=False,response_profile=None,startup_store=None,startup_port_factory=StartupPort):
         self.folder,self.limits,self.motion_allowed=Path(folder),limits,motion_allowed
-        self.smooth=smooth;self.auto_follow=automatic and motion_allowed
+        self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
+        self.startup_request=None;self.startup_sequence=None
+        self.smooth=smooth;self.auto_follow=automatic and motion_allowed and (startup_store is None or startup_store.ready)
         self.intrinsics=intrinsics
         self.motion_compensation=motion_compensation;self.response_profile=response_profile
         self.port_factory=port_factory or (ContinuousArmPort if smooth else ArmPort)
@@ -40,6 +43,7 @@ class Session:
         self.log_lock=threading.Lock();self.stop_event=threading.Event()
         self.active=False;self.lease=0.;self.revision=0;self.pending=None;self.mode='auto'
         self.target_id=0;self.tracking=None;self.locked_at=0.;self.reason=''
+        if startup_store is not None and not startup_store.ready:self.reason=startup_store.error or 'power_cycle_confirmation_required'
         self.vision_state='searching';self.reacquired_count=0
         self.arm={'phase':'disabled','telemetry':None,'timestamp':0.}
         self.image=None;self.metadata={};self.jpeg=None;self.frame_id=0;self.snapshots=deque(maxlen=2)
@@ -64,15 +68,28 @@ class Session:
     def disarm(self,reason):
         with self.lock:
             was_active=self.active;self.active=False;self.auto_follow=False;self.reason=reason
+            self.startup_request=None
         if was_active:self.log('disarmed',{'reason':reason})
 
     def command(self,action,body):
         with self.lock:
-            if action=='stop':
+            if action=='confirm_power_cycle':
+                if not self.motion_allowed or not self.smooth or self.startup_store is None:raise ValueError('startup_not_available')
+                if body.get('whole_machine_power_cycled') is not True:raise ValueError('whole_machine_confirmation_required')
+                if self.active or self.arm['phase'] not in ('disabled','startup_waiting','startup_preparing'):
+                    raise ValueError('stop_before_power_cycle_confirmation')
+                if self.startup_store.confirm(body.get('request_id')):
+                    self.startup_request=self.startup_store.data['cycle_id']
+                    self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
+            elif action=='stop':
+                if self.startup_request is not None and self.startup_sequence is None:
+                    self.startup_store.invalidate('cancelled_before_sequence_started')
+                self.startup_request=None
                 self.active=False;self.auto_follow=False;self.reason='operator_stop'
             elif action=='heartbeat':
                 self.lease=time.monotonic()
             elif action=='start':
+                if self.startup_store is not None and not self.startup_store.ready:raise ValueError('power_cycle_confirmation_required')
                 if not self.motion_allowed:raise ValueError('当前为只读观察，不能启动机构')
                 if not self.smooth and body.get('chassis_isolated') is not True:raise ValueError('先确认底盘行走动力已断开')
                 if self.image is None or time.monotonic()-self.metadata.get('arrival',0)>.4:
@@ -80,7 +97,7 @@ class Session:
                 if self.mode=='manual' and self.tracking is None:raise ValueError('请重新框选目标')
                 self.active=True;self.auto_follow=self.smooth;self.lease=time.monotonic();self.reason=''
             elif action=='auto':
-                self.active=False;self.auto_follow=self.smooth and self.motion_allowed;self.mode='auto';self.pending=None;self.revision+=1
+                self.active=False;self.auto_follow=self.smooth and self.motion_allowed and (self.startup_store is None or self.startup_store.ready);self.mode='auto';self.pending=None;self.revision+=1
                 self.tracking=None;self.reason=''
             elif action=='select':
                 if self.active or self.arm['phase'] not in ('disabled','idle'):
@@ -107,7 +124,7 @@ class Session:
                               'motion_available':self.motion_allowed,
                               'limits':{'A':[self.limits.a_min,self.limits.a_max],
                                         'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c},
-                              'arm':dict(self.arm)}
+                              'arm':dict(self.arm),'startup':self.startup_store.status() if self.startup_store else None}
             data['tracking']['target_age_s']=max(0,time.monotonic()-track['timestamp']) if track else None
             if self.journal is not None:data['diagnostics']=self.journal.status()
             return data
@@ -349,6 +366,44 @@ class Session:
                 with self.lock:self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':port.state,'timestamp':time.monotonic()}
 
 
+    def advance_startup(self):
+        if self.startup_store is None:return False
+        with self.lock:
+            request=self.startup_request
+            if request is not None and self.startup_sequence is None:
+                self.startup_sequence=StartupSequence(self.startup_store,self.limits,self.log,self.startup_port_factory)
+            sequence=self.startup_sequence
+        if sequence is None:return False
+        try:
+            if self.journal is not None and self.journal.error:raise RuntimeError(self.journal.error)
+            if request is None or self.stop_event.is_set():
+                error=sequence.close('initialization_cancelled')
+                with self.lock:
+                    self.startup_sequence=None
+                    self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':None,'timestamp':time.monotonic()}
+                    if error:self.disarm(error)
+                return True
+            # Waiting/connect perform no writes. Recheck intent after blocking preflight.
+            if sequence.stage=='waiting':sequence.tick()
+            else:
+                with self.lock:
+                    if self.startup_request is not None and not self.stop_event.is_set():sequence.tick()
+            with self.lock:
+                self.arm={'phase':'startup_waiting' if sequence.stage=='waiting' else 'startup_preparing',
+                          'telemetry':sequence.port.state if sequence.port else None,'timestamp':time.monotonic()}
+                if sequence.done:
+                    error=sequence.close();self.startup_sequence=None;self.startup_request=None
+                    if error:raise RuntimeError(error)
+                    self.active=False;self.auto_follow=True;self.reason=''
+                    self.arm['phase']='disabled'
+            return True
+        except BaseException as exc:
+            try:error=sequence.close(str(exc))
+            except Exception as cleanup_error:error=str(cleanup_error)
+            with self.lock:self.startup_sequence=None;self.startup_request=None
+            self.disarm(error or str(exc));self.log('startup_failed',{'reason':str(exc),'stop_error':error})
+            raise RuntimeError(error or str(exc)) from exc
+
     def continuous_arm_loop(self):
         port=None;policy=FollowPolicy(self.limits,**self.intrinsics,response_profile=self.response_profile);identity=None;alignment=AlignmentGate()
         if platform.machine()=='aarch64' and hasattr(os,'sched_setaffinity'):
@@ -358,6 +413,8 @@ class Session:
         try:
             while not self.stop_event.is_set():
                 try:
+                    if self.advance_startup():
+                        last_tick=time.monotonic();self.stop_event.wait(.01);continue
                     now=time.monotonic()
                     if now-last_tick>.08:self.log('control_loop_gap',{'gap_ms':1000*(now-last_tick)})
                     last_tick=now
@@ -456,13 +513,18 @@ class Session:
                                       'telemetry':port.state,'timestamp':port.rx_at,'control':{**policy.diagnostics,**alignment.status()}}
                 except Exception as exc:
                     self.disarm(str(exc));policy.reset();alignment.reset()
-                    error=port.shutdown() if port else None
+                    if self.startup_store is not None and self.startup_store.ready:
+                        try:self.startup_store.invalidate('tracking_state_uncertain:'+str(exc))
+                        except Exception as state_error:self.log('startup_state_error',{'reason':str(state_error)})
+                    error=port.shutdown() if port else (str(exc) if str(exc).startswith('STOP_UNCONFIRMED') else None)
                     last=port.state if port else None;port=None
                     with self.lock:self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':last,'timestamp':time.monotonic()}
                     if error:self.disarm(error)
                     self.log('control_error',{'reason':str(exc),'stop_error':error})
                 self.stop_event.wait(.01)
         finally:
+            if self.startup_sequence is not None:
+                self.startup_sequence.close('program_exit_during_initialization');self.startup_sequence=None
             if port is not None:
                 error=port.shutdown()
                 with self.lock:self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':port.state,'timestamp':time.monotonic()}
@@ -537,6 +599,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--native',required=True)
     parser.add_argument('--observe-only',action='store_true')
+    parser.add_argument('--startup-state',default=str(Path.home()/'.local/state/bucket-arm/power-cycle.json'),help='Persistent power-cycle ledger outside run folders')
     parser.add_argument('--step-control',action='store_true',help='Legacy manual-start stepped controller')
     parser.add_argument('--csrt',action='store_true',help='Enable identity-verified CSRT fallback')
     parser.add_argument('--motion-compensation',action='store_true',help='Measure background motion; affects velocity only with a valid response profile')
@@ -560,9 +623,11 @@ def main():
     motion_allowed=not args.observe_only and '--replay' not in native
     response_profile=(ResponseProfile.load(args.response_profile,hashlib.sha256(Path(value('--calibration')).read_bytes()).hexdigest())
                       if args.response_profile else None)
+    wait_profile=derive_wait_profile(limits)
+    startup_store=(PowerCycleStore(args.startup_state,wait_profile['wait_seconds'],wait_profile['wait_basis']) if motion_allowed else None)
     session=Session(folder,limits,motion_allowed=motion_allowed,smooth=not args.step_control,
                     automatic=motion_allowed and not args.step_control,intrinsics=intrinsics,
-                    motion_compensation=args.motion_compensation,response_profile=response_profile)
+                    motion_compensation=args.motion_compensation,response_profile=response_profile,startup_store=startup_store)
     server=ThreadingHTTPServer(('127.0.0.1',public_port),handler_for(session));server.daemon_threads=True
     process=None;threads=[]
     def signal_stop(signum,frame):session.stop_event.set()
@@ -594,6 +659,7 @@ def main():
             try:process.wait(timeout=6)
             except subprocess.TimeoutExpired:process.terminate();process.wait(timeout=3)
         session.log('session_stopped',session.status()['tracking'])
+        if startup_store is not None:startup_store.close()
         if session.journal is not None:
             drained=session.journal.close()
             (folder/'diagnostic_writer.json').write_text(json.dumps({**session.journal.status(),'drained':drained}))

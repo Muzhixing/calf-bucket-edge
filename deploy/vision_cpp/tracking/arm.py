@@ -23,6 +23,8 @@ class Limits:
         self.c=config['operating_envelope']['C_trial_hold_mm']
         self.a_min,self.a_max=config['operating_envelope'].get('A_command_degrees',[70,100])
         self.sender=config['control_policy']['original_sender_module_on_rk3588']
+        self.startup_policy=config.get('power_cycle_startup',{})
+        self.c_bounds=config['operating_envelope'].get('C_command_mm',[0,30])
         if not (all(isinstance(v,(int,float)) and math.isfinite(v) and v==round(v)
                     for v in (self.a_min,self.a_max))
                 and 0<=self.a_min<self.a_max<=180
@@ -110,10 +112,10 @@ class ArmPort:
             if len(frames)<3:raise RuntimeError('no_fresh_telemetry')
             start=pose(frames[-1]);counter=frames[-1]['command_count_mod256']
             for s in frames:
-                self.check_state(s)
-                if s['enabled'] or s['state']!=0 or pose(s)!=start or s['command_count_mod256']!=counter:
+                self.preflight_state(s)
+                if not self.preflight_disabled(s) or pose(s)!=start or s['command_count_mod256']!=counter or s.get('uart_error_count_mod256')!=frames[-1].get('uart_error_count_mod256'):
                     raise RuntimeError('arm_not_stopped_or_another_controller')
-            self.limits.check(start)
+            self.preflight_pose(start)
             self.expected=counter
             if sender_factory is None:
                 module=Path(self.limits.sender)
@@ -133,6 +135,12 @@ class ArmPort:
         except BaseException:
             if self.fd is not None:os.close(self.fd);self.fd=None
             raise
+
+    def preflight_state(self,s):self.check_state(s)
+
+    def preflight_disabled(self,s):return not s['enabled'] and s['state']==0
+
+    def preflight_pose(self,q):self.limits.check(q)
 
     @staticmethod
     def check_state(s):
@@ -201,7 +209,7 @@ class ArmPort:
             if self.phase=='idle':
                 if s['command_count_mod256']!=self.expected or s['enabled']:
                     raise RuntimeError('unexpected_external_control')
-                self.limits.check(pose(s))
+                self.preflight_pose(pose(s))
             else:
                 if s['command_count_mod256'] not in (self.expected,self.move_counter):
                     raise RuntimeError('unexpected_command_counter')

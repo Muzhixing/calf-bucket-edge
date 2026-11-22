@@ -43,27 +43,42 @@ summary{width:fit-content}.options{margin-top:12px}
 <label id="legacyIsolation" hidden><input id="isolated" type="checkbox">已断开底盘行走动力</label>
 <div class="actions"><button id="start" disabled hidden>恢复追踪</button><button id="stop">停止机构</button></div>
 <details><summary>目标选择</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选容器</button><button id="cancel" hidden>取消框选</button></div></details>
+<details id="powerCyclePanel" hidden><summary>整机上电准备</summary>
+<p id="powerCycleInfo"></p>
+<label><input id="powerCycleConfirmed" type="checkbox">我确认刚完成整机彻底断电再上电，断电前位置在已配置行程范围内，机构周围可安全运动；不是仅重启程序、串口或 STM32。</label>
+<div class="options"><button id="powerCycleStart" disabled>确认整机上电并准备</button></div>
+</details>
 <p id="help"></p>
 </aside></div>
 </main><script>
 const token='__CONTROL_TOKEN__', el=id=>document.getElementById(id);
-let current=null, first=null, selecting=false, busy=false;
+let current=null, first=null, selecting=false, busy=false, powerCycleRequest=null;
 const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认同一目标',target_reacquire_timeout:'目标暂不可见',target_appearance_ambiguous:'目标匹配不唯一，机构暂停',operator_stop:'已停止',operator_connection_lost:'页面连接中断，已请求停止',working_range_limit:'当前方向已到行程边界；仍监测其他方向偏差',origins_or_heading_not_ready:'请先恢复零位和航向',pose_outside_working_range:'当前位置超出工作范围或 C 位置不匹配',arm_not_stopped_or_another_controller:'机构尚未禁用或串口正由其他程序控制',no_fresh_telemetry:'未收到稳定串口回传',target_appearance_lost:'目标外观丢失，请重新选择',target_lost_geometry:'目标形状变化或被遮挡，请重新选择',target_lost_flow:'目标运动无法确认，请重新选择',insufficient_feature_coverage:'目标可用细节不足，请重新选择',target_geometry_jump:'目标变化过大，请重新选择',target_outside_tracking_window:'目标离开可追踪区域，请重新选择',tracking_frame_gap:'画面间隔过长，已请求停止',alignment_error_increased:'调整后偏差增大，已请求停止',telemetry_timeout:'串口回传超时，已请求停止',target_lost_features:'目标丢失，请重新选择',stale_target:'等待目标位置更新',waiting_for_target_frame:'正在等待新画面，恢复后自动续跟',stale_camera:'相机画面过期',selection_changed_reselect:'目标已移动，请重新框选',target_has_too_few_features:'目标细节不足，请扩大框选范围',target_has_too_little_texture:'目标纹理不足，请扩大框选范围'};
 async function api(action,body={}){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');return data;}
 function showError(e){el('error').textContent=e.message||String(e);}
 function textReason(reason){return reasons[reason]||reason||'';}
+Object.assign(reasons,{power_cycle_confirmation_required:'等待整机上电确认；重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'尚未配置有依据的回零速度，不能计算等待时间',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
 function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
  el('rates').textContent=s.preview&&!stale?s.preview.fps.toFixed(1)+' / '+s.preview.tracking_fps.toFixed(1)+' FPS':'—';
  el('legacyIsolation').hidden=!!t.continuous||!!t.active||!t.motion_available;
  el('start').hidden=t.active||!t.motion_available;
  el('start').disabled=!t.motion_available||selecting||stale||t.active||busy;
+ const startup=t.startup;
+ el('powerCyclePanel').hidden=!startup||!t.motion_available;
+ if(startup){
+   el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒，再登记起点、让 A 转到 75°、C 伸出到 10 mm，随后自动追踪。回零按上电约定推定。`:'回零速度尚未配置，暂不允许初始化。等待时间将随各轴行程范围自动计算。';
+   el('powerCycleStart').disabled=busy||t.active||arm.phase!=='disabled'||!startup.wait_configured||!!startup.error||!el('powerCycleConfirmed').checked;
+   if(startup.phase!=='ready')el('start').disabled=true;
+ }
  el('select').disabled=busy;el('auto').disabled=busy;
  el('status').className=arm.phase==='stop_unconfirmed'?'bad':target&&!stale&&t.active?'good':'';
  const states={waiting_frame:'等待新画面，自动续跟已保持',reacquiring:'机构暂停，正在找回同一桶',following:'连续跟随中',searching:'自动寻找目标',moving:'正在对准',stopping:'正在停止，等待回传',holding:'已居中 · 容差内保持',idle:target?'目标已锁定':'等待连续识别',disabled:'机构已禁用',stop_unconfirmed:'停止未确认，请现场检查'};
+ states.startup_waiting='等待整机回零';states.startup_preparing='正在准备机械臂';
  el('status').textContent=stale?(t.automatic?'等待新画面，恢复后自动续跟':'画面离线'):t.active?(states[arm.phase]||arm.phase):(target?'目标已锁定 · 观察中':t.vision_state==='reacquiring'?'正在找回目标 · 观察中':t.mode==='manual'?'等待重新框选':t.automatic?'自动寻找目标':'正在识别目标 · 已暂停');
  if(t.active&&t.vision_state==='reacquiring')el('status').textContent=states.reacquiring;
  if(t.active&&!q)el('status').textContent='正在核对机构回传';
  if(arm.phase==='stop_unconfirmed')el('status').textContent=states.stop_unconfirmed;
+ if(['startup_waiting','startup_preparing'].includes(arm.phase))el('status').textContent=states[arm.phase];
  if(q?.system_fault||q?.motor_fault){el('status').textContent='机构故障';el('status').className='bad';}
  if(!t.motion_available&&arm.phase!=='stop_unconfirmed')el('status').textContent+=' · 只读';
  const direction=(value,negative,positive)=>value===0?'0':(value<0?negative:positive)+Math.abs(value).toFixed(0);
@@ -78,6 +93,8 @@ function unfreeze(){selecting=false;first=null;el('selection').style.display='no
 el('auto').onclick=async()=>{try{unfreeze();await api('auto');}catch(e){showError(e);}};
 el('start').onclick=async()=>{try{await api('start',{chassis_isolated:el('isolated').checked});}catch(e){showError(e);}};
 el('stop').onclick=async()=>{try{await api('stop');}catch(e){showError(e);}};
+el('powerCycleConfirmed').onchange=()=>{if(!busy)powerCycleRequest=null;if(current)render(current);};
+el('powerCycleStart').onclick=async()=>{busy=true;try{if(!el('powerCycleConfirmed').checked)return;powerCycleRequest=powerCycleRequest||crypto.randomUUID();await api('confirm_power_cycle',{whole_machine_power_cycled:true,request_id:powerCycleRequest});el('powerCycleConfirmed').checked=false;}catch(e){showError(e);}finally{busy=false;if(current)render(current);}};
 el('cancel').onclick=unfreeze;
 el('select').onclick=async()=>{busy=true;try{await api('stop');const until=Date.now()+6000;while(true){const r=await fetch('/status');const s=await r.json();if(['disabled','idle'].includes(s.tracking.arm.phase))break;if(Date.now()>until)throw new Error('禁用尚未确认，不能框选');await new Promise(r=>setTimeout(r,100));}selecting=true;el('selection').style.display='block';el('cancel').hidden=false;el('selection').getContext('2d').clearRect(0,0,1280,720);el('help').textContent='在实时画面拖动框住容器主体，画面持续更新。松开后锁定目标，再开始机构追踪。';}catch(e){showError(e);}finally{busy=false;}};
 function point(event){const r=el('selection').getBoundingClientRect();return[Math.max(0,Math.min(1280,(event.clientX-r.left)*1280/r.width)),Math.max(0,Math.min(720,(event.clientY-r.top)*720/r.height))];}
