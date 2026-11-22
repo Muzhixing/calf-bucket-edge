@@ -22,5 +22,5 @@ def main():
     else:
         name='preview_'+datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         call(['python3','-u','vision_v2.py','--id',name,'--seconds','15','--max-frames','1'])
-        pull('results');subprocess.run(['open',str(ROOT/'results'/f'{name}__v2_radial2/seed2_REG_FP16/overlays/000001.jpg')],check=True)
+        pull('results');subprocess.run(['open',str(ROOT/'results'/f'{name}__printed_30mm_20261122/seed2_REG_FP16/overlays/000001.jpg')],check=True)
 if __name__=='__main__':main()
