@@ -1,0 +1,38 @@
+{
+  "algorithm_changed": false,
+  "maintenance_started_motion": false,
+  "external_live_run_preserved": "deploy/vision_edge_stage_20261122/runs/manual_20261122_212619",
+  "migrated_directories": 25,
+  "migrated_logical_bytes": 18700950737,
+  "all_directory_content_verified": true,
+  "all_original_paths_resolve": true,
+  "protected_runtime_files_unchanged": 24,
+  "new_live_logs_on_root": true,
+  "native_dependencies_resolved": true,
+  "python_imports": [
+    "4.10.0",
+    "/home/elf/deploy/vision_reference_stage_20261122/python_deps/cv2/__init__.py",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/vision.py",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/arm.py"
+  ],
+  "root": {
+    "total_bytes": 29009342464,
+    "available_bytes": 19288547328,
+    "free_bytes": 20560650240,
+    "used_bytes": 8448692224
+  },
+  "archive_disk": {
+    "total_bytes": 63641219072,
+    "available_bytes": 34394959872,
+    "free_bytes": 34394959872,
+    "used_bytes": 29246259200
+  },
+  "mac_evidence": {
+    "source": "outputs/tracking_edge_reacquire_20261122",
+    "archive": "mac_tracking_edge_20261122.tar",
+    "sha256": "80cc541aef0d43a4d1d72c563bccef715be396d853324402509c3977e60fb0bc",
+    "bytes": 163840000,
+    "local_originals_retained": true,
+    "remote_sha256_verified": true
+  }
+}
