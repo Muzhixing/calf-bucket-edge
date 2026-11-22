@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from test_tracking import Reference, MCU, Sender
 from arm import ContinuousArmPort, Limits
-from startup import PowerCycleStore, StartupPort, StartupSequence, derive_wait_profile
+from startup import PowerCycleStore, StartupPort, StartupSequence, derive_wait_profile, NativeWarmup
 from runtime import Session
 
 INTRINSICS=dict(fx=691.1954,fy=691.1954,cx=489.3364,cy=374.265)
@@ -56,13 +56,29 @@ class LedgerTests(unittest.TestCase):
     def test_range_expansion_automatically_increases_wait(self):
         ref=Reference();self.addCleanup(ref.directory.cleanup)
         conf=json.loads(ref.path.read_text());conf['operating_envelope']['C_command_mm']=[0,30]
-        conf['power_cycle_startup']={'homing_speed_floor':{'A_deg':30,'B_mm':10,'C_mm':10},'speed_evidence':'fixture test bound','duration_factor':1.5,'startup_and_settle_margin_s':5}
+        conf['power_cycle_startup']={'observed_home_max_s':5,'settle_margin_s':3,'reference_return_distances':{'A_deg':30,'B_mm':96,'C_mm':30},'evidence':'user observed about 5s'}
         ref.path.write_text(json.dumps(conf));a=derive_wait_profile(Limits(ref.path))
         conf['operating_envelope']['A_command_degrees']=[40,140];conf['operating_envelope']['C_command_mm']=[0,60]
         ref.path.write_text(json.dumps(conf));b=derive_wait_profile(Limits(ref.path))
-        self.assertGreater(b['wait_seconds'],a['wait_seconds']);self.assertEqual(b['distances']['C_mm'],60)
-        conf['power_cycle_startup']['homing_speed_floor']['B_mm']=None
-        ref.path.write_text(json.dumps(conf));self.assertIsNone(derive_wait_profile(Limits(ref.path))['wait_seconds'])
+        self.assertEqual(a['wait_seconds'],8);self.assertEqual(b['wait_seconds'],13);self.assertEqual(b['distances']['C_mm'],60)
+        conf['power_cycle_startup']['observed_home_max_s']=None
+        ref.path.write_text(json.dumps(conf))
+        with self.assertRaises(ValueError):derive_wait_profile(Limits(ref.path))
+
+class WarmupTests(unittest.TestCase):
+    def test_advancing_real_inference_frames_without_bucket_are_enough(self):
+        warm=NativeWarmup()
+        for n in range(10):
+            m={'frame_id':n,'arrival':1+n*.03,'backend':'cpp','detector':{'npu_run_ms':12},'detections':[]}
+            warm.observe(m,now=m['arrival'])
+            self.assertEqual(warm.status(m['arrival'])['ready'],n==9)
+        self.assertFalse(warm.status(3)['ready'])
+    def test_duplicate_and_invalid_inference_cannot_fake_warmup(self):
+        warm=NativeWarmup();m={'frame_id':1,'arrival':1.,'backend':'cpp','detector':{'npu_run_ms':12},'detections':[]}
+        for _ in range(20):warm.observe(m,now=1.)
+        self.assertEqual(warm.count,1);self.assertFalse(warm.status(1.)['ready'])
+        warm.observe({**m,'detector':{'npu_run_ms':float('nan')}},now=1.)
+        self.assertEqual(warm.count,0)
 
 class HomeMCU(MCU):
     def __init__(self):
@@ -112,12 +128,41 @@ class StartupPTYTests(unittest.TestCase):
     def test_existing_zero_flags_block_repeat_even_after_new_operator_request(self):
         self.mcu.zero_flags=True;self.mcu.fault=0
         seq=self.begin()
-        with self.assertRaisesRegex(RuntimeError,'already_registered'):seq.tick()
+        with self.assertRaisesRegex(RuntimeError,'already_registered'):self.run_until(lambda:seq.stage=='connect')
         self.assertEqual(self.mcu.commands,[])
-    def test_wait_cancellation_never_opens_serial(self):
+    def test_wait_cancellation_reads_only_and_sends_no_commands(self):
         self.store.confirm(str(uuid.uuid4()))
-        seq=StartupSequence(self.store,self.ref.limits,lambda *a:None,lambda *a:self.fail('opened serial'))
-        seq.tick();seq.close('cancelled');self.assertEqual(self.mcu.commands,[]);self.assertFalse(self.store.ready)
+        self.sequence=StartupSequence(self.store,self.ref.limits,lambda *a:None,self.factory)
+        self.sequence.tick();self.sequence.close('cancelled')
+        self.assertEqual(self.mcu.commands,[]);self.assertFalse(self.store.ready)
+
+    def test_wait_and_self_checks_overlap_and_both_are_required(self):
+        seq=self.begin();ready=False
+        seq.ready_check=lambda:{'ready':ready}
+        end=time.monotonic()+1.8
+        while time.monotonic()<end:seq.tick();time.sleep(.01)
+        self.assertEqual(seq.stage,'waiting');self.assertEqual(self.mcu.commands,[])
+        ready=True;seq.tick()
+        self.assertEqual(seq.stage,'connect')  # no second serial preflight or extra homing wait
+        self.assertEqual(self.mcu.commands,[])
+        seq.tick();self.run_until(lambda:any(f[8]==0 for f in self.mcu.commands))
+
+    def test_ready_self_checks_do_not_shorten_homing_wait(self):
+        self.store.confirm(str(uuid.uuid4()))
+        seq=StartupSequence(self.store,self.ref.limits,lambda *a:None,self.factory,lambda:{'ready':True})
+        self.sequence=seq
+        end=time.monotonic()+1.8
+        while time.monotonic()<end:seq.tick();time.sleep(.01)
+        self.assertEqual(seq.stage,'waiting');self.assertEqual(self.mcu.commands,[])
+        seq.started-=6;seq.tick();self.assertEqual(seq.stage,'connect')
+
+    def test_lost_self_check_during_motion_cancels_without_reregistering(self):
+        seq=self.begin();self.run_until(lambda:seq.stage=='a')
+        seq.ready_check=lambda:{'ready':False}
+        with self.assertRaisesRegex(RuntimeError,'self_check_lost'):seq.tick()
+        seq.close('camera_unavailable');self.assertFalse(self.mcu.enabled)
+        self.assertEqual(sum(f[8]==6 for f in self.mcu.commands),1)
+
     def test_ambiguous_zero_ack_is_not_retried_after_reconnect(self):
         seq=self.begin();self.run_until(lambda:seq.stage=='zero')
         self.mcu.drop=True
@@ -153,7 +198,10 @@ class StartupPTYTests(unittest.TestCase):
             end=time.monotonic()+seconds
             while time.monotonic()<end:
                 with s.lock:
-                    s.metadata={'arrival':time.monotonic()};s.target_id=1;s.vision_state='tracking'
+                    stamp=time.monotonic()
+                    s.metadata={'arrival':stamp};s.target_id=1;s.vision_state='tracking'
+                    s.preview_metadata={'arrival':stamp,'frame_id':int(stamp*1000),'backend':'cpp','detector':{'npu_run_ms':12},'detections':[]}
+                    s.native_warmup.observe(s.preview_metadata);s.jpeg=b'preview';s.video_arrival=stamp
                     s.tracking=None if dx is None else {'box':[400,200,650,450],'offset_px':[dx,0],'timestamp':time.monotonic(),'method':'flow'}
                 time.sleep(.02)
         try:
@@ -190,6 +238,25 @@ class SessionGateTests(unittest.TestCase):
         self.assertFalse(opened);self.assertFalse(session.auto_follow)
         with self.assertRaisesRegex(ValueError,'confirmation_required'):session.command('start',{})
         session.command('auto',{});self.assertFalse(session.auto_follow)
+    def test_camera_initialization_failure_waits_without_consuming_new_cycle(self):
+        ref=Reference();self.addCleanup(ref.directory.cleanup)
+        store=PowerCycleStore(Path(ref.directory.name)/'state.json',8,'user observed 5s plus 3s',boot_id='test');self.addCleanup(store.close)
+        s=Session(ref.directory.name,ref.limits,smooth=True,automatic=True,intrinsics=INTRINSICS,startup_store=store)
+        rid=str(uuid.uuid4());s.command('confirm_power_cycle',{'request_id':rid,'whole_machine_power_cycled':True})
+        class Capture:
+            n=0
+            def read(self):
+                self.n+=1
+                if self.n==2:raise RuntimeError('camera_initializing')
+                if self.n==3:s.stop_event.set()
+                return object(),{'frame_id':self.n,'arrival':time.monotonic(),'backend':'cpp','detections':[],'detector':{'npu_run_ms':12}}
+        class Hub:
+            def publish(self,*a):pass
+            def fail(self,*a):pass
+        s.capture_loop(Capture(),Hub())
+        self.assertEqual(s.startup_request,rid);self.assertEqual(store.data['phase'],'waiting')
+        self.assertFalse(store.data['zero_attempted']);self.assertFalse(s.startup_checks()['ready'])
+
     def test_confirmation_requires_literal_true_and_duplicate_is_idempotent(self):
         ref=Reference();self.addCleanup(ref.directory.cleanup)
         store=PowerCycleStore(Path(ref.directory.name)/'state.json',5,'test',boot_id='test');self.addCleanup(store.close)

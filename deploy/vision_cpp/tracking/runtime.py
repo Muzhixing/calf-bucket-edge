@@ -26,7 +26,7 @@ from preview import LatestFrames
 from ego import BackgroundMotion
 from response import ResponseProfile
 from journal import AsyncJournal
-from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile
+from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile, NativeWarmup
 
 
 class Session:
@@ -35,6 +35,7 @@ class Session:
         self.folder,self.limits,self.motion_allowed=Path(folder),limits,motion_allowed
         self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
         self.startup_request=None;self.startup_sequence=None
+        self.native_warmup=NativeWarmup();self.native_process=None
         self.smooth=smooth;self.auto_follow=automatic and motion_allowed and (startup_store is None or startup_store.ready)
         self.intrinsics=intrinsics
         self.motion_compensation=motion_compensation;self.response_profile=response_profile
@@ -76,7 +77,7 @@ class Session:
             if action=='confirm_power_cycle':
                 if not self.motion_allowed or not self.smooth or self.startup_store is None:raise ValueError('startup_not_available')
                 if body.get('whole_machine_power_cycled') is not True:raise ValueError('whole_machine_confirmation_required')
-                if self.active or self.arm['phase'] not in ('disabled','startup_waiting','startup_preparing'):
+                if self.active or self.arm['phase'] not in ('disabled','startup_waiting','startup_preparing','startup_checking'):
                     raise ValueError('stop_before_power_cycle_confirmation')
                 if self.startup_store.confirm(body.get('request_id')):
                     self.startup_request=self.startup_store.data['cycle_id']
@@ -124,28 +125,35 @@ class Session:
                               'motion_available':self.motion_allowed,
                               'limits':{'A':[self.limits.a_min,self.limits.a_max],
                                         'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c},
-                              'arm':dict(self.arm),'startup':self.startup_store.status() if self.startup_store else None}
+                              'arm':dict(self.arm),'startup':({**self.startup_store.status(),'self_check':self.startup_checks()} if self.startup_store else None)}
             data['tracking']['target_age_s']=max(0,time.monotonic()-track['timestamp']) if track else None
             if self.journal is not None:data['diagnostics']=self.journal.status()
             return data
+
+    def waiting_for_startup_checks(self):
+        with self.lock:
+            return self.startup_request is not None and (self.startup_sequence is None or self.startup_sequence.stage=='waiting')
 
     def capture_loop(self,capture,hub):
         while not self.stop_event.is_set():
             try:
                 image,metadata=capture.read()
                 hub.publish(image,metadata)
-                with self.lock:self.preview_image=image;self.preview_metadata=metadata
+                with self.lock:
+                    self.preview_image=image;self.preview_metadata=metadata
+                    self.native_warmup.observe(metadata)
             except Exception as exc:
                 if str(exc)=='frame_not_advanced':continue
                 hub.fail(exc)
                 with self.lock:
+                    self.native_warmup.reset()
                     self.tracking=None
                     if str(exc)=='stale_camera':
                         self.vision_state='waiting_frame'
                         if self.active:self.reason='waiting_for_target_frame'
                     else:
                         self.vision_state='unavailable'
-                        if self.active or self.preview_metadata:self.disarm(str(exc))
+                        if (self.active or self.preview_metadata) and not self.waiting_for_startup_checks():self.disarm(str(exc))
                 self.stop_event.wait(.05)
 
     def preview_loop(self,hub):
@@ -230,7 +238,7 @@ class Session:
                     # Stay paused until ordinary tracking verifies a fresh frame.
                     self.log('recovery_wait_fresh',{'frame_id':metadata['frame_id']})
                     continue
-                if manager.expired and not self.auto_follow:self.disarm('target_reacquire_timeout')
+                if manager.expired and not self.auto_follow and self.startup_request is None:self.disarm('target_reacquire_timeout')
                 save_loss=manager.state!=last_state and manager.state=='reacquiring'
                 if manager.state!=last_state:
                     self.log('visual_state',{'from':last_state,'to':manager.state,'reason':manager.reason,'frame_id':metadata['frame_id']})
@@ -285,7 +293,7 @@ class Session:
                 # automatically across camera failure, stale data or bad input.
                 with self.lock:
                     recoverable_reason=str(exc) if manager.tracker is None and not self.active and self.mode=='auto' else None
-                if self.active or self.frame_id:self.disarm(str(exc))
+                if (self.active or self.frame_id) and not self.waiting_for_startup_checks():self.disarm(str(exc))
                 manager=TargetLock(mode);generation=0;recoveries=0;last_state='unavailable'
                 with self.lock:self.tracking=None;self.pending=None;self.vision_state='unavailable'
                 self.log('tracking_unavailable',{'reason':str(exc)})
@@ -366,12 +374,25 @@ class Session:
                 with self.lock:self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':port.state,'timestamp':time.monotonic()}
 
 
+    def startup_checks(self):
+        with self.lock:
+            now=time.monotonic();warmup=self.native_warmup.status(now)
+            camera=bool(self.preview_metadata) and 0<=now-self.preview_metadata.get('arrival',0)<=.4
+            tracker=bool(self.metadata) and 0<=now-self.metadata.get('arrival',0)<=.4
+            preview=self.jpeg is not None and 0<=now-self.video_arrival<=.4
+            calibration=bool(self.intrinsics) and all(math.isfinite(v) for v in self.intrinsics.values()) and self.intrinsics.get('fx',0)>0 and self.intrinsics.get('fy',0)>0
+            journal=self.journal is None or not self.journal.error
+            process=self.native_process is None or self.native_process.poll() is None
+            return {'ready':all((warmup['ready'],camera,tracker,preview,calibration,journal,process)),
+                    'inference_warmup':warmup,'camera_fresh':camera,'tracker_fresh':tracker,
+                    'preview_fresh':preview,'calibration_valid':calibration,'journal_healthy':journal,'native_running':process}
+
     def advance_startup(self):
         if self.startup_store is None:return False
         with self.lock:
             request=self.startup_request
             if request is not None and self.startup_sequence is None:
-                self.startup_sequence=StartupSequence(self.startup_store,self.limits,self.log,self.startup_port_factory)
+                self.startup_sequence=StartupSequence(self.startup_store,self.limits,self.log,self.startup_port_factory,self.startup_checks)
             sequence=self.startup_sequence
         if sequence is None:return False
         try:
@@ -383,14 +404,16 @@ class Session:
                     self.arm={'phase':'stop_unconfirmed' if error else 'disabled','telemetry':None,'timestamp':time.monotonic()}
                     if error:self.disarm(error)
                 return True
-            # Waiting/connect perform no writes. Recheck intent after blocking preflight.
+            # Waiting polls read-only while model/camera threads warm up in parallel.
             if sequence.stage=='waiting':sequence.tick()
             else:
                 with self.lock:
                     if self.startup_request is not None and not self.stop_event.is_set():sequence.tick()
             with self.lock:
-                self.arm={'phase':'startup_waiting' if sequence.stage=='waiting' else 'startup_preparing',
-                          'telemetry':sequence.port.state if sequence.port else None,'timestamp':time.monotonic()}
+                remaining=max(0,self.startup_store.wait_seconds-(time.monotonic()-sequence.started))
+                self.arm={'phase':('startup_waiting' if remaining>0 else 'startup_checking') if sequence.stage=='waiting' else 'startup_preparing',
+                          'telemetry':sequence.port.state if sequence.port else None,'timestamp':time.monotonic(),
+                          'startup_wait_remaining_s':remaining}
                 if sequence.done:
                     error=sequence.close();self.startup_sequence=None;self.startup_request=None
                     if error:raise RuntimeError(error)
@@ -634,6 +657,7 @@ def main():
     for sig in (signal.SIGINT,signal.SIGTERM,signal.SIGHUP):signal.signal(sig,signal_stop)
     try:
         process=subprocess.Popen([args.native,*native,'--port',str(backend_port)])
+        session.native_process=process
         deadline=time.monotonic()+15
         while not folder.is_dir() and process.poll() is None and time.monotonic()<deadline:
             if session.stop_event.wait(.05):break

@@ -90,7 +90,7 @@ def plan(q,error,limits):
 
 
 class ArmPort:
-    def __init__(self,limits,log,port=DEFAULT_PORT,sender_factory=None,check_holders=True):
+    def __init__(self,limits,log,port=DEFAULT_PORT,sender_factory=None,check_holders=True,defer_preflight=False):
         self.limits,self.log,self.port=limits,log,port
         self.fd=None;self.parser=Parser();self.state=None;self.rx_at=0.
         self.phase='idle';self.expected=None;self.target=None;self.origin=None
@@ -103,20 +103,14 @@ class ArmPort:
             a[2]=termios.CS8|termios.CREAD|termios.CLOCAL;a[4]=a[5]=termios.B115200
             a[6][termios.VMIN]=a[6][termios.VTIME]=0
             termios.tcsetattr(self.fd,termios.TCSANOW,a)
-            # Discard buffered history; require fresh periodic reports thereafter.
-            until=time.monotonic()+.4
-            while time.monotonic()<until:self.poll();time.sleep(.01)
-            frames=[];until=time.monotonic()+1.2
-            while time.monotonic()<until:
-                frames.extend(self.poll());time.sleep(.01)
-            if len(frames)<3:raise RuntimeError('no_fresh_telemetry')
-            start=pose(frames[-1]);counter=frames[-1]['command_count_mod256']
-            for s in frames:
-                self.preflight_state(s)
-                if not self.preflight_disabled(s) or pose(s)!=start or s['command_count_mod256']!=counter or s.get('uart_error_count_mod256')!=frames[-1].get('uart_error_count_mod256'):
-                    raise RuntimeError('arm_not_stopped_or_another_controller')
-            self.preflight_pose(start)
-            self.expected=counter
+            if not defer_preflight:
+                # Discard buffered history; require fresh periodic reports thereafter.
+                until=time.monotonic()+.4
+                while time.monotonic()<until:self.poll();time.sleep(.01)
+                frames=[];until=time.monotonic()+1.2
+                while time.monotonic()<until:
+                    frames.extend(self.poll());time.sleep(.01)
+                self.validate_preflight(frames)
             if sender_factory is None:
                 module=Path(self.limits.sender)
                 if not module.is_file():raise RuntimeError('original_sender_missing')
@@ -131,10 +125,20 @@ class ArmPort:
                     return n
             self.gateway=sender_factory(port=port,serial_factory=lambda port,baud:ExistingFD(),command_repeats=1)
             self.gateway._open_serial()
-            self.log('arm_ready',self.state)
+            self.log('arm_serial_open_readonly' if defer_preflight else 'arm_ready',self.state)
         except BaseException:
             if self.fd is not None:os.close(self.fd);self.fd=None
             raise
+
+    def validate_preflight(self,frames):
+        if len(frames)<3:raise RuntimeError('no_fresh_telemetry')
+        start=pose(frames[-1]);counter=frames[-1]['command_count_mod256']
+        for s in frames:
+            self.preflight_state(s)
+            if (not self.preflight_disabled(s) or pose(s)!=start or s['command_count_mod256']!=counter
+                    or s.get('uart_error_count_mod256')!=frames[-1].get('uart_error_count_mod256')):
+                raise RuntimeError('arm_not_stopped_or_another_controller')
+        self.preflight_pose(start);self.expected=counter
 
     def preflight_state(self,s):self.check_state(s)
 
@@ -181,6 +185,7 @@ class ArmPort:
             raise RuntimeError('move_write_failed')
 
     def stop(self):
+        if self.state is None and not self.attempted:return
         if self.phase=='stopping':return
         if not self.attempted and not self.state['enabled']:
             return

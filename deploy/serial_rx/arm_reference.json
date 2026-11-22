@@ -184,14 +184,13 @@
   },
   "power_cycle_startup": {
     "mode": "explicit_whole_machine_confirmation",
-    "homing_speed_floor": {
-      "A_deg": null,
-      "B_mm": null,
-      "C_mm": null
+    "observed_home_max_s": 5,
+    "settle_margin_s": 3,
+    "reference_return_distances": {
+      "A_deg": 30,
+      "B_mm": 96,
+      "C_mm": 30
     },
-    "speed_evidence": "",
-    "duration_factor": 1.5,
-    "startup_and_settle_margin_s": 5,
     "whole_power_on_pose": [
       90,
       0,
@@ -202,6 +201,6 @@
       0,
       10
     ],
-    "evidence": "User reports autonomous return at maximum speed after whole-machine power-on; numerical homing speeds and travel coverage require verification. Timed assumption, not hardware-completion feedback."
+    "evidence": "User reports the longest observed whole-machine autonomous homing finishes within about 5 seconds. Default wait is 5+3=8 seconds; enlarged-range scaling is an unvalidated estimate, not a hardware completion signal. No exact homing speed required."
   }
 }

@@ -8,40 +8,55 @@ import tempfile
 import threading
 import time
 import uuid
+from collections import deque
 
 from arm import ArmPort, pose
 
 
 def derive_wait_profile(limits):
-    """Range-derived timed assumption; missing speed evidence never grants motion.
-
-    Speed is a conservative effective homing speed (including ramps), not the
-    tracking pulse frequency nor an unverified motor nameplate maximum.
-    Sum the three durations until simultaneous autonomous homing is verified.
-    """
-    policy=limits.startup_policy;speed=policy.get('homing_speed_floor',{})
-    evidence=policy.get('speed_evidence','')
-    distances={'A_deg':max(abs(limits.a_min-90),abs(limits.a_max-90)),
-               'B_mm':max(abs(limits.b_min),abs(limits.b_max)),
-               'C_mm':max(abs(v) for v in limits.c_bounds)}
+    """Observed ~5s + 3s default; range scaling is an estimate, not a guarantee."""
+    policy=limits.startup_policy
     if (len(limits.c_bounds)!=2 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in limits.c_bounds)
             or limits.c_bounds[0]!=0 or not limits.c<=limits.c_bounds[1]<=175):
         raise ValueError('invalid_startup_C_range')
-    missing=[key for key in distances if not isinstance(speed.get(key),(int,float)) or isinstance(speed.get(key),bool)
-             or not math.isfinite(speed[key]) or speed[key]<=0]
-    if missing or not evidence.strip():
-        return {'wait_seconds':None,'wait_basis':'','distances':distances,'missing_speed':missing,'speed_evidence':evidence}
-    margin=policy.get('startup_and_settle_margin_s',5)
-    factor=policy.get('duration_factor',1.5)
-    if not isinstance(margin,(int,float)) or not math.isfinite(margin) or not 1<=margin<=60:raise ValueError('invalid_startup_margin')
-    if not isinstance(factor,(int,float)) or not math.isfinite(factor) or not 1<=factor<=5:raise ValueError('invalid_startup_factor')
-    durations={key:distances[key]/speed[key] for key in distances}
-    seconds=math.ceil(max(5,sum(durations.values())*factor+margin))
-    if seconds>300:raise ValueError('startup_wait_exceeds_300s_review_speed_and_range')
-    basis=json.dumps({'method':'sum(max_return_distance/effective_homing_speed_floor)*factor+margin',
-                      'durations_s':durations,'distances':distances,'speed_floor':speed,'factor':factor,
-                      'margin_s':margin,'evidence':evidence},ensure_ascii=False)
-    return {'wait_seconds':seconds,'wait_basis':basis,'distances':distances,'missing_speed':[],'speed_evidence':evidence}
+    distances={'A_deg':max(abs(limits.a_min-90),abs(limits.a_max-90)),
+               'B_mm':max(abs(limits.b_min),abs(limits.b_max)),
+               'C_mm':max(abs(v) for v in limits.c_bounds)}
+    reference=policy.get('reference_return_distances',{'A_deg':30,'B_mm':96,'C_mm':30})
+    observed=policy.get('observed_home_max_s',5);margin=policy.get('settle_margin_s',3)
+    if any(not isinstance(v,(int,float)) or isinstance(v,bool) or not math.isfinite(v) or v<=0
+           for v in [observed,margin,*[reference.get(k) for k in distances]]):
+        raise ValueError('invalid_observed_startup_wait_profile')
+    scale=max(1.,*[distances[k]/reference[k] for k in distances])
+    seconds=math.ceil(observed*scale+margin)
+    if not 5<=seconds<=300:raise ValueError('startup_wait_outside_5_to_300s')
+    evidence=policy.get('evidence','User observed whole-machine autonomous homing finish within about 5 seconds.')
+    basis=json.dumps({'method':'ceil(observed_seconds*max(1,range_ratio)+settle_margin)',
+                      'observed_seconds':observed,'margin_s':margin,'range_scale':scale,
+                      'distances':distances,'reference_distances':reference,'evidence':evidence,
+                      'expanded_range_validated':False,'hardware_complete_signal':False},ensure_ascii=False)
+    return {'wait_seconds':seconds,'wait_basis':basis,'distances':distances,'range_scale':scale}
+
+
+class NativeWarmup:
+    """Ten advancing completed native inference frames; no target required."""
+    def __init__(self):self.reset()
+    def reset(self):self.count=0;self.last_id=-1;self.last_arrival=0.
+    def observe(self,metadata,now=None):
+        now=time.monotonic() if now is None else now
+        try:
+            frame_id=metadata['frame_id'];arrival=float(metadata['arrival'])
+            elapsed=float(metadata['detector']['npu_run_ms'])
+            valid=(metadata['backend']=='cpp' and isinstance(metadata['detections'],list)
+                   and math.isfinite(elapsed) and elapsed>0 and 0<=now-arrival<=.4)
+        except (KeyError,ValueError,TypeError):valid=False
+        if not valid:self.reset();return
+        if frame_id==self.last_id:return
+        if frame_id<self.last_id or arrival<self.last_arrival or arrival-self.last_arrival>.5:self.count=0
+        self.count=min(10,self.count+1);self.last_id=frame_id;self.last_arrival=arrival
+    def status(self,now=None):
+        now=time.monotonic() if now is None else now
+        return {'ready':self.count>=10 and 0<=now-self.last_arrival<=.4,'completed_inference_frames':self.count}
 
 
 def boot_identity():
@@ -149,7 +164,26 @@ class StartupPort(ArmPort):
     """Original-protocol port, bounded startup only, no CAN/new firmware fields."""
     def __init__(self,*args,**kwargs):
         self.registered=False;self.ack_flags=None
+        self.opened_at=time.monotonic();self.preflight_history=deque(maxlen=128)
+        kwargs['defer_preflight']=True
         super().__init__(*args,**kwargs)
+
+    def poll(self):
+        frames=super().poll();now=time.monotonic()
+        if now-self.opened_at>=.4:
+            self.preflight_history.extend((now,s) for s in frames)
+        while self.preflight_history and now-self.preflight_history[0][0]>1.3:self.preflight_history.popleft()
+        return frames
+
+    def preflight_ready(self):
+        now=time.monotonic();frames=list(self.preflight_history)
+        if (now-self.opened_at<1.6 or len(frames)<3 or frames[-1][0]-frames[0][0]<.7
+                or now-self.rx_at>.4):return False
+        try:self.validate_preflight([s for _,s in frames])
+        except RuntimeError as exc:
+            if str(exc) in ('no_fresh_telemetry','heading_not_ready'):return False
+            raise
+        return True
 
     @staticmethod
     def healthy(s,allow_comms=False):
@@ -214,18 +248,32 @@ class StartupPort(ArmPort):
 
 
 class StartupSequence:
-    def __init__(self,store,limits,log,port_factory=StartupPort):
+    def __init__(self,store,limits,log,port_factory=StartupPort,ready_check=None):
         self.store,self.limits,self.log,self.port_factory=store,limits,log,port_factory
         self.port=None;self.started=time.monotonic();self.stage='waiting';self.done=False
+        self.ready_check=ready_check or (lambda:{'ready':True});self.last_check=None
         self.log('whole_power_cycle_wait',store.status())
 
     def tick(self):
+        checks=self.ready_check()
+        if checks!=self.last_check:
+            self.last_check=checks;self.log('startup_self_check',checks)
         if self.stage=='waiting':
+            # Open and read only; UART/heading preflight overlaps homing and model warmup.
+            if self.port is None:self.port=self.port_factory(self.limits,self.log)
+            self.port.poll()
             if time.monotonic()-self.started<self.store.wait_seconds:return
+            if not checks.get('ready') or not self.port.preflight_ready():return
             self.store.phase('preflight');self.stage='connect'
-            self.log('homing_assumed_after_wait',{'wait_seconds':self.store.wait_seconds,'basis':self.store.wait_basis,'hardware_complete_signal':False})
-            self.port=self.port_factory(self.limits,self.log)
-            return  # Caller rechecks stop intent after blocking serial preflight.
+            self.log('homing_assumed_after_wait',{'wait_seconds':self.store.wait_seconds,
+                     'elapsed_seconds':time.monotonic()-self.started,'basis':self.store.wait_basis,
+                     'hardware_complete_signal':False,'self_checks':checks})
+            return
+        if not checks.get('ready'):
+            if self.port.attempted or self.port.state and self.port.state['enabled']:
+                raise RuntimeError('startup_self_check_lost')
+            self.port.poll()
+            return
         if self.stage=='connect':
             self.store.phase('disable_pending');self.port.disabled_command(0);self.stage='disable';return
         self.port.tick()

@@ -57,7 +57,7 @@ const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认
 async function api(action,body={}){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');return data;}
 function showError(e){el('error').textContent=e.message||String(e);}
 function textReason(reason){return reasons[reason]||reason||'';}
-Object.assign(reasons,{power_cycle_confirmation_required:'等待整机上电确认；重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'尚未配置有依据的回零速度，不能计算等待时间',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
+Object.assign(reasons,{power_cycle_confirmation_required:'等待整机上电确认；重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'启动等待配置无效，请检查配置',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_self_check_lost:'启动自检状态失效，机构已停止',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
 function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
  el('rates').textContent=s.preview&&!stale?s.preview.fps.toFixed(1)+' / '+s.preview.tracking_fps.toFixed(1)+' FPS':'—';
  el('legacyIsolation').hidden=!!t.continuous||!!t.active||!t.motion_available;
@@ -66,19 +66,19 @@ function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetr
  const startup=t.startup;
  el('powerCyclePanel').hidden=!startup||!t.motion_available;
  if(startup){
-   el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒，再登记起点、让 A 转到 75°、C 伸出到 10 mm，随后自动追踪。回零按上电约定推定。`:'回零速度尚未配置，暂不允许初始化。等待时间将随各轴行程范围自动计算。';
+   el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒；模型预热和自检同时进行，未完成则继续等待。随后登记起点、A 转到 75°、C 伸出到 10 mm，再自动追踪。回零按上电约定推定。`:'启动等待配置无效，暂不允许初始化。';
    el('powerCycleStart').disabled=busy||t.active||arm.phase!=='disabled'||!startup.wait_configured||!!startup.error||!el('powerCycleConfirmed').checked;
    if(startup.phase!=='ready')el('start').disabled=true;
  }
  el('select').disabled=busy;el('auto').disabled=busy;
  el('status').className=arm.phase==='stop_unconfirmed'?'bad':target&&!stale&&t.active?'good':'';
  const states={waiting_frame:'等待新画面，自动续跟已保持',reacquiring:'机构暂停，正在找回同一桶',following:'连续跟随中',searching:'自动寻找目标',moving:'正在对准',stopping:'正在停止，等待回传',holding:'已居中 · 容差内保持',idle:target?'目标已锁定':'等待连续识别',disabled:'机构已禁用',stop_unconfirmed:'停止未确认，请现场检查'};
- states.startup_waiting='等待整机回零';states.startup_preparing='正在准备机械臂';
+ states.startup_waiting='等待整机回零 · 预热自检并行';states.startup_preparing='正在准备机械臂';states.startup_checking='等待模型或机构自检完成';
  el('status').textContent=stale?(t.automatic?'等待新画面，恢复后自动续跟':'画面离线'):t.active?(states[arm.phase]||arm.phase):(target?'目标已锁定 · 观察中':t.vision_state==='reacquiring'?'正在找回目标 · 观察中':t.mode==='manual'?'等待重新框选':t.automatic?'自动寻找目标':'正在识别目标 · 已暂停');
  if(t.active&&t.vision_state==='reacquiring')el('status').textContent=states.reacquiring;
  if(t.active&&!q)el('status').textContent='正在核对机构回传';
  if(arm.phase==='stop_unconfirmed')el('status').textContent=states.stop_unconfirmed;
- if(['startup_waiting','startup_preparing'].includes(arm.phase))el('status').textContent=states[arm.phase];
+ if(['startup_waiting','startup_preparing','startup_checking'].includes(arm.phase))el('status').textContent=states[arm.phase];
  if(q?.system_fault||q?.motor_fault){el('status').textContent='机构故障';el('status').className='bad';}
  if(!t.motion_available&&arm.phase!=='stop_unconfirmed')el('status').textContent+=' · 只读';
  const direction=(value,negative,positive)=>value===0?'0':(value<0?negative:positive)+Math.abs(value).toFixed(0);
