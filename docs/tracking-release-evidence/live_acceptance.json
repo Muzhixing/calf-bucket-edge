@@ -1,0 +1,147 @@
+{
+  "user_feedback": "完美",
+  "span_s": 119.15048618800029,
+  "edge_relocks": [
+    {
+      "frame": 1048,
+      "target_id": 6,
+      "confirmation_s": 0.26756402000046364,
+      "published_at": 7865.488746721,
+      "first_command_at": 7865.501574653,
+      "publication_to_command_s": 0.012827931999709108
+    },
+    {
+      "frame": 1138,
+      "target_id": 9,
+      "confirmation_s": 0.13552523999987898,
+      "published_at": 7868.451323074,
+      "first_command_at": 7868.453773573,
+      "publication_to_command_s": 0.00245049899967853
+    },
+    {
+      "frame": 1150,
+      "target_id": 10,
+      "confirmation_s": 0.2357544999995298,
+      "published_at": 7868.860452545,
+      "first_command_at": 7868.867535718,
+      "publication_to_command_s": 0.007083172999955423
+    },
+    {
+      "frame": 1298,
+      "target_id": 15,
+      "confirmation_s": 0.23172380000050907,
+      "published_at": 7873.795941473,
+      "first_command_at": 7873.799677594,
+      "publication_to_command_s": 0.0037361209997470723
+    },
+    {
+      "frame": 1400,
+      "target_id": 19,
+      "confirmation_s": 0.13196877999962453,
+      "published_at": 7877.200621413,
+      "first_command_at": 7877.212486003,
+      "publication_to_command_s": 0.011864590000186581
+    },
+    {
+      "frame": 1468,
+      "target_id": 21,
+      "confirmation_s": 0.13582973000029597,
+      "published_at": 7879.468340485,
+      "first_command_at": 7879.476455831,
+      "publication_to_command_s": 0.008115345999613055
+    },
+    {
+      "frame": 1476,
+      "target_id": 22,
+      "confirmation_s": 0.13207873000010295,
+      "published_at": 7879.733013023,
+      "first_command_at": null,
+      "publication_to_command_s": null
+    },
+    {
+      "frame": 1496,
+      "target_id": 23,
+      "confirmation_s": 0.1321151900001496,
+      "published_at": 7880.413318683,
+      "first_command_at": 7880.421630313,
+      "publication_to_command_s": 0.00831162999929802
+    },
+    {
+      "frame": 1688,
+      "target_id": 33,
+      "confirmation_s": 0.1315607500000624,
+      "published_at": 7886.813459263,
+      "first_command_at": 7886.818752247,
+      "publication_to_command_s": 0.005292983999424905
+    },
+    {
+      "frame": 2071,
+      "target_id": 39,
+      "confirmation_s": 0.13578803000018524,
+      "published_at": 7899.554701261,
+      "first_command_at": 7899.561943386,
+      "publication_to_command_s": 0.007242124999720545
+    },
+    {
+      "frame": 2377,
+      "target_id": 43,
+      "confirmation_s": 0.13558415999978024,
+      "published_at": 7909.783055313,
+      "first_command_at": 7909.790694675,
+      "publication_to_command_s": 0.007639362000190886
+    },
+    {
+      "frame": 2773,
+      "target_id": 45,
+      "confirmation_s": 0.1358448999999382,
+      "published_at": 7922.985756415,
+      "first_command_at": 7922.989543284,
+      "publication_to_command_s": 0.003786869000578008
+    },
+    {
+      "frame": 2788,
+      "target_id": 46,
+      "confirmation_s": 0.1362841300006039,
+      "published_at": 7923.461932492,
+      "first_command_at": 7923.465551659,
+      "publication_to_command_s": 0.0036191669996696874
+    }
+  ],
+  "edge_full_handover_frames": [
+    1419
+  ],
+  "loss_intervals": 46,
+  "disabled_loss_intervals": 43,
+  "enabled_tx_after_loss_disable": 0,
+  "last_alignment_hold": {
+    "type": "hold",
+    "start": 7929.853450263,
+    "seconds": 18.946816476000095,
+    "disabled_ms": 10.751337999863608,
+    "enabled_tx_after_disable": 0
+  },
+  "control_loop_gap_events": 0,
+  "control_errors": [],
+  "fault_reports": 0,
+  "uart_counters": [
+    61
+  ],
+  "occlusion_evidence": "Prior matched replay interval 6899.65-6901.09: zero candidate targets. Current live recording audit did not isolate an additional continuous 1s fully-hidden interval; loss-disables and user feedback are separate evidence.",
+  "already_disabled_loss_intervals": [
+    {
+      "start": 7867.377194082,
+      "previous_rx_enabled": false,
+      "serial_tx_during_loss": 0
+    },
+    {
+      "start": 7879.733071063,
+      "previous_rx_enabled": false,
+      "serial_tx_during_loss": 0
+    },
+    {
+      "start": 7887.63593002,
+      "previous_rx_enabled": false,
+      "serial_tx_during_loss": 0
+    }
+  ]
+}

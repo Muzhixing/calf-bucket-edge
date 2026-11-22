@@ -12,6 +12,14 @@ for arg in "$@"; do
     if "$next_id"; then ID=$arg; next_id=false; elif [ "$arg" = --id ]; then next_id=true; fi
 done
 case "$ID" in ''|*[!A-Za-z0-9_.-]*|.|..) echo 'Invalid run id' >&2; exit 2;; esac
-exec "$BASE/vision" --model "$BASE/assets/seed2_REG_FP16.rknn" \
+# Optional CSRT uses an isolated dependency bundle; ordinary runs retain their
+# existing Python/OpenCV environment. The native detector libraries are unchanged.
+for arg in "$@"; do
+  if [ "$arg" = --csrt ] && [ -d "$BASE/python_deps/cv2" ]; then
+    export PYTHONPATH="$BASE/python_deps${PYTHONPATH:+:$PYTHONPATH}"
+    break
+  fi
+done
+exec python3 "$BASE/tracking/runtime.py" --native "$BASE/vision" --model "$BASE/assets/B1_C0_REG_FP16.rknn" \
   --calibration "$BASE/assets/calibration.yml" --calibration-sha "$(cat calibration.sha256)" \
-  --assets "$BASE/assets" --output "$BASE/runs/$ID" --id "$ID" "$@"
+  --cores 0_1_2 --assets "$BASE/assets" --output "$BASE/runs/$ID" --id "$ID" "$@"

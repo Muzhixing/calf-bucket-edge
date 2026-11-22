@@ -8,15 +8,13 @@ import cv2
 import numpy as np
 from PIL import Image,ImageDraw,ImageFont
 assets=ROOT/'assets';assets.mkdir(exist_ok=True)
-models=json.loads((v2/'models.json').read_text())
-if len(models)!=1 or models[0]['name']!='seed2_REG_FP16':
-    raise RuntimeError('Expected exactly the frozen V1 model')
-model=v2/models[0]['path']
-model_sha=hashlib.sha256(model.read_bytes()).hexdigest()
-original_binding=json.loads((v2/'config/model_bindings.json').read_text())
-if model_sha!=models[0]['sha256'] or model_sha!=original_binding['seed2_REG_FP16']['sha256'] or model_sha!='bb3d9d9deacf3f099232414139040eae81ea3c362976cbf3a7a13af5cca06c4d':
-    raise RuntimeError('Frozen model binding mismatch')
-shutil.copyfile(model,assets/'seed2_REG_FP16.rknn')
+# Production model is explicitly selected; never silently restore the legacy V2 model.
+selected_model=json.loads((ROOT/'model_source.json').read_text())
+model=(ROOT/selected_model['path']).resolve()
+if not model.is_relative_to(ROOT) or selected_model['color']!='RGB':
+    raise RuntimeError('Invalid production model selection')
+if hashlib.sha256(model.read_bytes()).hexdigest()!=selected_model['sha256']:
+    raise RuntimeError('Production B1 model hash mismatch')
 selection=ROOT/'calibration_source.json'
 selected=json.loads(selection.read_text())
 source=(ROOT/selected['path']).resolve()

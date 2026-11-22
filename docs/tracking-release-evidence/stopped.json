@@ -1,0 +1,119 @@
+{
+  "valid_frames": 14,
+  "parser": {
+    "discarded_bytes": 12,
+    "valid_frames": 14,
+    "bad_tail": 1
+  },
+  "trailing_partial_hex": "",
+  "timing_basis": "host read completion; coalesced frames share timestamp",
+  "interval_count": 13,
+  "interval_ms_min": 0.0,
+  "interval_ms_median": 249.991421,
+  "interval_ms_mean": 229.2784166153846,
+  "interval_ms_max": 250.136374,
+  "coalesced_intervals": 1,
+  "intervals_over_375ms": 0,
+  "enabled_frames": 0,
+  "system_fault_codes": [
+    0
+  ],
+  "motor_fault_codes": [
+    0
+  ],
+  "states": {
+    "disabled": 14
+  },
+  "command_counts": [
+    72
+  ],
+  "first_frame": {
+    "hex": "B5 01 48 00 00 2E F8 02 64 00 06 00 FF FF 4D 00 00 3D 8F B6",
+    "version": 1,
+    "command_count_mod256": 72,
+    "result": 0,
+    "result_name": "accepted",
+    "state": 0,
+    "state_name": "disabled",
+    "flags": 46,
+    "enabled": false,
+    "lift_zero_confirmed": true,
+    "slide_zero_confirmed": true,
+    "angle_valid": true,
+    "distance_valid": false,
+    "heading_reference_established": true,
+    "unknown_flag_bits": 0,
+    "lift_position_tenths_mm": 760,
+    "slide_position_tenths_mm": 100,
+    "lift_position_mm": 76.0,
+    "slide_position_mm": 10.0,
+    "yaw_raw_tenths_deg": 6,
+    "yaw_deg": 0.6,
+    "ultrasound_raw_mm": 65535,
+    "ultrasound_mm": null,
+    "servo_software_deg": 77,
+    "system_fault": 0,
+    "system_fault_name": "none",
+    "motor_fault": 0,
+    "motor_fault_name": "none",
+    "uart_error_count_mod256": 61,
+    "utc": "2026-11-22T12:55:20.549166+00:00",
+    "monotonic_ns": 7956127781448
+  },
+  "last_frame": {
+    "hex": "B5 01 48 00 00 2E F8 02 64 00 06 00 FF FF 4D 00 00 3D 8F B6",
+    "version": 1,
+    "command_count_mod256": 72,
+    "result": 0,
+    "result_name": "accepted",
+    "state": 0,
+    "state_name": "disabled",
+    "flags": 46,
+    "enabled": false,
+    "lift_zero_confirmed": true,
+    "slide_zero_confirmed": true,
+    "angle_valid": true,
+    "distance_valid": false,
+    "heading_reference_established": true,
+    "unknown_flag_bits": 0,
+    "lift_position_tenths_mm": 760,
+    "slide_position_tenths_mm": 100,
+    "lift_position_mm": 76.0,
+    "slide_position_mm": 10.0,
+    "yaw_raw_tenths_deg": 6,
+    "yaw_deg": 0.6,
+    "ultrasound_raw_mm": 65535,
+    "ultrasound_mm": null,
+    "servo_software_deg": 77,
+    "system_fault": 0,
+    "system_fault_name": "none",
+    "motor_fault": 0,
+    "motor_fault_name": "none",
+    "uart_error_count_mod256": 61,
+    "utc": "2026-11-22T12:55:23.529795+00:00",
+    "monotonic_ns": 7959108400864
+  },
+  "lift_position_mm_range": [
+    76.0,
+    76.0
+  ],
+  "slide_position_mm_range": [
+    10.0,
+    10.0
+  ],
+  "yaw_deg_range": [
+    0.6,
+    0.6
+  ],
+  "uart_error_count_mod256_range": [
+    61,
+    61
+  ],
+  "bytes_received": 292,
+  "elapsed_s": 3.005873378,
+  "end_utc": "2026-11-22T12:55:23.554864+00:00",
+  "stop_reason": "duration_elapsed",
+  "error": null,
+  "serial_write_calls": 0,
+  "device_open_attempted": true
+}

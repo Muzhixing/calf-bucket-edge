@@ -7,6 +7,9 @@ V2_HOST=${BUCKET_V2_HOST:-elf@192.168.31.175}
 SOCK=${BUCKET_SSH_SOCKET:-/tmp/bucket-v1-20261116.sock}
 ssh -S "$SOCK" -O check "$V2_HOST" 2>/dev/null || ssh -M -S "$SOCK" -o ControlPersist=2h -Nf "$V2_HOST"
 ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_cpp'
+ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_cpp/assets'
+rsync -a -e "ssh -S $SOCK" "$HERE/model_source.json" "$V2_HOST:/home/elf/deploy/vision_cpp/"
+rsync -a -e "ssh -S $SOCK" "$HERE/assets/B1_C0_REG_FP16.rknn" "$V2_HOST:/home/elf/deploy/vision_cpp/assets/"
 # Explicit source allowlist; never transfer recordings, test files or binaries.
 rsync -a -e "ssh -S $SOCK" "$HERE"/*.hpp "$HERE/main.cpp" "$HERE/prepare.py" \
   "$HERE/build.sh" "$HERE/build_opencv.sh" "$HERE/run.sh" "$HERE/README.md" "$V2_HOST:/home/elf/deploy/vision_cpp/"
@@ -14,6 +17,11 @@ ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_cpp/calibrations'
 rsync -a -e "ssh -S $SOCK" "$HERE/calibration_source.json" "$V2_HOST:/home/elf/deploy/vision_cpp/"
 rsync -a -e "ssh -S $SOCK" "$HERE/calibrations/printed_30mm_20261122.json" \
   "$V2_HOST:/home/elf/deploy/vision_cpp/calibrations/"
+rsync -a -e "ssh -S $SOCK" --include='*.py' --include='*.html' --exclude='*' \
+  "$HERE/tracking/" "$V2_HOST:/home/elf/deploy/vision_cpp/tracking/"
+ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/serial_rx'
+rsync -a -e "ssh -S $SOCK" "$HERE/../serial_rx/receive.py" \
+  "$HERE/../serial_rx/arm_reference.json" "$V2_HOST:/home/elf/deploy/serial_rx/"
 ssh -S "$SOCK" "$V2_HOST" 'set -eu
 cd /home/elf/deploy/vision_cpp
 if [ ! -f /usr/include/gstreamer-1.0/gst/gst.h ] && [ ! -f deps/headers/usr/include/gstreamer-1.0/gst/gst.h ]; then

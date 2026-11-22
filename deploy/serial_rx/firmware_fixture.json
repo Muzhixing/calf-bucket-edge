@@ -1,0 +1,10 @@
+{
+  "source_repository": "https://github.com/Muzhixing/MCU-slave-device.git",
+  "commit": "9db673c9103d3da79434c08d7217c2c402871855",
+  "mode": "upstream C with host mocks; no hardware",
+  "hex": "B5010904043E000000008403EA005A02010301B6",
+  "source_hashes": {
+    "Hardware/SystemControl.c": "25198eaa541ff2125c322479755b6c771be448a633cc58b35cb7f76a41c48e0d",
+    "tests/test_control.c": "6b4dde358bc0be98567fb24dff592a0673575cc61607a086d192177fe5668831"
+  }
+}

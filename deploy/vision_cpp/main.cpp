@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     auto hash = sha256(modelpath);
     check(
         hash ==
-            "bb3d9d9deacf3f099232414139040eae81ea3c362976cbf3a7a13af5cca06c4d",
+            "4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7",
         "frozen model hash mismatch");
     check(sha256(calpath) == a.at("--calibration-sha"),
           "calibration matrix hash mismatch");
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
     check(fs::create_directory(output), "output exists or cannot be created");
     std::cerr << "MODEL=" << modelpath << " SHA256=" << hash
               << "\nCALIBRATION=" << calpath << " SHA256=" << sha256(calpath)
-              << "\nBGR / 640x360+140 vertical padding / score .536 / NMS .45 "
+              << "\nRGB / 640x360+140 vertical padding / score .536 / NMS .45 "
                  "/ depth_scale="
               << scale << " / serial disabled\nOUTPUT=" << fs::absolute(output)
               << '\n';
@@ -200,7 +200,8 @@ int main(int argc, char **argv) {
       seq = item.seq;
       Timings timing;
       timing["left_remap_ms"] = item.remap_ms;
-      auto detections = model.detect(item.left, timing);
+      timing["left_remap_opencl"] = item.remap_opencl ? 1 : 0;
+      auto detections = model.detect_with_recovery(item.left, timing);
       std::optional<Box> box;
       if (!detections.empty())
         box = detections[0];
@@ -287,6 +288,7 @@ int main(int argc, char **argv) {
           << ",\"detected\":" << (box ? "true" : "false")
           << ",\"selected\":" << selected
           << ",\"detections\":" << boxes_json(detections)
+          << ",\"tracking_candidates\":" << boxes_json(model.tracking_candidates)
           << ",\"distance_m\":" << number(value)
           << ",\"raw_distance_m\":" << number(fresh)
           << ",\"measurement_status\":\"" << p.status

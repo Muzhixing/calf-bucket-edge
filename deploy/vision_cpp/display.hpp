@@ -227,7 +227,7 @@ struct Display {
       : folder(output), hdmi(on_hdmi) {
     std::ifstream f(assets + "/preview.html");
     html.assign(std::istreambuf_iterator<char>(f), {});
-    if (!hdmi) {
+    { // Loopback capture/status also serves the tracking controller in HDMI mode.
       server = socket(AF_INET, SOCK_STREAM, 0);
       check(server >= 0, "HTTP socket");
       int one = 1;
@@ -276,6 +276,34 @@ struct Display {
           }
           seq = p.seq;
           auto im = overlay(p);
+          // The controller publishes only observations/confirmed state here;
+          // serial ownership remains in the original-protocol worker.
+          try {
+            std::ifstream state_file(folder + "/tracking_overlay.json");
+            if (state_file) {
+              std::string body((std::istreambuf_iterator<char>(state_file)), {});
+              if (body.size() < 16384) {
+                cv::FileStorage state(body, cv::FileStorage::READ |
+                                           cv::FileStorage::MEMORY |
+                                           cv::FileStorage::FORMAT_JSON);
+                double stamp = double(state["timestamp"]);
+                if (state.isOpened() && now() - stamp >= 0 && now() - stamp < .5) {
+                  std::string label = std::string(state["state"]);
+                  std::vector<int> b;
+                  state["box"] >> b;
+                  if (b.size() == 4 && b[0] >= 0 && b[1] >= 0 &&
+                      b[2] <= 1280 && b[3] <= 720 && b[2] > b[0] && b[3] > b[1]) {
+                    auto color = cv::Scalar(0, 255, 255);
+                    cv::rectangle(im, {b[0], b[1]}, {b[2], b[3]}, color, 2);
+                    cv::Point center((b[0] + b[2]) / 2, (b[1] + b[3]) / 2);
+                    cv::drawMarker(im, center, color, cv::MARKER_CROSS, 16, 2);
+                  }
+                  text_at(im, "TRACK " + label, {20, 695}, .6,
+                          cv::Scalar(0, 255, 255), 1);
+                }
+              }
+            }
+          } catch (const cv::Exception &) { /* stale/partial state never drives motion */ }
           if (displayed == 0) {
             cv::imwrite(folder + "/rectified_overlay.jpg", im);
             cv::imwrite(folder + "/raw_left.jpg",
@@ -353,6 +381,9 @@ struct Display {
       std::istringstream request(req);
       std::string method, path;
       request >> method >> path;
+      std::string query;
+      auto question = path.find('?');
+      if (question != std::string::npos) query = path.substr(question + 1);
       path = path.substr(0, path.find('?'));
       if (method != "GET")
         return;
@@ -381,6 +412,44 @@ struct Display {
         }
         // A slow HTTP client must never hold up detection or the renderer.
         response("application/json", s);
+        return;
+      }
+      if (path == "/capture.jpg" || path == "/capture.bgr") {
+        Packet p;
+        {
+          std::unique_lock<std::mutex> lock(mutex);
+          if (query.rfind("after=", 0) == 0) {
+            long after = std::stol(query.substr(6));
+            condition.wait_for(lock, std::chrono::milliseconds(100),
+                               [&] { return stop || pending.seq > after; });
+            if (pending.seq <= after) {
+              lock.unlock();
+              sendtext(fd, "HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+              return;
+            }
+          }
+          // Control consumes the latest immutable inference packet. Waiting
+          // for overlay/JPEG/HDMI completion adds display latency to feedback.
+          p = pending;
+        }
+        if (p.left.empty() || p.json.empty()) {
+          sendtext(fd, "HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n");
+          return;
+        }
+        // Local controller consumes exact pixels without a JPEG encode/decode
+        // round trip. Keep the JPEG route for field evidence and diagnostics.
+        const bool raw = path == "/capture.bgr";
+        std::vector<uchar> encoded;
+        cv::Mat pixels;
+        if (raw) pixels = p.left.isContinuous() ? p.left : p.left.clone();
+        else cv::imencode(".jpg", p.left, encoded, {cv::IMWRITE_JPEG_QUALITY, 90});
+        size_t size = raw ? pixels.total()*pixels.elemSize() : encoded.size();
+        std::string header = "HTTP/1.1 200 OK\r\nConnection: close\r\n"
+            "Cache-Control: no-store\r\nContent-Type: " +
+            std::string(raw ? "application/octet-stream" : "image/jpeg") + "\r\nX-Frame-Id: " +
+            std::to_string(p.seq) + "\r\nX-Observation: " + p.json +
+            "\r\nContent-Length: " + std::to_string(size) + "\r\n\r\n";
+        if (sendtext(fd, header)) sendall(fd, raw ? pixels.data : encoded.data(), size);
         return;
       }
       if (path != "/stream.mjpg" && path != "/frame.jpg") {

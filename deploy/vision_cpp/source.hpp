@@ -61,7 +61,17 @@ struct Source {
     rectifier = std::thread([this, &g]() {
       try {
         affinity({5});
-        RemapTail tail(g);
+        const char *setting = std::getenv("BUCKET_RECTIFY_BACKEND");
+        std::string backend = setting ? setting : "auto";
+        check(backend == "auto" || backend == "cpu" || backend == "opencl", "rectify backend");
+        cv::ocl::setUseOpenCL(backend != "cpu");
+        bool gpu = backend != "cpu" && cv::ocl::useOpenCL();
+        check(backend != "opencl" || gpu, "requested OpenCL unavailable");
+        cv::UMat map1, map2, upload, rectified;
+        if (gpu) { g.lm1.copyTo(map1); g.lm2.copyTo(map2); }
+        std::unique_ptr<RemapTail> tail;
+        if (!gpu) tail = std::make_unique<RemapTail>(g);
+        std::cerr << "RECTIFY=" << (gpu ? "OpenCL" : "CPU") << '\n';
         long seq = 0;
         while (!stop) {
           Item item;
@@ -81,11 +91,25 @@ struct Source {
           auto left = item.raw(cv::Rect(0, 0, 1280, 720));
           item.left.create(720, 1280, CV_8UC3);
           double t = now();
-          tail.submit(left, item.left.rowRange(480, 720));
-          cv::Mat upper = item.left.rowRange(0, 480);
-          cv::remap(left, upper, g.lm1.rowRange(0, 480), g.lm2.rowRange(0, 480),
-                    cv::INTER_LINEAR);
-          tail.wait();
+          if (gpu) {
+            try {
+              left.copyTo(upload);
+              cv::remap(upload, rectified, map1, map2, cv::INTER_LINEAR);
+              rectified.copyTo(item.left); // Include synchronization/download in latency.
+            } catch (const cv::Exception &e) {
+              if (backend == "opencl") throw;
+              std::cerr << "OpenCL fallback: " << e.what() << '\n';
+              gpu = false; cv::ocl::setUseOpenCL(false);
+              tail = std::make_unique<RemapTail>(g);
+            }
+          }
+          if (!gpu) {
+            tail->submit(left, item.left.rowRange(480, 720));
+            cv::Mat upper = item.left.rowRange(0, 480);
+            cv::remap(left, upper, g.lm1.rowRange(0, 480), g.lm2.rowRange(0, 480), cv::INTER_LINEAR);
+            tail->wait();
+          }
+          item.remap_opencl = gpu;
           item.remap_ms = (now() - t) * 1000;
           {
             std::lock_guard<std::mutex> lock(mutex);

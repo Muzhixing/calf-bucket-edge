@@ -8,7 +8,7 @@
 
 标定源 SHA-256：`5917ede19309a4f78d810b3c9c91d4e8033c23751307e6879f7e3f55f5c7031e`。
 
-C++ 的 `calibration_source.json` 与采集工具的 `active_calibration.json` 均绑定这份新标定；两处 JSON 参数副本完全相同。准备时校验哈希、单位、分辨率及重新计算的校正矩阵；缺文件或校验失败即停止，不回退旧标定。冻结模型仍为 `seed2_REG_FP16`，检测和测距算法未变。
+C++ 的 `calibration_source.json` 与采集工具的 `active_calibration.json` 均绑定这份新标定；两处 JSON 参数副本完全相同。准备时校验哈希、单位、分辨率及重新计算的校正矩阵；缺文件或校验失败即停止，不回退旧标定。标定确认阶段使用 `seed2_REG_FP16`；后续实时模型已切换为B1_C0_REG_FP16，标定保持本版，见[当前追踪版本](tracking-release-20261122.md)。
 
 ## 实测确认
 
