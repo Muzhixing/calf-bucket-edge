@@ -1,0 +1,22 @@
+{
+  "strong_sequence_start_frame": 1703,
+  "strong_sequence_start_stamp": 6892.99394893,
+  "baseline": {
+    "frame": 1768,
+    "stamp": 6895.16196852,
+    "wait_s": 2.168019589999858
+  },
+  "candidate": {
+    "frame": 1709,
+    "stamp": 6893.19401831,
+    "wait_s": 0.20006937999914953
+  },
+  "occlusion_interval": [
+    6899.65,
+    6901.09
+  ],
+  "baseline_occlusion_target_frames": [
+    1903
+  ],
+  "candidate_occlusion_target_frames": []
+}

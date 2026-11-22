@@ -1,0 +1,23 @@
+{
+  "files": {
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/control.py": "035b958af5eb321f5d91b2e33828fdbfb22ea54fc2f38da9b6d39770b9d1b6dd",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/journal.py": "c8c46b26b47c28a7fa82bd237f27cb55da4326b8d6b6ea3787548f224dbc3374",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/fit_response.py": "bbd0b953730a866523251a7febb5d4f6d36e789698f9ce0f1bc8b44307b3037c",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/preview.py": "f33e5a27bca1015a5eb5420b2473739be84d7a807ff50d0b2c7385ddbf4ddc83",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/runtime.py": "2f347d0bca5f02b6bfaa7c5ab35507c11c50178fa61b65b35d93b55e503bc421",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/ego.py": "b78628ebdc0014a7939d139bc8e9a91eb6ad650390f57af7d542fec2863e7390",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/matching.py": "e9183f85ba7125e47402ffa601794d091732a927bcada1bdb5c4ef9b5026f48f",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/arm.py": "00dd454c00c2e737c12961b1fc7ab64e061bf4ae133256330d63cead10b4946f",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/response.py": "09cf7a0f4ec6412b14c0615f9078de3239430b8dcc42a5c9da3047c336506aa8",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/motion.py": "0df06a6bd536045f6705146995d0d12a1cad1c4aedb36e40c7d2044bd4ea5925",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/vision.py": "8cb6e9cc06f8081398b8c32cde70838dc8cf3cc078749e675bd74c6af30ded38",
+    "/home/elf/deploy/vision_edge_stage_20261122/tracking/correlation.py": "24ae4ec5ef923f5963d9ba6ce32b2ab516420acc63437650533b721765770b54",
+    "/home/elf/deploy/vision_edge_stage_20261122/run.sh": "7d65c3cbc241ff13cd3eedc8a316d87def6f33c2287230149d1cddad5910576a",
+    "/home/elf/deploy/vision_cpp/vision": "f73296b04b72769c61a0f8c0baa06d626feecf60be78cced2f78293d65eef526",
+    "/home/elf/deploy/vision_cpp/assets/B1_C0_REG_FP16.rknn": "4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7",
+    "/home/elf/deploy/vision_cpp/assets/calibration.yml": "345f68e9e4fbaf114c5ee982d11a75cfc0e0c23105df3de6ee6e4b51c3ee7b00"
+  },
+  "training": false,
+  "csrt": false,
+  "replay_source": "969 sampled raw JPEG frames with original timestamps/detections"
+}

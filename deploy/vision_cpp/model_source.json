@@ -1,0 +1,10 @@
+{
+  "name": "B1_C0_REG_FP16",
+  "path": "assets/B1_C0_REG_FP16.rknn",
+  "sha256": "4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7",
+  "color": "RGB",
+  "checkpoint": "B1 20 epochs last.pt",
+  "calibration": "original 200 training images",
+  "precision": "fixed s32 regression FP16, remaining INT8",
+  "authorization": "User requested full production replacement; no additional effect tests"
+}

@@ -1,0 +1,53 @@
+{
+  "variant": "candidate",
+  "corpus": "recent",
+  "frames": 969,
+  "target_frames": 776,
+  "loss_episodes": 27,
+  "loss_seconds": 20.657157730001927,
+  "loss_max": 3.9998320999993666,
+  "methods": {
+    "initialized": 1,
+    "flow": 606,
+    "detector_bridge": 20,
+    "detector_continuity": 59,
+    "flow_supported": 26,
+    "detector_relock": 6,
+    "appearance": 18,
+    "detector_flow_relock": 4,
+    "detector_wide_relock": 16,
+    "detector_edge_relock": 1,
+    "edge_detector": 18,
+    "edge_full_lock": 1
+  },
+  "known_occlusion": {},
+  "median_ms": 16.908790999877965,
+  "p95_ms": 60.62403220021222,
+  "p99_ms": 92.86476791970883,
+  "max_ms": 125.66899500052386,
+  "over33ms": 154,
+  "over100ms": 6,
+  "cache_max_bytes": 5808000,
+  "image_sha256": "55ee289d2a020a7b4c1326056770a70b3ff1ff3d9fa7b3bc4642ce1f78f92c50",
+  "observations_sha256": "38fee8ccdcfe49296568e71443f4c653f5f2b7713ac9f4a783f686df06cb8ea8",
+  "source_hashes": {
+    "arm.py": "00dd454c00c2e737c12961b1fc7ab64e061bf4ae133256330d63cead10b4946f",
+    "control.py": "035b958af5eb321f5d91b2e33828fdbfb22ea54fc2f38da9b6d39770b9d1b6dd",
+    "correlation.py": "24ae4ec5ef923f5963d9ba6ce32b2ab516420acc63437650533b721765770b54",
+    "ego.py": "b78628ebdc0014a7939d139bc8e9a91eb6ad650390f57af7d542fec2863e7390",
+    "fit_response.py": "bbd0b953730a866523251a7febb5d4f6d36e789698f9ce0f1bc8b44307b3037c",
+    "journal.py": "c8c46b26b47c28a7fa82bd237f27cb55da4326b8d6b6ea3787548f224dbc3374",
+    "matching.py": "e9183f85ba7125e47402ffa601794d091732a927bcada1bdb5c4ef9b5026f48f",
+    "motion.py": "0df06a6bd536045f6705146995d0d12a1cad1c4aedb36e40c7d2044bd4ea5925",
+    "preview.py": "f33e5a27bca1015a5eb5420b2473739be84d7a807ff50d0b2c7385ddbf4ddc83",
+    "response.py": "09cf7a0f4ec6412b14c0615f9078de3239430b8dcc42a5c9da3047c336506aa8",
+    "runtime.py": "2f347d0bca5f02b6bfaa7c5ab35507c11c50178fa61b65b35d93b55e503bc421",
+    "vision.py": "8cb6e9cc06f8081398b8c32cde70838dc8cf3cc078749e675bd74c6af30ded38"
+  },
+  "cpu_affinity": [
+    4,
+    6
+  ],
+  "opencv_threads": 1,
+  "opencv_file": "/home/elf/deploy/vision_reference_stage_20261122/python_deps/cv2/__init__.py"
+}

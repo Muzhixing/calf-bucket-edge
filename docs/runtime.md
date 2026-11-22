@@ -1,14 +1,13 @@
 # 当前运行结构
 
-实时入口为 `deploy/vision_cpp/main.cpp`。采集线程保存最新双目帧，校正线程处理左目，主线程调用冻结 RKNN 检测，独立双目进程处理一个在途任务；显示线程输出网页 MJPEG 或 HDMI。各阶段只保留最新帧，距离保留来源帧及年龄。
+当前验收版本是2026-11-22近距离边缘重获版，模型为B1_C0_REG_FP16，RGB输入，使用30 mm打印棋盘标定。C++负责采集、校正、NPU检测和GPU校正/双目测距；Python负责跟踪、预览和原STM32协议控制，线程只读取最新帧。
 
-本机使用 `deploy/vision_v2/view_live.sh`；板端使用 `deploy/vision_cpp/run.sh` 或 `deploy/vision_v2/view_hdmi.sh`。默认快速双目，`--depth-scale 1` 启用全分辨率。旧 Python 实时后端和旧整车应用已移除。
+仓库入口为`deploy/vision_cpp/run.sh`。默认自动识别、确认、跟随，无须在锁定后手动开始；运动前检查新鲜回传、零位、航向、故障与行程。`--observe-only`及回放不启动机构。关闭浏览器不等于关闭自动跟随；页面“停止机构”或主进程SIGINT走禁用确认流程。
 
-`deploy/vision_v2` 是当前模型、标定和采集支撑包。其 `app/` 仅包含独立视觉采集需要的检测、测距、标定加载和事件模块；`vision_v2.py` 保存左右图与验收记录。原检测/测距模块的冻结哈希仍核验，未重新训练或转换模型。
+板端实测入口及精确依赖见[当前版本说明](tracking-release-20261122.md)。当前板端验收副本位于`/home/elf/deploy/vision_edge_stage_20261122`，生产目录`vision_cpp`提供原生程序和模型；提交GitHub本身不覆盖生产运行入口、不使能机构。
 
-板端当前工程路径：
+`deploy/vision_v2`保留历史冻结模型与采集/回放工具，不将其旧模型描述当作当前实时模型选择。当前模型绑定在`deploy/vision_cpp/model_source.json`，标定绑定在`calibration_source.json`。板端原单帧发送器仍由`serial_rx/arm_reference.json`指定。
 
-- `/home/elf/deploy/vision_cpp`：C++ 实时程序；结果保存到 `runs/<编号>/`。
-- `/home/elf/deploy/vision_v2`：模型与采集支撑；数据保存到 `captures/`、`results/`、`trial_records/`。
+A范围60–100°、B范围0–96 mm、C固定10 mm；圈内10%保持/外圈15%恢复，界面不绘制容差圆。完全遮挡或证据不足时暂停，确认当前目标后恢复；不靠预测延长可见性。
 
-配置与依赖详见 [C++ 说明](../deploy/vision_cpp/README.md) 和 [采集说明](../deploy/vision_v2/README.md)。运行不导入串口、车辆控制器或任务服务。
+[主程序说明](../deploy/vision_cpp/README.md) · [视觉接口](interfaces/api-rules.md) · [工作区导航](../WORKSPACE.md)

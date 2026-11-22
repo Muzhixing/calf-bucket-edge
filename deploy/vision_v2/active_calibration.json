@@ -1,9 +1,9 @@
 {
-  "active": "v2_radial2",
+  "active": "printed_30mm_20261122",
   "profiles": {
-    "v2_radial2": {
-      "path": "calibrations/v2_radial2.json",
-      "sha256": "21c1c049edc92503f26fee3ce0ba9e70984db5155f48ded53b67002eb976a12a"
+    "printed_30mm_20261122": {
+      "path": "calibrations/printed_30mm_20261122.json",
+      "sha256": "5917ede19309a4f78d810b3c9c91d4e8033c23751307e6879f7e3f55f5c7031e"
     }
   },
   "camera": {
@@ -26,7 +26,7 @@
     ],
     "physical_order_confirmed_from": "screen_calibration_20261116/calibration/SCREEN_EST_20261116_214335/physical_checks.json"
   },
-  "authorization": "user explicitly authorized V2 calibration activation after accepted approximately0.95m single-pose rough check; no full-field metric accuracy claim",
+  "authorization": "2026-11-22: user confirmed unchanged camera/board, tape lens-to-board-center distance approximately 490 mm, accepted comparison to 488.444 mm reconstructed slant range, and selected this calibration. Single-pose approximate check; not a full-range accuracy claim.",
   "serial_enabled": false,
   "actuator_enabled": false
 }

@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <csignal>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
 #include <future>
 #include <iomanip>
@@ -21,6 +22,7 @@
 #include <mutex>
 #include <numeric>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/ocl.hpp>
 #include <optional>
 #include <poll.h>
 #include <sched.h>
@@ -59,6 +61,13 @@ struct Box {
   int l, t, r, b, anchor;
   double score;
 };
+void restore_horizontal_boxes(std::vector<Box> &boxes, int width = 1280) {
+  for (auto &b : boxes) {
+    int left = b.l;
+    b.l = std::clamp(width - b.r, 0, width - 1);
+    b.r = std::clamp(width - left, 0, width - 1);
+  }
+}
 std::string boxes_json(const std::vector<Box> &b) {
   std::ostringstream s;
   s << std::setprecision(12) << '[';
@@ -103,6 +112,9 @@ bool same(const std::optional<Box> &a, const std::optional<Box> &b) {
 }
 
 struct Model {
+  // Low-score boxes are association evidence only, never new detections/range targets.
+  std::vector<Box> tracking_candidates;
+  unsigned view_frame = 0;
   rknn_context ctx = 0;
   std::array<rknn_output, 9> out{};
   bool held = false;
@@ -141,12 +153,15 @@ struct Model {
       rknn_destroy(ctx);
   }
   std::vector<Box> detect(const cv::Mat &left, Timings &t) {
+    tracking_candidates.clear();
     cv::Mat input, resized;
     {
       Timer tm(t, "preprocess_ms");
       cv::resize(left, resized, {640, 360}, 0, 0, cv::INTER_LINEAR);
       cv::copyMakeBorder(resized, input, 140, 140, 0, 0, cv::BORDER_CONSTANT,
                          cv::Scalar(0, 0, 0));
+      // B1 C0 is trained and validated with RGB input.
+      cv::cvtColor(input, input, cv::COLOR_BGR2RGB);
     }
     rknn_input in{};
     in.buf = input.data;
@@ -186,7 +201,7 @@ struct Model {
         auto reg = (float *)out[branch * 3].buf,
              conf = (float *)out[branch * 3 + 1].buf;
         for (int i = 0; i < n; i++) {
-          if (!(conf[i] >= .536f))
+          if (!(conf[i] >= .25f))
             continue;
           std::array<double, 4> d{};
           for (int side = 0; side < 4; side++) {
@@ -239,10 +254,12 @@ struct Model {
       }
       for (auto &v : keep) {
         auto clamp = [](int x, int hi) { return std::clamp(x, 0, hi); };
-        result.push_back(
-            {clamp(int(v.b[0]) * 2, 1279), clamp((int(v.b[1]) - 140) * 2, 719),
+        Box decoded{
+             clamp(int(v.b[0]) * 2, 1279), clamp((int(v.b[1]) - 140) * 2, 719),
              clamp(int(v.b[2]) * 2, 1279), clamp((int(v.b[3]) - 140) * 2, 719),
-             v.anchor, v.score});
+             v.anchor, v.score};
+        if (v.score >= .536f) result.push_back(decoded);
+        else if (tracking_candidates.size() < 32) tracking_candidates.push_back(decoded);
       }
     }
     {
@@ -251,6 +268,28 @@ struct Model {
       held = false;
     }
     return result;
+  }
+  std::vector<Box> detect_with_recovery(const cv::Mat &left, Timings &t) {
+    auto primary = detect(left, t);
+    t["recovery_view_attempted"] = 0;
+    t["recovery_view_used"] = 0;
+    // Bounded test-time augmentation: retain every normal inference and try
+    // one mirrored view on every third frame when it misses. No stale boxes are reused.
+    if (++view_frame % 3 != 0 || !primary.empty()) return primary;
+    auto primary_weak = tracking_candidates;
+    cv::Mat mirrored;
+    cv::flip(left, mirrored, 1);
+    Timings extra;
+    double start = now();
+    auto recovered = detect(mirrored, extra);
+    t["recovery_view_ms"] = (now() - start) * 1000;
+    t["recovery_view_attempted"] = 1;
+    // Weak alternate boxes do not create a new target. Keep the normal-view
+    // weak associations and the existing multi-frame lock/occlusion checks.
+    tracking_candidates = std::move(primary_weak);
+    restore_horizontal_boxes(recovered, left.cols);
+    if (!recovered.empty()) t["recovery_view_used"] = 1;
+    return recovered;
   }
 };
 
@@ -619,6 +658,7 @@ struct RectifiedReplay {
   struct Item {
     long seq = 0;
     double arrival = 0, remap_ms = 0;
+    bool remap_opencl = false;
     cv::Mat raw, left;
   };
   std::atomic<bool> stop{false};

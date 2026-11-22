@@ -7,7 +7,7 @@ ssh -S "$SOCK" -O check "$V2_HOST" 2>/dev/null || ssh -M -S "$SOCK" -o ControlPe
 ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_v2/captures /home/elf/deploy/vision_v2/results /home/elf/deploy/vision_v2/logs /home/elf/deploy/vision_v2/trial_records'
 rsync -a --exclude __pycache__ --exclude '*.pyc' --exclude .DS_Store --exclude captures --exclude results --exclude logs --exclude trial_records \
  -e "ssh -S $SOCK" "$HERE/" "$V2_HOST:/home/elf/deploy/vision_v2/"
-ssh -S "$SOCK" "$V2_HOST" 'cd /home/elf/deploy/vision_v2 && python3 tools/verify.py'
+ssh -S "$SOCK" "$V2_HOST" 'cd /home/elf/deploy/vision_v2 && python3 tools/verify.py && rm -f calibrations/v2_radial2.json'
 
 # Build the native live backend beside the preserved Python runtime.
 "$HERE/../vision_cpp/deploy.sh"

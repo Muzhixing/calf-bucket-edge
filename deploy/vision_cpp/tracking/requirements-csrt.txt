@@ -1,0 +1,2 @@
+# Optional, install into an isolated target directory; preserve system NumPy.
+opencv-contrib-python-headless==4.10.0.84

@@ -1,6 +1,10 @@
-# 视觉输出与后续 STM32 对接
+# 视觉输出与 STM32 追踪控制
 
-网页模式只监听板端 `127.0.0.1:8788`，通过 SSH 转发访问。`/` 为预览页，`/stream.mjpg` 为最新 JPEG 流，`/frame.jpg` 为单帧，`/status` 为 JSON。HDMI 模式不启动 HTTP。
+网页与 HDMI 模式均只监听板端 `127.0.0.1:8788`，通过 SSH 转发访问。`/` 为追踪控制页，`/stream.mjpg` 为追踪叠加 JPEG 流，`/frame.jpg` 为单帧，`/status` 为 JSON。原生后端位于后一端口（默认 8789），`/capture.jpg` 的 `X-Frame-Id`、`X-Observation` 和原始左图原子对应；不对外开放。
+
+`/status.tracking` 包含 `mode`（auto/manual）、`active`（操作员跟随意图）、`vision_state`（searching/tracking/reacquiring/unavailable）、`reacquired_count`、`target_id`、`target`（box/offset_px/quality/timestamp/method；边缘路径另有partial_visible）、`reason`、`motion_available`、`limits` 和 `arm`（phase/telemetry/timestamp）。控制图像有效年龄为 0.4 秒，独立于原测距 1.5 秒有效期。`arm.phase=holding` 表示已居中持续观察，`reacquiring` 表示已暂停机构等待原目标重获，`stop_unconfirmed` 表示尚未收到禁用确认。
+
+控制 POST `/api/start`（`{"chassis_isolated":true}`）、`stop`、`auto`、`select`（`frame_id` 与 `box`）、`heartbeat` 需要本次页面的 `X-Control-Token`。框选在实时图像上进行，松开时 GET `/snapshot.jpg` 取得最新图及响应头帧号，再立即提交框坐标；截图有效 0.4 秒，初始化后光流衔接当前帧。选择目标时先停止机械臂，桶和车无需静止。旧`--step-control`模式要求页面heartbeat，超过3秒请求禁用；默认自动连续模式独立于页面生命周期。短暂目标丢失时 `active` 可保持 true，但 `target=null` 且机构暂停；自动模式通过当前图像/检测确认后续跟，旧身份超时后自动重新获取，不将旧位置当成当前目标；手动旧模式保留超时停用。相机故障或用户停止不会自动恢复机构。没有 REST 自动复位零位或扩大行程接口。
 
 | 字段 | 含义 |
 |---|---|
