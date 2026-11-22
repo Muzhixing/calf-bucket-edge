@@ -158,7 +158,8 @@ class ArmPort:
         while self.fd is not None and select.select([self.fd],[],[],0)[0]:
             data=os.read(self.fd,4096)
             if not data:raise RuntimeError('serial_disconnected')
-            frames.extend(self.parser.feed(data))
+            decoded=self.parser.feed(data);frames.extend(decoded)
+            self.log('serial_observation',{'frames':decoded,'parser':dict(self.parser.stats)})
         if frames:
             self.state=frames[-1];self.rx_at=time.monotonic()
             self.log('serial_rx',frames)

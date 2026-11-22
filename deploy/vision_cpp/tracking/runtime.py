@@ -26,6 +26,7 @@ from preview import LatestFrames
 from ego import BackgroundMotion
 from response import ResponseProfile
 from journal import AsyncJournal
+from diagnostics import StartupDiagnostics
 from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile, NativeWarmup
 
 
@@ -36,6 +37,8 @@ class Session:
         self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
         self.startup_request=None;self.startup_sequence=None
         self.native_warmup=NativeWarmup();self.native_process=None
+        self.startup_diagnostics=None;self.diagnostics_logged=False;self.expected_binding={}
+        self.follow_after=0.
         self.smooth=smooth;self.auto_follow=automatic and motion_allowed and (startup_store is None or startup_store.ready)
         self.intrinsics=intrinsics
         self.motion_compensation=motion_compensation;self.response_profile=response_profile
@@ -53,7 +56,17 @@ class Session:
         self.token=secrets.token_urlsafe(32)
         self.journal=None
 
+    def diagnostic_call(self,method,*args,**kwargs):
+        diagnostic=self.startup_diagnostics
+        if diagnostic is None:return None
+        try:return getattr(diagnostic,method)(*args,**kwargs)
+        except Exception:
+            diagnostic.error('diagnostic_internal_error:'+method)
+            return None
+
     def log(self,event,data):
+        if event=='serial_observation' and self.startup_diagnostics is not None:
+            self.diagnostic_call('serial',data['frames'],data['parser'])
         if self.journal is not None:
             self.journal.append(event,data);return
         record={'timestamp':time.monotonic(),'event':event,'data':data}
@@ -74,14 +87,26 @@ class Session:
 
     def command(self,action,body):
         with self.lock:
-            if action=='confirm_power_cycle':
+            if action=='report_mcu_reset':
+                if self.startup_store is None:raise ValueError('startup_not_available')
+                self.disarm('mcu_reset_reported')
+                self.startup_store.invalidate('operator_reported_mcu_motor_restart')
+                self.tracking=None;self.pending=None;self.revision+=1
+            elif action in ('confirm_power_cycle','confirm_mcu_restart'):
                 if not self.motion_allowed or not self.smooth or self.startup_store is None:raise ValueError('startup_not_available')
-                if body.get('whole_machine_power_cycled') is not True:raise ValueError('whole_machine_confirmation_required')
+                event='confirmed_mcu_motor_restart' if action=='confirm_mcu_restart' else 'whole_machine_power_cycle'
+                if action=='confirm_mcu_restart':
+                    if body.get('mcu_restarted') is not True:raise ValueError('mcu_restart_confirmation_required')
+                    if self.limits.startup_policy.get('mcu_restart_returns_all_axes') is not True:raise ValueError('mcu_homing_convention_not_confirmed')
+                elif body.get('whole_machine_power_cycled') is not True:raise ValueError('whole_machine_confirmation_required')
                 if self.active or self.arm['phase'] not in ('disabled','startup_waiting','startup_preparing','startup_checking'):
                     raise ValueError('stop_before_power_cycle_confirmation')
-                if self.startup_store.confirm(body.get('request_id')):
+                if self.startup_store.confirm(body.get('request_id'),event):
                     self.startup_request=self.startup_store.data['cycle_id']
                     self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
+                    self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds)
+                    self.diagnostics_logged=False
+                    self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
             elif action=='stop':
                 if self.startup_request is not None and self.startup_sequence is None:
                     self.startup_store.invalidate('cancelled_before_sequence_started')
@@ -125,7 +150,7 @@ class Session:
                               'motion_available':self.motion_allowed,
                               'limits':{'A':[self.limits.a_min,self.limits.a_max],
                                         'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c},
-                              'arm':dict(self.arm),'startup':({**self.startup_store.status(),'self_check':self.startup_checks()} if self.startup_store else None)}
+                              'arm':dict(self.arm),'startup':({**self.startup_store.status(),'self_check':self.startup_checks(),'report':self.diagnostic_call('finish') if self.startup_diagnostics else None} if self.startup_store else None)}
             data['tracking']['target_age_s']=max(0,time.monotonic()-track['timestamp']) if track else None
             if self.journal is not None:data['diagnostics']=self.journal.status()
             return data
@@ -137,12 +162,17 @@ class Session:
     def capture_loop(self,capture,hub):
         while not self.stop_event.is_set():
             try:
-                image,metadata=capture.read()
+                fetch_started=time.monotonic();image,metadata=capture.read();received=time.monotonic()
+                metadata={**metadata,'_host_received_at':received}
+                if self.startup_diagnostics is not None:
+                    self.diagnostic_call('metric','capture_fetch',(received-fetch_started)*1000)
+                    self.diagnostic_call('frame',metadata,image)
                 hub.publish(image,metadata)
                 with self.lock:
                     self.preview_image=image;self.preview_metadata=metadata
                     self.native_warmup.observe(metadata)
             except Exception as exc:
+                if self.startup_diagnostics is not None:self.diagnostic_call('error','capture:'+str(exc))
                 if str(exc)=='frame_not_advanced':continue
                 hub.fail(exc)
                 with self.lock:
@@ -186,6 +216,9 @@ class Session:
                 cv2.putText(annotated,f'TRACK {label} | C fixed {self.limits.c} mm',(18,695),cv2.FONT_HERSHEY_SIMPLEX,.6,(0,215,255),1)
                 _,encoded=cv2.imencode('.jpg',annotated,[cv2.IMWRITE_JPEG_QUALITY,80])
                 now=time.monotonic();times.append(now)
+                if self.startup_diagnostics is not None:
+                    self.diagnostic_call('metric','preview',(now-begin)*1000)
+                    if '_host_received_at' in metadata:self.diagnostic_call('metric','host_to_preview',(now-metadata['_host_received_at'])*1000)
                 fps=(len(times)-1)/(times[-1]-times[0]) if len(times)>1 else 0.
                 with self.condition:
                     # JPEG bytes and their sequence are published atomically.
@@ -199,7 +232,8 @@ class Session:
                                               'render_ms':(now-begin)*1000,'jpeg_bytes':len(encoded)})
                     last_log=now
             except Exception as exc:
-                if str(exc)!='frame_not_advanced':self.stop_event.wait(.05)
+                if str(exc)!='frame_not_advanced':
+                    self.diagnostic_call('error','preview:'+str(exc));self.stop_event.wait(.05)
 
     def vision_loop(self,capture):
         if self.smooth and platform.machine()=='aarch64' and hasattr(os,'sched_setaffinity'):
@@ -214,7 +248,7 @@ class Session:
         while not self.stop_event.is_set():
             begin=time.monotonic()
             try:
-                image,metadata=capture.read();stamp=float(metadata['arrival'])
+                image,metadata=capture.read();stamp=float(metadata['arrival']);tracking_started=time.monotonic()
                 with self.lock:
                     rev,mode,pending=self.revision,self.mode,self.pending
                 if rev!=revision:
@@ -259,6 +293,9 @@ class Session:
                     times.append(time.monotonic())
                     self.track_fps=(len(times)-1)/(times[-1]-times[0]) if len(times)>1 else 0.
                     self.frame_id=metadata['frame_id'];active=self.active;arm_phase=self.arm['phase']
+                if self.startup_diagnostics is not None:
+                    self.diagnostic_call('metric','tracking',(time.monotonic()-tracking_started)*1000)
+                    if '_host_received_at' in metadata:self.diagnostic_call('metric','host_to_tracking',(time.monotonic()-metadata['_host_received_at'])*1000)
                 if save_loss and manager.tracker is not None:
                     try:
                         tag=str(metadata['frame_id'])
@@ -276,6 +313,7 @@ class Session:
                                                                       if manager.provisional else None),
                                             'processing_ms':(time.monotonic()-begin)*1000})
             except Exception as exc:
+                if str(exc)!='frame_not_advanced':self.diagnostic_call('error','tracking:'+str(exc))
                 if background is not None and str(exc)!='frame_not_advanced':background.reset()
                 if str(exc)=='frame_not_advanced':
                     self.stop_event.wait(.005)
@@ -388,6 +426,10 @@ class Session:
                     'preview_fresh':preview,'calibration_valid':calibration,'journal_healthy':journal,'native_running':process}
 
     def advance_startup(self):
+        if self.startup_diagnostics is not None and not self.diagnostics_logged:
+            report=self.diagnostic_call('finish')
+            if report is not None:
+                self.diagnostics_logged=True;self.log('startup_diagnostics_result',report)
         if self.startup_store is None:return False
         with self.lock:
             request=self.startup_request
@@ -418,6 +460,7 @@ class Session:
                     error=sequence.close();self.startup_sequence=None;self.startup_request=None
                     if error:raise RuntimeError(error)
                     self.active=False;self.auto_follow=True;self.reason=''
+                    self.follow_after=time.monotonic();self.tracking=None;self.pending=None;self.revision+=1
                     self.arm['phase']='disabled'
             return True
         except BaseException as exc:
@@ -444,11 +487,13 @@ class Session:
                     if self.journal is not None and self.journal.error and self.active:
                         raise RuntimeError(self.journal.error)
                     with self.lock:
-                        if self.auto_follow and not self.active and self.metadata and now-self.metadata.get('arrival',0)<.3:
+                        if (self.auto_follow and not self.active and self.metadata and now-self.metadata.get('arrival',0)<.3
+                                and self.metadata.get('_host_received_at',self.metadata.get('arrival',0))>self.follow_after):
                             self.active=True;self.reason=''
                             self.log('automatic_follow_ready',{})
                         active=self.active
                         target=dict(self.tracking) if self.tracking else None
+                        if self.metadata.get('_host_received_at',self.metadata.get('arrival',0))<=self.follow_after:target=None
                         metadata=dict(self.metadata);target_id=self.target_id
                     if active and port is None:
                         port=self.port_factory(self.limits,self.log);policy.reset();identity=None
@@ -651,6 +696,8 @@ def main():
     session=Session(folder,limits,motion_allowed=motion_allowed,smooth=not args.step_control,
                     automatic=motion_allowed and not args.step_control,intrinsics=intrinsics,
                     motion_compensation=args.motion_compensation,response_profile=response_profile,startup_store=startup_store)
+    session.expected_binding={'calibration_sha256':value('--calibration-sha'),'backend':'cpp',
+                              'model_sha256':'4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7'}
     server=ThreadingHTTPServer(('127.0.0.1',public_port),handler_for(session));server.daemon_threads=True
     process=None;threads=[]
     def signal_stop(signum,frame):session.stop_event.set()

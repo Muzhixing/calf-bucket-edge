@@ -1,4 +1,4 @@
-"""Explicit whole-machine power-cycle preparation; no driver or CAN assumptions."""
+"""Explicit operator-confirmed MCU/motor restart preparation; original protocol."""
 import fcntl
 import json
 import math
@@ -126,7 +126,8 @@ class PowerCycleStore:
     def ready(self):
         with self.lock:return not self.error and self.data['phase']=='ready'
 
-    def confirm(self,request_id):
+    def confirm(self,request_id,event='whole_machine_power_cycle'):
+        if event not in ('whole_machine_power_cycle','confirmed_mcu_motor_restart'):raise ValueError('invalid_restart_event')
         try:request_id=str(uuid.UUID(request_id))
         except (ValueError,TypeError,AttributeError):raise ValueError('invalid_power_cycle_request_id')
         with self.lock:
@@ -138,7 +139,7 @@ class PowerCycleStore:
             self.data={'version':1,'phase':'waiting','seen_requests':seen,'cycle_id':request_id,
                        'boot_id':self.boot_id,'confirmed_at':time.time(),'zero_attempted':False,
                        'wait_seconds_used':self.wait_seconds,'wait_basis_used':self.wait_basis,
-                       'origin_evidence':'operator_confirmed_whole_power_cycle_then_timed_assumption'}
+                       'restart_event':event,'origin_evidence':'operator_confirmed_'+event+'_then_timed_assumption'}
             self._save();return True
 
     def phase(self,value,**fields):
@@ -252,7 +253,7 @@ class StartupSequence:
         self.store,self.limits,self.log,self.port_factory=store,limits,log,port_factory
         self.port=None;self.started=time.monotonic();self.stage='waiting';self.done=False
         self.ready_check=ready_check or (lambda:{'ready':True});self.last_check=None
-        self.log('whole_power_cycle_wait',store.status())
+        self.log('restart_preparation_wait',store.status())
 
     def tick(self):
         checks=self.ready_check()

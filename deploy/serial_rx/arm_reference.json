@@ -201,6 +201,8 @@
       0,
       10
     ],
-    "evidence": "User reports the longest observed whole-machine autonomous homing finishes within about 5 seconds. Default wait is 5+3=8 seconds; enlarged-range scaling is an unvalidated estimate, not a hardware completion signal. No exact homing speed required."
+    "evidence": "User reports the longest observed whole-machine autonomous homing finishes within about 5 seconds. Default wait is 5+3=8 seconds; enlarged-range scaling is an unvalidated estimate, not a hardware completion signal. No exact homing speed required.",
+    "mcu_restart_returns_all_axes": true,
+    "mcu_restart_evidence": "2026-11-23 user confirms B physically returns to top and C fully retracts on STM32 restart; STM32 and motors share supply and restart together. Program restart or ordinary UART reconnect is not this event."
   }
 }

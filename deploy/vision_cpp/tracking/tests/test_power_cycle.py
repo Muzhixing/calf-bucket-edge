@@ -186,13 +186,13 @@ class StartupPTYTests(unittest.TestCase):
                 self.run_until(lambda:seq.stage=='zero')
         self.assertFalse(any(f[8]==6 for f in self.mcu.commands))
 
-    def test_full_session_initializes_once_then_tracks_and_holds(self):
+    def test_full_session_initializes_once_then_tracks_and_holds(self,action='confirm_power_cycle'):
         def tracking_factory(limits,log):
             return ContinuousArmPort(limits,log,port=self.mcu.path,sender_factory=Sender,check_holders=False)
         s=Session(self.ref.directory.name,self.ref.limits,smooth=True,automatic=True,intrinsics=INTRINSICS,
                   startup_store=self.store,startup_port_factory=self.factory,port_factory=tracking_factory)
-        request={'request_id':str(uuid.uuid4()),'whole_machine_power_cycled':True}
-        s.command('confirm_power_cycle',request)
+        request={'request_id':str(uuid.uuid4()),'whole_machine_power_cycled':True,'mcu_restarted':True}
+        s.command(action,request)
         worker=threading.Thread(target=s.arm_loop);worker.start()
         def feed(seconds,dx):
             end=time.monotonic()+seconds
@@ -217,10 +217,14 @@ class StartupPTYTests(unittest.TestCase):
             before=len(self.mcu.commands);feed(.5,0)
             self.assertFalse(self.mcu.enabled);self.assertFalse(any(f[8]&1 for f in self.mcu.commands[before:]))
             s.command('stop',{});feed(.2,None)
-            s.command('confirm_power_cycle',request)  # Replayed HTTP request is a no-op.
+            s.command(action,request)  # Replayed HTTP request is a no-op.
             self.assertIsNone(s.startup_request)
         finally:
             s.stop_event.set();worker.join(4);self.assertFalse(worker.is_alive())
+
+    def test_confirmed_mcu_restart_full_sequence_and_tracking(self):
+        self.ref.limits.startup_policy['mcu_restart_returns_all_axes']=True
+        self.test_full_session_initializes_once_then_tracks_and_holds('confirm_mcu_restart')
 
     def test_cancel_A_move_stops_and_keeps_attempt_consumed(self):
         seq=self.begin();self.run_until(lambda:seq.stage=='a');seq.close('operator_stop')

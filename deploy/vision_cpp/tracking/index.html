@@ -43,11 +43,14 @@ summary{width:fit-content}.options{margin-top:12px}
 <label id="legacyIsolation" hidden><input id="isolated" type="checkbox">已断开底盘行走动力</label>
 <div class="actions"><button id="start" disabled hidden>恢复追踪</button><button id="stop">停止机构</button></div>
 <details><summary>目标选择</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选容器</button><button id="cancel" hidden>取消框选</button></div></details>
-<details id="powerCyclePanel" hidden><summary>整机上电准备</summary>
+<details id="powerCyclePanel" hidden><summary>上电 / STM32 重启准备</summary>
 <p id="powerCycleInfo"></p>
-<label><input id="powerCycleConfirmed" type="checkbox">我确认刚完成整机彻底断电再上电，断电前位置在已配置行程范围内，机构周围可安全运动；不是仅重启程序、串口或 STM32。</label>
-<div class="options"><button id="powerCycleStart" disabled>确认整机上电并准备</button></div>
+<label>本次操作 <select id="restartEvent"><option value="whole">整机断电再上电</option><option value="mcu">重启 STM32（电机一同重启）</option></select></label>
+<label><input id="powerCycleConfirmed" type="checkbox">我确认刚完成上述操作，先前位置在已配置行程内，机构周围可安全运动；不是仅重启上位机程序或重连串口。</label>
+<div class="options"><button id="powerCycleStart" disabled>确认并准备</button></div>
+<div class="options"><button id="reportMcuReset">记录 STM32 已重启，停用旧准备状态</button></div>
 </details>
+<p id="startupReport" role="status"></p>
 <p id="help"></p>
 </aside></div>
 </main><script>
@@ -57,7 +60,7 @@ const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认
 async function api(action,body={}){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');return data;}
 function showError(e){el('error').textContent=e.message||String(e);}
 function textReason(reason){return reasons[reason]||reason||'';}
-Object.assign(reasons,{power_cycle_confirmation_required:'等待整机上电确认；重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'启动等待配置无效，请检查配置',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_self_check_lost:'启动自检状态失效，机构已停止',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
+Object.assign(reasons,{mcu_reset_reported:'已记录 STM32 重启，请确认后重新准备',power_cycle_confirmation_required:'等待上电或 STM32 重启确认；串口重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'启动等待配置无效，请检查配置',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_self_check_lost:'启动自检状态失效，机构已停止',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
 function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
  el('rates').textContent=s.preview&&!stale?s.preview.fps.toFixed(1)+' / '+s.preview.tracking_fps.toFixed(1)+' FPS':'—';
  el('legacyIsolation').hidden=!!t.continuous||!!t.active||!t.motion_available;
@@ -66,9 +69,15 @@ function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetr
  const startup=t.startup;
  el('powerCyclePanel').hidden=!startup||!t.motion_available;
  if(startup){
-   el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒；模型预热和自检同时进行，未完成则继续等待。随后登记起点、A 转到 75°、C 伸出到 10 mm，再自动追踪。回零按上电约定推定。`:'启动等待配置无效，暂不允许初始化。';
+   el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒；模型预热和自检同时进行，未完成则继续等待。随后登记起点、A 转到 75°、C 伸出到 10 mm，再自动追踪。回零按已确认的本机重启约定推定。`:'启动等待配置无效，暂不允许初始化。';
    el('powerCycleStart').disabled=busy||t.active||arm.phase!=='disabled'||!startup.wait_configured||!!startup.error||!el('powerCycleConfirmed').checked;
    if(startup.phase!=='ready')el('start').disabled=true;
+   const report=startup.report;
+   const label={inference:'推理',tracking:'跟踪',preview:'预览',capture_fetch:'取帧'};
+   const sourceNames={capture:'取帧',camera_interval:'帧间隔',camera:'相机',serial:'串口',inference:'推理',tracking:'跟踪',preview:'预览',native_post_read:'原生处理',host_to_tracking:'跟踪延迟',host_to_preview:'预览延迟',uart_new_errors:'新增UART错误',uart_counter_wrap_or_reset_ambiguous:'串口计数回绕/重启待区分',bad_checksum:'串口校验',bad_tail:'串口帧尾',bad_version:'串口版本',discarded_bytes:'串口杂字节',configuration_mismatch:'配置不一致',frame_clock_or_sequence_reset:'帧序列变化',diagnostic_internal_error:'诊断采样'};
+   const sourceText=x=>sourceNames[x]||sourceNames[x.split(':')[0]]||'图像或串口采样';
+   const timings=report?Object.entries(label).map(([key,name])=>{const m=report.metrics[key];return `${name} ${m.p95_ms==null?'—':m.p95_ms.toFixed(0)+'ms'} (n=${m.samples})`;}).join(' · '):'';
+   el('startupReport').textContent=report?`自检：${report.status} · P95 ${timings}。${report.issues.length?'来源：'+[...new Set(report.issues.map(sourceText))].slice(0,3).join('、')+'。':''}${report.insufficient.length?'部分阶段样本不足。':''}部分底层指标不可获得；详项已记录，预览不含浏览器显示。`:'';
  }
  el('select').disabled=busy;el('auto').disabled=busy;
  el('status').className=arm.phase==='stop_unconfirmed'?'bad':target&&!stale&&t.active?'good':'';
@@ -94,7 +103,9 @@ el('auto').onclick=async()=>{try{unfreeze();await api('auto');}catch(e){showErro
 el('start').onclick=async()=>{try{await api('start',{chassis_isolated:el('isolated').checked});}catch(e){showError(e);}};
 el('stop').onclick=async()=>{try{await api('stop');}catch(e){showError(e);}};
 el('powerCycleConfirmed').onchange=()=>{if(!busy)powerCycleRequest=null;if(current)render(current);};
-el('powerCycleStart').onclick=async()=>{busy=true;try{if(!el('powerCycleConfirmed').checked)return;powerCycleRequest=powerCycleRequest||crypto.randomUUID();await api('confirm_power_cycle',{whole_machine_power_cycled:true,request_id:powerCycleRequest});el('powerCycleConfirmed').checked=false;}catch(e){showError(e);}finally{busy=false;if(current)render(current);}};
+el('restartEvent').onchange=()=>{powerCycleRequest=null;el('powerCycleConfirmed').checked=false;if(current)render(current);};
+el('reportMcuReset').onclick=async()=>{try{await api('report_mcu_reset');powerCycleRequest=null;el('restartEvent').value='mcu';el('powerCycleConfirmed').checked=false;}catch(e){showError(e);}};
+el('powerCycleStart').onclick=async()=>{busy=true;try{if(!el('powerCycleConfirmed').checked)return;powerCycleRequest=powerCycleRequest||crypto.randomUUID();await api(el('restartEvent').value==='mcu'?'confirm_mcu_restart':'confirm_power_cycle',{whole_machine_power_cycled:el('restartEvent').value==='whole',mcu_restarted:el('restartEvent').value==='mcu',request_id:powerCycleRequest});el('powerCycleConfirmed').checked=false;}catch(e){showError(e);}finally{busy=false;if(current)render(current);}};
 el('cancel').onclick=unfreeze;
 el('select').onclick=async()=>{busy=true;try{await api('stop');const until=Date.now()+6000;while(true){const r=await fetch('/status');const s=await r.json();if(['disabled','idle'].includes(s.tracking.arm.phase))break;if(Date.now()>until)throw new Error('禁用尚未确认，不能框选');await new Promise(r=>setTimeout(r,100));}selecting=true;el('selection').style.display='block';el('cancel').hidden=false;el('selection').getContext('2d').clearRect(0,0,1280,720);el('help').textContent='在实时画面拖动框住容器主体，画面持续更新。松开后锁定目标，再开始机构追踪。';}catch(e){showError(e);}finally{busy=false;}};
 function point(event){const r=el('selection').getBoundingClientRect();return[Math.max(0,Math.min(1280,(event.clientX-r.left)*1280/r.width)),Math.max(0,Math.min(720,(event.clientY-r.top)*720/r.height))];}
