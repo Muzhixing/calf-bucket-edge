@@ -1,0 +1,326 @@
+{
+  "K1": [
+    [
+      686.5272178219155,
+      0.0,
+      621.5797196651615
+    ],
+    [
+      0.0,
+      688.7181209885308,
+      379.971866282931
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "D1": [
+    [
+      -0.020124587822825626,
+      0.02931648636142577,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "K2": [
+    [
+      690.5384510044696,
+      0.0,
+      621.2402092544515
+    ],
+    [
+      0.0,
+      692.9283089725501,
+      370.0186428065372
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "D2": [
+    [
+      -0.018493008250120967,
+      0.030848903130967876,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "R": [
+    [
+      0.9999978090130284,
+      -0.00045769629272307186,
+      0.0020426657206758605
+    ],
+    [
+      0.000446108244116302,
+      0.9999838267208452,
+      0.005669857508719571
+    ],
+    [
+      -0.002045227756834956,
+      -0.005668933836117669,
+      0.9999818399513984
+    ]
+  ],
+  "T": [
+    [
+      -63.163609737614
+    ],
+    [
+      0.8625360155286194
+    ],
+    [
+      3.695887705153226
+    ]
+  ],
+  "R1": [
+    [
+      0.9983109430751154,
+      -0.013756544284753808,
+      -0.05644482638661723
+    ],
+    [
+      0.013917252840917148,
+      0.9999001363963164,
+      0.002455057634766251
+    ],
+    [
+      0.056405416493770684,
+      -0.003236467823051482,
+      0.9984027014517712
+    ]
+  ],
+  "R2": [
+    [
+      0.9981997541961967,
+      -0.013631001177143002,
+      -0.05840758965717698
+    ],
+    [
+      0.013464586624951985,
+      0.9999040931604761,
+      -0.0032418186169205603
+    ],
+    [
+      0.058446177203232086,
+      0.002449548496065048,
+      0.9982875558086927
+    ]
+  ],
+  "P1": [
+    [
+      690.8232149805405,
+      0.0,
+      695.6881103515625,
+      0.0
+    ],
+    [
+      0.0,
+      690.8232149805405,
+      374.9196586608887,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ]
+  ],
+  "P2": [
+    [
+      690.8232149805405,
+      0.0,
+      695.6881103515625,
+      -43713.58314333767
+    ],
+    [
+      0.0,
+      690.8232149805405,
+      374.9196586608887,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ]
+  ],
+  "Q": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      -695.6881103515625
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      -374.9196586608887
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      690.8232149805405
+    ],
+    [
+      0.0,
+      0.0,
+      0.015803399431140612,
+      -0.0
+    ]
+  ],
+  "units": "mm",
+  "image_size": [
+    1280,
+    720
+  ],
+  "square_size_mm": 30.0,
+  "baseline_mm": 63.27752483617539,
+  "fit_left_rms_px": 0.21834069587443442,
+  "fit_right_rms_px": 0.2344793722900111,
+  "fit_stereo_rms_px": 0.26480910477099057,
+  "intrinsic_std_left": [
+    2.4019937953547164,
+    2.391435421563579,
+    0.42964642659075286,
+    0.30698281818469597,
+    0.001502218028048053,
+    0.001781884891875347,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "intrinsic_std_right": [
+    2.5573389201581587,
+    2.5478960572811054,
+    0.4326056217657146,
+    0.3336968904872591,
+    0.001482835354370808,
+    0.001136704593708711,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "lens_model": "double_radial_zero_tangential",
+  "deployment_status": "SELECTABLE_PROFILE_RUNTIME_SELECTION_CONTROLS_ACTIVATION",
+  "independent_scale_measurement": true,
+  "scale_basis": "user measured flat printed board 300 x 210 mm",
+  "metric_range_validated": false,
+  "fit_pose_ids": [
+    "20261122_fit_A60_B0_C0",
+    "20261122_fit_A62_B0_C0",
+    "20261122_fit_A64_B0_C0",
+    "20261122_fit_A68_B0_C0",
+    "20261122_fit_A70_B0_C0",
+    "20261122_fit_A72_B0_C0",
+    "20261122_fit_A74_B0_C0",
+    "20261122_fit_A76_B0_C0",
+    "20261122_fit_A80_B0_C0",
+    "20261122_fit_A82_B0_C0",
+    "20261122_initial_bc/000_fit_A60_B0_C5",
+    "20261122_initial_bc/002_fit_A60_B10_C10",
+    "20261122_initial_bc/003_fit_A60_B20_C10",
+    "20261122_initial_bc/005_fit_A60_B40_C10",
+    "20261122_initial_bc/006_fit_A60_B50_C10",
+    "20261122_initial_bc/007_fit_A60_B60_C10",
+    "20261122_initial_bc/008_fit_A64_B60_C10",
+    "20261122_initial_bc/009_fit_A68_B60_C10",
+    "20261122_initial_bc/011_fit_A76_B60_C10",
+    "20261122_initial_bc/012_fit_A76_B60_C15",
+    "20261122_initial_bc/013_fit_A76_B60_C20",
+    "20261122_tilt1_route/000_fit_A72_B60_C20",
+    "20261122_tilt1_route/002_fit_A64_B60_C20",
+    "20261122_tilt1_route/003_fit_A64_B50_C20",
+    "20261122_tilt1_route/005_fit_A64_B30_C20",
+    "20261122_tilt1_route/006_fit_A64_B30_C15",
+    "20261122_tilt1_route/007_fit_A64_B30_C10",
+    "20261122_tilt1_route/008_fit_A68_B30_C10",
+    "20261122_tilt1_route/009_fit_A72_B30_C10"
+  ],
+  "validation_pose_ids": [
+    "20261122_camera_pitch_holdout_A76_B30_C10",
+    "20261122_holdout_A66_B0_C0",
+    "20261122_holdout_A78_B0_C0",
+    "20261122_initial_bc/001_holdout_A60_B0_C10",
+    "20261122_initial_bc/004_holdout_A60_B30_C10",
+    "20261122_initial_bc/010_holdout_A72_B60_C10",
+    "20261122_tilt1_holdout_A76_B60_C20",
+    "20261122_tilt1_route/001_holdout_A68_B60_C20",
+    "20261122_tilt1_route/004_holdout_A64_B40_C20",
+    "20261122_tilt1_route/010_holdout_A76_B30_C10"
+  ],
+  "source_pose_sha256": {
+    "20261122_camera_pitch_holdout_A76_B30_C10": "1f12c3044ad596eaaf94fbcae94a1a041de05678582a3130e10e9e219e53d78a",
+    "20261122_fit_A60_B0_C0": "986f1d6e8460bbcaeac7ee24a8d4d6b40d8c9e4aba5977e7513ab02afd6ae42b",
+    "20261122_fit_A62_B0_C0": "5a6e27f0dd234af61cb246dc11847c724ca7ebb29df5dd0f612d2ef596b8e532",
+    "20261122_fit_A64_B0_C0": "2404ebcf75b4f8716ae161e918b95f266c74fde29eec55870b9f8dfe238484ce",
+    "20261122_fit_A68_B0_C0": "f987f73978a6dff07767602fac1c93c824da3279364a1ba7e960dcea51355c20",
+    "20261122_fit_A70_B0_C0": "a2f123b96793cfc033ed66fa9f34befff18f504a398236f6ee6d38199742cf48",
+    "20261122_fit_A72_B0_C0": "6e60744200594adb3a7f579596d52c000fc3c8d703468b3a8f650fd7d4710e66",
+    "20261122_fit_A74_B0_C0": "ecc084f6404c2caa2dc53c32f6ebe9521bf859140ffe43c0e029cab70c5d9e12",
+    "20261122_fit_A76_B0_C0": "22b737000d1de6cbe860afb80ce5a52bcddd2b9f2302eb02aba3db04c0b6600a",
+    "20261122_fit_A80_B0_C0": "8bbd6fd66e7dd1817b7256de9972a98ff65f71f9b62cc1e94a8505c697c1850a",
+    "20261122_fit_A82_B0_C0": "fb2a93dd95b0b930357652be4766d402312770612be42fbaef8f81a1ad213dba",
+    "20261122_holdout_A66_B0_C0": "ab3f4f4a17a49f2d36c34ad85039f2218c8b8933bab0402a7f3aca00a16a64bf",
+    "20261122_holdout_A78_B0_C0": "7d44c391d00b3e35c0093979e0c16a1fb9835895795ca22908e4804468a31f19",
+    "20261122_initial_bc/000_fit_A60_B0_C5": "5c905e1b263fa22f0ce0ca84915826b6d572b2fb846463defbe21aebd22f6e0d",
+    "20261122_initial_bc/001_holdout_A60_B0_C10": "3dcc18d7ac624fa0136c89d4eb6b19c4a7425dfa014669ff30a38f73aa81ae5f",
+    "20261122_initial_bc/002_fit_A60_B10_C10": "a8a9e6366255deb20608d3f5f8bae424fccdf72aa41d7eb86bee19481d4c2266",
+    "20261122_initial_bc/003_fit_A60_B20_C10": "811d7f35b8698fc0fe3cad5be54a0a2b14adfcd92eaa23804a6ce3b5b8c87a02",
+    "20261122_initial_bc/004_holdout_A60_B30_C10": "2739397809f55675bdf71fd7a3bef4eefcb85fbf100f56bcfdc65293a3a4d4d7",
+    "20261122_initial_bc/005_fit_A60_B40_C10": "58f3dfce25b44d512e424e0787655751d0d63bbdd797181646c2b1fc55f94471",
+    "20261122_initial_bc/006_fit_A60_B50_C10": "e6d1edee8d126b71f08763027b19cd27f2b120caf0aafbec9d6146c53ea1665f",
+    "20261122_initial_bc/007_fit_A60_B60_C10": "51bad50909287fc54a4826aede73b9645e9ca0659a55dfe08c5396017bc17aae",
+    "20261122_initial_bc/008_fit_A64_B60_C10": "ed4350af39fd63e36a8d26e2cddf0c3be332e7276a40ab1a12f9f36f49e125fb",
+    "20261122_initial_bc/009_fit_A68_B60_C10": "72b1c259f2a1d88cf52a3108d1125fc9664323050fe3d0e1e27a707b99aa4256",
+    "20261122_initial_bc/010_holdout_A72_B60_C10": "450e2a769cd1bde47668c69d6112ff1c109787e84430bb39c6b0779856371651",
+    "20261122_initial_bc/011_fit_A76_B60_C10": "e5677177ecc31563e163dd44b28760eb3ac9e9c659291e4fc85f88c1fdca3a99",
+    "20261122_initial_bc/012_fit_A76_B60_C15": "6edc2ec63efe8fcb29dacc41c02e1445d9f1059e9cbea06ffd52528d12e5c1d9",
+    "20261122_initial_bc/013_fit_A76_B60_C20": "6efa41c8beb456a935b6d60d452781c12a449aef40e4da6053f7762ad8949f4a",
+    "20261122_tilt1_holdout_A76_B60_C20": "29d193b04dea5f79e9448ccdc76607358b7f4d061b0fc59758180b024252f159",
+    "20261122_tilt1_route/000_fit_A72_B60_C20": "a2e6c06c03c9dce67a72ec2844fd15a2068aefe367dd9ba198e7953a39f9013d",
+    "20261122_tilt1_route/001_holdout_A68_B60_C20": "6b1e899c8650836e1df1ae38413b9ad0bdcfeefd7c4e3b2a4fad9cddaea191ad",
+    "20261122_tilt1_route/002_fit_A64_B60_C20": "ec7194091098f8853288e19b7f29671bfa925fca6e1e16036d57765fa26348e8",
+    "20261122_tilt1_route/003_fit_A64_B50_C20": "82ddca40567a5654b1cefc42909cd940b4cf658c4604e205424108f6014ad581",
+    "20261122_tilt1_route/004_holdout_A64_B40_C20": "e6305ef4ccd8c21a3e777db4c29d03dd844ec3b21efadf12292c763127648216",
+    "20261122_tilt1_route/005_fit_A64_B30_C20": "56fd939d6400f7ca7d436403941a67965611e1f5fb0c9be9f5704f635acc94ec",
+    "20261122_tilt1_route/006_fit_A64_B30_C15": "0573191ad777eab2f265f7f16cdb5993c7aae731b7b12eec1b153fffbaf696f5",
+    "20261122_tilt1_route/007_fit_A64_B30_C10": "f7e78e1faca6b14da238203dc1ca04fdd5a8449305ccab94d7b3cd03b61d9990",
+    "20261122_tilt1_route/008_fit_A68_B30_C10": "4340b84324e62218babec02bffee99597d1203a9aa58bc88a55f561227d3f547",
+    "20261122_tilt1_route/009_fit_A72_B30_C10": "5f29e31c4c48497a99ff816e5dcee14a9fdcb43f5a254060576d6deb31ed9d8c",
+    "20261122_tilt1_route/010_holdout_A76_B30_C10": "5d569a7e5b09e00942a19bf5eabb1beb9a9b73fdd061e9dd4ff37843c497af0f"
+  },
+  "baseline_sha256": "21c1c049edc92503f26fee3ce0ba9e70984db5155f48ded53b67002eb976a12a",
+  "opencv": "4.10.0",
+  "profile": "printed_30mm_20261122",
+  "validation_scope": "29 fitted poses, 10 independently positioned holdouts near 0.50 m; includes new whole-camera pitch holdout; grid geometry checked; no independent tape-based bucket range acceptance",
+  "depth_coordinates": "Runtime depth is rectified-left Z, not slant range. Raw-left camera coordinates require R1 transpose applied to reconstructed XYZ."
+}

@@ -27,7 +27,7 @@ cd /home/elf/deploy/vision_cpp
 ## 冻结口径
 
 - 模型仍为 seed2_REG_FP16，SHA-256 `bb3d9d9deacf3f099232414139040eae81ea3c362976cbf3a7a13af5cca06c4d`。启动打印绝对路径并验证哈希，INT8 输出由 RKNN runtime 解量化，未重新转换模型。
-- 标定源为 `v2_radial2.json`，SHA-256 `21c1c049edc92503f26fee3ce0ba9e70984db5155f48ded53b67002eb976a12a`；准备时验证源文件，启动时验证导出矩阵的 SHA-256。
+- 标定源为 `printed_30mm_20261122.json`，SHA-256 `5917ede19309a4f78d810b3c9c91d4e8033c23751307e6879f7e3f55f5c7031e`；准备时验证源文件，启动时验证导出矩阵的 SHA-256。
 - 固定 by-id 相机，MJPG 2560×720、30 FPS，SBS 左半是物理左目。检测输入 BGR，640×360 后上下各补 140 黑边，门槛 0.536、NMS 0.45；先截断模型坐标再还原至校正左目。NMS 同分排序匹配板端 NumPy 2.2.1 的 ARM 标量 argsort。
 - 双目沿用原 SGBM、ROI/分位数/MAD/质量判定和 0.9 平滑。默认视差计算尺度 0.5；`--depth-scale 1` 全分辨率。保留一次重复 ROI 审计，不把减少原校验工作计作语言收益。
 - 单个在途双目任务，不排队累积旧帧；源帧年龄最多 1.5 秒，IoU 至少 0.5 且目标代次一致才接收。目标丢失、更换或结果过期清空距离。
@@ -48,3 +48,5 @@ python3 prepare.py /home/elf/deploy/vision_v2
 构建将必需的 OpenCV 动态库复制到 `lib/`；运行通过部署目录的库路径加载，不依赖研究目录中的模型、回放图或 Python 环境。实际相机更新率取决于场景、ROI 与温度；相机 30 FPS 不意味着每帧都有新的有效距离。已核验同源 HDMI 回放稳定约30 FPS、10次/秒新测距，进程树PSS约179.9 MiB。
 
 当前板卡已将核验过的 OpenCV 开发文件和 RKNN 头文件放入上述 `deps/` 目录。新板需准备相同依赖；`build_opencv.sh` 保留4.10.0构建参数，需要事先放入对应OpenCV源码包与CMake3.29.5安装包。厂商头文件、依赖包和二进制不提交Git。
+
+当前仅保留 30 mm 打印棋盘标定；[标定及约 49 cm 实测确认](../../docs/stereo-recalibration-20261122.md)。准备脚本缺少新标定或哈希不符时停止，不回退旧参数。

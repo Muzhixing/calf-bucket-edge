@@ -8,11 +8,10 @@ from diagnostics import range_audit,overlay
 
 def main():
     ap=argparse.ArgumentParser(description='V2 camera -> original detector/ranging -> files only')
-    ap.add_argument('--id',required=True);ap.add_argument('--seconds',type=float,default=15);ap.add_argument('--max-frames',type=int,default=0);ap.add_argument('--sequence',type=Path);ap.add_argument('--output-tag');ap.add_argument('--calibration-profile',choices=['v2_radial2'],default='v2_radial2')
+    ap.add_argument('--id',required=True);ap.add_argument('--seconds',type=float,default=15);ap.add_argument('--max-frames',type=int,default=0);ap.add_argument('--sequence',type=Path);ap.add_argument('--output-tag');ap.add_argument('--calibration-profile',choices=['printed_30mm_20261122'],default='printed_30mm_20261122')
     a=ap.parse_args();assert a.output_tag is None or re.fullmatch('[A-Za-z0-9_-]+',a.output_tag)
     assert re.fullmatch('[A-Za-z0-9_-]+',a.id);assert a.seconds>0 and a.max_frames>=0
     assert platform.machine()=='aarch64' and 'rockchip,rk3588' in Path('/proc/device-tree/compatible').read_text()
-    if a.sequence is None:assert a.calibration_profile=='v2_radial2','old calibration is replay-only in this V2 entry'
     os.environ['BUCKET_CALIBRATION_PROFILE']=a.calibration_profile
     from verify import verify
     build=verify()
@@ -57,7 +56,7 @@ def main():
        source_sequence=str(seq),source_sequence_sha256=sha(seq/'frames.jsonl') if a.sequence else None,P1=calib.P1.tolist(),P2=calib.P2.tolist(),Q=calib.Q.tolist(),
        R1=calib.R1.tolist(),T_mm=calib.T.tolist(),baseline_m=float(np.linalg.norm(calib.T))/1000,
        wls_right_matcher_api=hasattr(ranging.ximgproc,'createRightMatcher'),wls_filter_api=hasattr(ranging.ximgproc,'createDisparityWLSFilter'),
-       timing_mode='live_real_clock' if a.sequence is None else 'replay_recorded_arrival_clock',output_tag=a.output_tag,actuation=False,entry='vision_v2.py',calibration_physical_identity='physical left/right confirmed; user-authorized V2 radial2 after accepted single-point rough screen check',
+       timing_mode='live_real_clock' if a.sequence is None else 'replay_recorded_arrival_clock',output_tag=a.output_tag,actuation=False,entry='vision_v2.py',calibration_physical_identity='physical left/right confirmed; printed 30 mm calibration accepted after approximately 49 cm lens-to-board-center check',
        camera_loop='original app/infrastructure/ranging_service.py; real clock, synchronous logging overhead included')
     save(out/'environment.json',receipt)
     save(out/'build.json',build)

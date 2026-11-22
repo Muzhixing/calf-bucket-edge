@@ -6,7 +6,7 @@ from support import ROOT,save,sha
 def evaluate(ident):
     record_path=ROOT/'trial_records'/f'{ident}.json'
     record=json.loads(record_path.read_text())
-    folder=ROOT/'results'/f'{ident}__v2_radial2'/'seed2_REG_FP16'
+    folder=ROOT/'results'/f'{ident}__printed_30mm_20261122'/'seed2_REG_FP16'
     rows=[json.loads(x) for x in (folder/'frames.jsonl').read_text().splitlines()]
     items=[]
     for r in rows:
@@ -75,7 +75,7 @@ def main():
         actuation=False,baseline_sampler='original expanded bbox ROI; surface validity pending',
         work_part_geometry=None,allowed_error_m=None)
     reservation=ROOT/'trial_records'/f'{a.id}.json'
-    assert not reservation.exists() and not (ROOT/'captures'/a.id).exists() and not (ROOT/'results'/f'{a.id}__v2_radial2').exists(),'Use a new ID'
+    assert not reservation.exists() and not (ROOT/'captures'/a.id).exists() and not (ROOT/'results'/f'{a.id}__printed_30mm_20261122').exists(),'Use a new ID'
     reservation.parent.mkdir(exist_ok=True);save(reservation,record)
     save(ROOT/'trial_records'/f'{a.id}_body_tools_build.json',json.loads((ROOT/'config/body_tool_hashes.json').read_text()))
     print('BODY_REFERENCE',record,flush=True)

@@ -10,6 +10,10 @@ ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_cpp'
 # Explicit source allowlist; never transfer recordings, test files or binaries.
 rsync -a -e "ssh -S $SOCK" "$HERE"/*.hpp "$HERE/main.cpp" "$HERE/prepare.py" \
   "$HERE/build.sh" "$HERE/build_opencv.sh" "$HERE/run.sh" "$HERE/README.md" "$V2_HOST:/home/elf/deploy/vision_cpp/"
+ssh -S "$SOCK" "$V2_HOST" 'mkdir -p /home/elf/deploy/vision_cpp/calibrations'
+rsync -a -e "ssh -S $SOCK" "$HERE/calibration_source.json" "$V2_HOST:/home/elf/deploy/vision_cpp/"
+rsync -a -e "ssh -S $SOCK" "$HERE/calibrations/printed_30mm_20261122.json" \
+  "$V2_HOST:/home/elf/deploy/vision_cpp/calibrations/"
 ssh -S "$SOCK" "$V2_HOST" 'set -eu
 cd /home/elf/deploy/vision_cpp
 if [ ! -f /usr/include/gstreamer-1.0/gst/gst.h ] && [ ! -f deps/headers/usr/include/gstreamer-1.0/gst/gst.h ]; then
