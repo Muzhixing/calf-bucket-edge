@@ -64,6 +64,18 @@ class LedgerTests(unittest.TestCase):
         conf['power_cycle_startup']['observed_home_max_s']=None
         ref.path.write_text(json.dumps(conf))
         with self.assertRaises(ValueError):derive_wait_profile(Limits(ref.path))
+    def test_explicit_wait_stays_eight_after_range_expansion(self):
+        ref=Reference();self.addCleanup(ref.directory.cleanup)
+        conf=json.loads(ref.path.read_text());conf['operating_envelope'].update(A_command_degrees=[0,160],C_command_mm=[0,100])
+        conf['power_cycle_startup']={'fixed_wait_seconds':8}
+        ref.path.write_text(json.dumps(conf));p=derive_wait_profile(Limits(ref.path))
+        self.assertEqual(p['wait_seconds'],8)
+        self.assertFalse(json.loads(p['wait_basis'])['range_scaling_applied'])
+        for value in (True,float('nan'),4,301):
+            conf['power_cycle_startup']['fixed_wait_seconds']=value
+            ref.path.write_text(json.dumps(conf))
+            with self.assertRaises(ValueError):derive_wait_profile(Limits(ref.path))
+
 
 class WarmupTests(unittest.TestCase):
     def test_advancing_real_inference_frames_without_bucket_are_enough(self):

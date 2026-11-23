@@ -42,7 +42,7 @@ class GeometryTests(unittest.TestCase):
         limits.check([0,0,0]);limits.check([160,96,100])
         for q in ([-1,0,0],[161,0,0],[75,0,101]):
             with self.assertRaises(RuntimeError):limits.check(q)
-        self.assertEqual(derive_wait_profile(limits)['wait_seconds'],20)
+        self.assertEqual(derive_wait_profile(limits)['wait_seconds'],8)
     def test_image_center_is_not_principal_point(self):
         p=self.policy;p.observe(self.target(0,1),80)
         self.assertAlmostEqual(p.world,80)

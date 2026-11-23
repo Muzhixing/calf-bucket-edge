@@ -14,7 +14,7 @@ from arm import ArmPort, pose, reset_telemetry
 
 
 def derive_wait_profile(limits):
-    """Observed ~5s + 3s default; range scaling is an estimate, not a guarantee."""
+    """Explicit fixed wait takes precedence over legacy range-scaled estimate."""
     policy=limits.startup_policy
     if (len(limits.c_bounds)!=2 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in limits.c_bounds)
             or limits.c_bounds[0]!=0 or not limits.c<=limits.c_bounds[1]<=175):
@@ -28,10 +28,14 @@ def derive_wait_profile(limits):
            for v in [observed,margin,*[reference.get(k) for k in distances]]):
         raise ValueError('invalid_observed_startup_wait_profile')
     scale=max(1.,*[distances[k]/reference[k] for k in distances])
-    seconds=math.ceil(observed*scale+margin)
+    fixed=policy.get('fixed_wait_seconds')
+    if fixed is not None and (isinstance(fixed,bool) or not isinstance(fixed,(int,float)) or not math.isfinite(fixed)):
+        raise ValueError('invalid_fixed_startup_wait')
+    seconds=fixed if fixed is not None else math.ceil(observed*scale+margin)
     if not 5<=seconds<=300:raise ValueError('startup_wait_outside_5_to_300s')
     evidence=policy.get('evidence','User observed whole-machine autonomous homing finish within about 5 seconds.')
-    basis=json.dumps({'method':'ceil(observed_seconds*max(1,range_ratio)+settle_margin)',
+    basis=json.dumps({'method':'explicit_fixed_wait' if fixed is not None else 'ceil(observed_seconds*max(1,range_ratio)+settle_margin)',
+                      'fixed_wait_seconds':fixed,'range_scaling_applied':fixed is None,
                       'observed_seconds':observed,'margin_s':margin,'range_scale':scale,
                       'distances':distances,'reference_distances':reference,'evidence':evidence,
                       'expanded_range_validated':False,'hardware_complete_signal':False},ensure_ascii=False)
