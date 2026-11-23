@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from urllib.parse import urlsplit
 
 import cv2
@@ -27,19 +28,24 @@ from ego import BackgroundMotion
 from response import ResponseProfile
 from journal import AsyncJournal
 from diagnostics import StartupDiagnostics
-from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile, NativeWarmup
+from startup import PowerCycleStore, StartupSequence, StartupPort, derive_wait_profile, NativeWarmup, RestartWatchPort, can_auto_prepare
 
 
 class Session:
     def __init__(self,folder,limits,motion_allowed=True,port_factory=None, smooth=False, automatic=False, intrinsics=None,
-                 motion_compensation=False,response_profile=None,startup_store=None,startup_port_factory=StartupPort):
+                 motion_compensation=False,response_profile=None,startup_store=None,startup_port_factory=StartupPort,watch_port_factory=RestartWatchPort):
         self.folder,self.limits,self.motion_allowed=Path(folder),limits,motion_allowed
         self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
-        self.startup_request=None;self.startup_sequence=None
+        self.startup_request=None;self.startup_sequence=None;self.startup_window_started=None
+        self.watch_port_factory=watch_port_factory;self.restart_watch=None;self.watch_retry_at=0.;self.watch_error=None
+        self.auto_prepare=bool(motion_allowed and smooth and startup_store is not None and limits.startup_policy.get('automatic_restart_detection') and limits.startup_policy.get('mcu_restart_returns_all_axes') is True)
+        self.operator_paused=bool(startup_store and startup_store.data.get('operator_paused'))
+        self.ui_events=deque(maxlen=50);self.ui_lock=threading.Lock();self.ui_sequence=0;self.last_countdown=None
         self.native_warmup=NativeWarmup();self.native_process=None
         self.startup_diagnostics=None;self.diagnostics_logged=False;self.expected_binding={}
         self.follow_after=0.
         self.smooth=smooth;self.auto_follow=automatic and motion_allowed and (startup_store is None or startup_store.ready)
+        if self.operator_paused:self.auto_follow=False
         self.intrinsics=intrinsics
         self.motion_compensation=motion_compensation;self.response_profile=response_profile
         self.port_factory=port_factory or (ContinuousArmPort if smooth else ArmPort)
@@ -65,7 +71,38 @@ class Session:
             diagnostic.error('diagnostic_internal_error:'+method)
             return None
 
+    def ui_log(self,message,level='info'):
+        with self.ui_lock:
+            if self.ui_events and self.ui_events[-1]['message']==message:return
+            self.ui_sequence+=1
+            self.ui_events.append({'id':self.ui_sequence,'at':time.time(),'message':message,'level':level})
+
     def log(self,event,data):
+        messages={
+            'session_started':'系统启动，相机和模型正在准备',
+            'restart_watch_connected':'已连接 STM32，正在检查复位状态',
+            'automatic_restart_detected':'检测到 STM32 复位，自动进入准备流程',
+            'restart_preparation_wait':'开始回零等待，模型预热和自检并行',
+            'homing_assumed_after_wait':'等待结束，必要自检通过',
+            'origin_registration_attempt':'登记 B/C 起点',
+            'origin_registered_by_startup_assumption':'B/C 起点登记已确认，A 转向 75°',
+            'startup_c_preparing':'A75° 已确认，C 正在准备至 10 mm',
+            'power_cycle_preparation_complete':'A75° / C10 mm 准备完成，自动追踪已开启',
+            'automatic_follow_ready':'自动追踪已恢复',
+            'startup_failed':'准备中断，机构保持停止',
+            'control_error':'控制暂停，后台继续检查设备',
+        }
+        if event in messages:self.ui_log(messages[event],'error' if event in ('startup_failed','control_error') else 'info')
+        if event=='startup_self_check':
+            if data.get('ready'):self.ui_log('相机、推理预热和图像处理已就绪')
+        if event=='startup_disabled_ack' and data.get('flags')==0:self.ui_log('串口命令确认，启动通信故障已解除')
+        if event=='startup_diagnostics_result':
+            ms=data.get('metrics',{}).get('inference',{}).get('p95_ms')
+            self.ui_log('启动采样完成 · '+('推理 P95 %.0f ms'%ms if ms is not None else '推理样本不足')+
+                        ' · '+data.get('status','样本不足'), 'warning' if data.get('issues') else 'info')
+        if event=='operator_command' and data.get('action') in ('stop','start'):
+            self.ui_log('已手动暂停自动流程' if data['action']=='stop' else '已恢复自动流程')
+
         if event=='serial_observation' and self.startup_diagnostics is not None:
             self.diagnostic_call('serial',data['frames'],data['parser'])
         if self.journal is not None:
@@ -102,21 +139,29 @@ class Session:
                 elif body.get('whole_machine_power_cycled') is not True:raise ValueError('whole_machine_confirmation_required')
                 if self.active or self.arm['phase'] not in ('disabled','startup_waiting','startup_preparing','startup_checking'):
                     raise ValueError('stop_before_power_cycle_confirmation')
-                if self.startup_store.confirm(body.get('request_id'),event):
-                    self.startup_request=self.startup_store.data['cycle_id']
-                    self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
-                    self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds)
-                    self.diagnostics_logged=False
-                    self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
+                self.begin_preparation(body.get('request_id'),event)
             elif action=='stop':
-                if self.startup_request is not None and self.startup_sequence is None:
-                    self.startup_store.invalidate('cancelled_before_sequence_started')
-                self.startup_request=None
+                cancel_pending=self.startup_request is not None and self.startup_sequence is None
+                self.operator_paused=True;self.startup_request=None
                 self.active=False;self.auto_follow=False;self.reason='operator_stop'
+                try:
+                    if self.auto_prepare:self.startup_store.phase(self.startup_store.data['phase'],operator_paused=True)
+                    if cancel_pending:self.startup_store.invalidate('cancelled_before_sequence_started')
+                except Exception as exc:
+                    self.ui_log('已停止；暂停状态保存失败，需检查存储','error')
+                    self.log('pause_persistence_failed',{'reason':str(exc)})
             elif action=='heartbeat':
                 self.lease=time.monotonic()
             elif action=='start':
-                if self.startup_store is not None and not self.startup_store.ready:raise ValueError('power_cycle_confirmation_required')
+                if self.auto_prepare:
+                    self.startup_store.phase(self.startup_store.data['phase'],operator_paused=False)
+                    self.operator_paused=False;self.active=False
+                    self.auto_follow=self.startup_store.ready
+                    self.reason='' if self.auto_follow else 'waiting_for_mcu_restart'
+                    self.ui_log('自动流程已恢复，等待最新画面' if self.auto_follow else '自动检测已恢复，等待设备就绪')
+                    return
+                if self.startup_store is not None and not self.startup_store.ready:
+                    raise ValueError('power_cycle_confirmation_required')
                 if not self.motion_allowed:raise ValueError('当前为只读观察，不能启动机构')
                 if not self.smooth and body.get('chassis_isolated') is not True:raise ValueError('先确认底盘行走动力已断开')
                 if self.image is None or time.monotonic()-self.metadata.get('arrival',0)>.4:
@@ -124,7 +169,7 @@ class Session:
                 if self.mode=='manual' and self.tracking is None:raise ValueError('请重新框选目标')
                 self.active=True;self.auto_follow=self.smooth;self.lease=time.monotonic();self.reason=''
             elif action=='auto':
-                self.active=False;self.auto_follow=self.smooth and self.motion_allowed and (self.startup_store is None or self.startup_store.ready);self.mode='auto';self.pending=None;self.revision+=1
+                self.active=False;self.auto_follow=self.smooth and self.motion_allowed and not self.operator_paused and (self.startup_store is None or self.startup_store.ready);self.mode='auto';self.pending=None;self.revision+=1
                 self.tracking=None;self.reason=''
             elif action=='select':
                 if self.active or self.arm['phase'] not in ('disabled','idle'):
@@ -140,6 +185,7 @@ class Session:
 
     def status(self):
         with self.lock:
+            with self.ui_lock:events=list(self.ui_events)
             data=dict(self.metadata)
             data['frame_age_s']=max(0,time.monotonic()-data.get('arrival',0)) if data else 999
             data['preview']={'frame_id':self.video_id,'fps':self.video_fps,'tracking_fps':self.track_fps,
@@ -148,6 +194,7 @@ class Session:
             data['tracking']={'mode':self.mode,'target':track,'active':self.active,'automatic':self.auto_follow,'continuous':self.smooth,
                               'target_id':self.target_id,'reason':self.reason,
                               'vision_state':self.vision_state,'reacquired_count':self.reacquired_count,
+                              'auto_prepare':self.auto_prepare,'operator_paused':self.operator_paused,'events':events,
                               'motion_available':self.motion_allowed,
                               'limits':{'A':[self.limits.a_min,self.limits.a_max],
                                         'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c},
@@ -431,6 +478,52 @@ class Session:
                     'inference_warmup':warmup,'camera_fresh':camera,'tracker_fresh':tracker,
                     'preview_fresh':preview,'calibration_valid':calibration,'journal_healthy':journal,'native_running':process}
 
+    def begin_preparation(self,request_id,event,observed_at=None):
+        if self.startup_store.confirm(request_id,event):
+            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+            self.operator_paused=False;self.startup_request=self.startup_store.data['cycle_id']
+            self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
+            self.startup_window_started=observed_at if observed_at is not None else time.monotonic()
+            self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds,now=self.startup_window_started)
+            self.diagnostics_logged=False;self.last_countdown=None
+            self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
+
+    def advance_restart_watch(self):
+        if not self.auto_prepare:return False
+        if self.startup_request is not None or self.startup_sequence is not None:
+            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+            return False
+        # An already prepared normal startup uses the ordinary live preflight.
+        if self.active or self.auto_follow:
+            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+            return False
+        now=time.monotonic()
+        if now<self.watch_retry_at:return True
+        try:
+            if self.restart_watch is None:
+                self.restart_watch=self.watch_port_factory(self.limits,self.log)
+                self.log('restart_watch_connected',{})
+            ready=self.restart_watch.reset_ready();q=self.restart_watch.state
+            with self.lock:
+                self.arm={'phase':'disabled' if self.operator_paused else 'detecting_restart',
+                          'telemetry':q if now-self.restart_watch.rx_at<.7 else None,'timestamp':self.restart_watch.rx_at}
+                if self.operator_paused:return True
+                if ready:
+                    if can_auto_prepare(self.startup_store):
+                        self.log('automatic_restart_detected',{'telemetry':q,'evidence':'stable_combined_boot_signature'})
+                        if self.startup_store.ready:self.startup_store.invalidate('mcu_restart_detected')
+                        self.begin_preparation(str(uuid.uuid4()),'automatic_mcu_restart',self.restart_watch.evidence.since)
+                    else:
+                        self.reason='startup_registration_uncertain'
+                        self.ui_log('上次登记回传未确认，保持停止，未重复登记','warning')
+            self.watch_error=None
+        except Exception as exc:
+            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+            self.watch_retry_at=now+1
+            with self.lock:self.arm={'phase':'waiting_device','telemetry':None,'timestamp':now}
+            if self.watch_error!=str(exc):self.ui_log('等待 STM32 连接','warning');self.watch_error=str(exc)
+        return True
+
     def advance_startup(self):
         if self.startup_diagnostics is not None and not self.diagnostics_logged:
             report=self.diagnostic_call('finish')
@@ -440,7 +533,7 @@ class Session:
         with self.lock:
             request=self.startup_request
             if request is not None and self.startup_sequence is None:
-                self.startup_sequence=StartupSequence(self.startup_store,self.limits,self.log,self.startup_port_factory,self.startup_checks)
+                self.startup_sequence=StartupSequence(self.startup_store,self.limits,self.log,self.startup_port_factory,self.startup_checks,started_at=self.startup_window_started)
             sequence=self.startup_sequence
         if sequence is None:return False
         try:
@@ -459,6 +552,9 @@ class Session:
                     if self.startup_request is not None and not self.stop_event.is_set():sequence.tick()
             with self.lock:
                 remaining=max(0,self.startup_store.wait_seconds-(time.monotonic()-sequence.started))
+                second=math.ceil(remaining)
+                if sequence.stage=='waiting' and second!=self.last_countdown:
+                    self.last_countdown=second;self.ui_log('回零等待 · 剩余 %d 秒'%second if second else '等待自检就绪')
                 self.arm={'phase':('startup_waiting' if remaining>0 else 'startup_checking') if sequence.stage=='waiting' else 'startup_preparing',
                           'telemetry':sequence.port.state if sequence.port else None,'timestamp':time.monotonic(),
                           'startup_wait_remaining_s':remaining}
@@ -485,6 +581,8 @@ class Session:
         try:
             while not self.stop_event.is_set():
                 try:
+                    if port is None and self.advance_restart_watch():
+                        last_tick=time.monotonic();self.stop_event.wait(.01);continue
                     if self.advance_startup():
                         last_tick=time.monotonic();self.stop_event.wait(.01);continue
                     now=time.monotonic()
@@ -597,6 +695,7 @@ class Session:
                     self.log('control_error',{'reason':str(exc),'stop_error':error})
                 self.stop_event.wait(.01)
         finally:
+            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
             if self.startup_sequence is not None:
                 self.startup_sequence.close('program_exit_during_initialization');self.startup_sequence=None
             if port is not None:

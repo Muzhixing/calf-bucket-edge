@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import deque
 
-from arm import ArmPort, pose
+from arm import ArmPort, pose, reset_telemetry
 
 
 def derive_wait_profile(limits):
@@ -127,7 +127,7 @@ class PowerCycleStore:
         with self.lock:return not self.error and self.data['phase']=='ready'
 
     def confirm(self,request_id,event='whole_machine_power_cycle'):
-        if event not in ('whole_machine_power_cycle','confirmed_mcu_motor_restart'):raise ValueError('invalid_restart_event')
+        if event not in ('whole_machine_power_cycle','confirmed_mcu_motor_restart','automatic_mcu_restart'):raise ValueError('invalid_restart_event')
         try:request_id=str(uuid.UUID(request_id))
         except (ValueError,TypeError,AttributeError):raise ValueError('invalid_power_cycle_request_id')
         with self.lock:
@@ -137,9 +137,9 @@ class PowerCycleStore:
             if self.data['phase'] not in ('unconfirmed','uncertain','ready'):raise ValueError('power_cycle_already_in_progress')
             seen=self.data['seen_requests']+[request_id]
             self.data={'version':1,'phase':'waiting','seen_requests':seen,'cycle_id':request_id,
-                       'boot_id':self.boot_id,'confirmed_at':time.time(),'zero_attempted':False,
+                       'boot_id':self.boot_id,'confirmed_at':time.time(),'zero_attempted':False,'operator_paused':False,
                        'wait_seconds_used':self.wait_seconds,'wait_basis_used':self.wait_basis,
-                       'restart_event':event,'origin_evidence':'operator_confirmed_'+event+'_then_timed_assumption'}
+                       'restart_event':event,'origin_evidence':('stable_firmware_boot_signature_then_timed_assumption' if event=='automatic_mcu_restart' else 'operator_confirmed_'+event+'_then_timed_assumption')}
             self._save();return True
 
     def phase(self,value,**fields):
@@ -159,6 +159,45 @@ class PowerCycleStore:
     def close(self):
         with self.lock:
             if self.fd is not None:os.close(self.fd);self.fd=None
+
+
+class RestartEvidence:
+    """Require several fresh batches of the combined MCU boot signature."""
+    def __init__(self):self.reset()
+    def reset(self):self.since=None;self.last=None;self.samples=0
+    def observe(self,frames,now):
+        if not frames:return False
+        if self.last is not None and now-self.last>.7:self.reset()
+        if not all(reset_telemetry(s) for s in frames):self.reset();return False
+        if self.since is None:self.since=now
+        # Coalesced frames count as one observation, not many independent samples.
+        if self.last is None or now>self.last:self.samples+=1
+        self.last=now
+        return self.samples>=4 and now-self.since>=.75
+
+
+class RestartWatchPort(ArmPort):
+    """Sole serial owner when idle: read only, including on close/failure."""
+    def __init__(self,*args,**kwargs):
+        kwargs['defer_preflight']=True
+        self.opened_at=time.monotonic();self.evidence=RestartEvidence()
+        super().__init__(*args,**kwargs)
+    def reset_ready(self):
+        frames=self.poll();now=time.monotonic()
+        if now-self.opened_at<.4:return False
+        return self.evidence.observe(frames,now)
+    def shutdown(self):
+        if self.fd is not None:os.close(self.fd);self.fd=None
+        return None
+
+
+def can_auto_prepare(store):
+    # After an ambiguous write, a remaining boot signature cannot authorize retry.
+    # A later registered/ready state followed by lost flags is a different epoch.
+    d=store.data
+    return (not store.error and not d.get('operator_paused',False)
+            and (not d.get('zero_attempted',False) or d.get('origins_observed',False)
+                 or bool(d.get('ready_telemetry'))))
 
 
 class StartupPort(ArmPort):
@@ -249,11 +288,11 @@ class StartupPort(ArmPort):
 
 
 class StartupSequence:
-    def __init__(self,store,limits,log,port_factory=StartupPort,ready_check=None):
+    def __init__(self,store,limits,log,port_factory=StartupPort,ready_check=None,started_at=None):
         self.store,self.limits,self.log,self.port_factory=store,limits,log,port_factory
-        self.port=None;self.started=time.monotonic();self.stage='waiting';self.done=False
+        self.port=None;self.started=time.monotonic() if started_at is None else started_at;self.stage='waiting';self.done=False
         self.ready_check=ready_check or (lambda:{'ready':True});self.last_check=None
-        self.log('restart_preparation_wait',store.status())
+        self.log('restart_preparation_wait',{**store.status(),'window_started_at':self.started})
 
     def tick(self):
         checks=self.ready_check()
@@ -284,9 +323,10 @@ class StartupSequence:
             self.log('origin_registration_attempt',self.store.status())
             self.port.disabled_command(6);self.stage='zero'
         elif self.stage=='zero':
-            self.store.phase('registered');self.log('origin_registered_by_startup_assumption',self.port.state)
+            self.store.phase('registered',origins_observed=True);self.log('origin_registered_by_startup_assumption',self.port.state)
             self.store.phase('a_moving');self.port.startup_move([75,0,0]);self.stage='a'
         elif self.stage=='a':
+            self.log('startup_c_preparing',{'target_mm':self.limits.c})
             self.store.phase('c_moving');self.port.startup_move([75,0,self.limits.c]);self.stage='c'
         elif self.stage=='c':
             self.port.check_state(self.port.state);self.limits.check(pose(self.port.state))

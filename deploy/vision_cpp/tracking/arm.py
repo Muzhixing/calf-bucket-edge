@@ -42,6 +42,15 @@ def pose(s):
     return [s['servo_software_deg'],s['lift_position_mm'],s['slide_position_mm']]
 
 
+def reset_telemetry(s):
+    """Combined original-firmware boot signature, never counter-zero alone."""
+    return (not s.get('enabled') and not s.get('lift_zero_confirmed')
+            and not s.get('slide_zero_confirmed') and s.get('command_count_mod256')==0
+            and s.get('servo_software_deg')==90 and s.get('lift_position_mm')==0
+            and s.get('slide_position_mm')==0 and s.get('motor_fault')==0
+            and s.get('system_fault') in (0,1) and s.get('state') in (0,4))
+
+
 def objective(error):
     return (error[0]/20)**2+(error[1]/15)**2
 
@@ -163,6 +172,12 @@ class ArmPort:
         if frames:
             self.state=frames[-1];self.rx_at=time.monotonic()
             self.log('serial_rx',frames)
+            if getattr(self,'watch_firmware_reset',False) and reset_telemetry(self.state):
+                # Firmware already disabled itself. Never interrupt autonomous homing
+                # with a stale target/stop packet from the previous controller epoch.
+                self.attempted=False;self.phase='idle';self.target=None
+                self.expected=self.state['command_count_mod256']
+                raise RuntimeError('mcu_restart_detected')
         return frames
 
     def frame(self,q,enable):
@@ -258,6 +273,7 @@ class ContinuousArmPort(ArmPort):
         super().__init__(*args, **kwargs)
         self.pending_counter = None; self.pending = []; self.last_tx = 0.
         self.b_origin = self.state['lift_position_mm']; self.b_started = 0.
+        self.watch_firmware_reset=True
 
     def poll(self):
         frames = super().poll()
