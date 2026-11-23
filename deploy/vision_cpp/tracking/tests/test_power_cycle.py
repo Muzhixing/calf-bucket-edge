@@ -125,6 +125,13 @@ class StartupPTYTests(unittest.TestCase):
         before=len(self.mcu.commands)
         port=ContinuousArmPort(self.ref.limits,lambda *a:None,port=self.mcu.path,sender_factory=Sender,check_holders=False)
         port.shutdown();self.assertEqual(len(self.mcu.commands),before);self.assertTrue(self.store.ready)
+    def test_C_zero_startup_sends_only_A_move(self):
+        self.ref.limits.c=0
+        seq=self.begin();self.run_until(lambda:seq.done)
+        enabled=[f[4:7] for f in self.mcu.commands if f[8]&1]
+        self.assertEqual(enabled,[bytes([75,0,0])])
+        self.assertEqual(sum(f[8]==6 for f in self.mcu.commands),1)
+        self.assertEqual(self.mcu.c,0);self.assertTrue(self.store.ready)
     def test_existing_zero_flags_block_repeat_even_after_new_operator_request(self):
         self.mcu.zero_flags=True;self.mcu.fault=0
         seq=self.begin()

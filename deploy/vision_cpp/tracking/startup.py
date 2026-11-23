@@ -326,12 +326,17 @@ class StartupSequence:
             self.store.phase('registered',origins_observed=True);self.log('origin_registered_by_startup_assumption',self.port.state)
             self.store.phase('a_moving');self.port.startup_move([75,0,0]);self.stage='a'
         elif self.stage=='a':
-            self.log('startup_c_preparing',{'target_mm':self.limits.c})
-            self.store.phase('c_moving');self.port.startup_move([75,0,self.limits.c]);self.stage='c'
-        elif self.stage=='c':
-            self.port.check_state(self.port.state);self.limits.check(pose(self.port.state))
-            self.store.phase('ready',ready_at=time.time(),ready_telemetry=self.port.state)
-            self.log('power_cycle_preparation_complete',self.port.state);self.done=True
+            if self.limits.c==0:
+                self.complete()  # Already at C0: no C command or extra enable cycle.
+            else:
+                self.log('startup_c_preparing',{'target_mm':self.limits.c})
+                self.store.phase('c_moving');self.port.startup_move([75,0,self.limits.c]);self.stage='c'
+        elif self.stage=='c':self.complete()
+
+    def complete(self):
+        self.port.check_state(self.port.state);self.limits.check(pose(self.port.state))
+        self.store.phase('ready',ready_at=time.time(),ready_telemetry=self.port.state)
+        self.log('power_cycle_preparation_complete',self.port.state);self.done=True
 
     def close(self,reason=None):
         # Stop motion even if the state disk has failed; preserve stop uncertainty.

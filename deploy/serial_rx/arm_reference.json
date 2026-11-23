@@ -28,7 +28,7 @@
     "firmware_has_communication_watchdog": false,
     "automatic_runtime_loading": true,
     "usage": "主程序追踪控制器读取工作范围和原发送器路径；此文件不修改固件，也不将历史快照视为当前位置。",
-    "continuous_tracking_exception": "2026-11-21 用户要求自动锁定自动运动和实时平滑跟随：连续模式在使能期间更新 A 目标，保留 B 有限行程；每包最多改变一个目标字段，A 与 B 可同时运动。仅目标丢失、用户停止、故障或退出时禁用。单次人工标定动作仍逐次禁用。",
+    "continuous_tracking_exception": "A保持高频预测控制，B无需等待横向居中；串口每帧仅改变一个目标，B新目标最迟让出一个A发送时隙（120ms），A/B可同时运动。C暂不自动追踪，保留当前位置。",
     "firmware_identity_basis": "User reported flashed 785123b in the related chat; no firmware identity readback."
   },
   "mechanisms": {
@@ -103,7 +103,7 @@
     }
   },
   "operating_envelope": {
-    "updated_on": "2026-11-21",
+    "updated_on": "2026-11-23",
     "B_command_mm": [
       0,
       96
@@ -115,14 +115,14 @@
     "A_clearance_depends_on_B": true,
     "A_clearance_note": "用户纠正：右侧存在车体，B下降过低会阻碍A旋转。此前A转多少均不碰车体的说法不得作为所有高度下的范围依据。",
     "all_A_C_combinations_swept_at_B_limit": false,
-    "C_trial_hold_mm": 10,
-    "C_flexure_note": "用户说明前端摄像头重量导致伸缩杆下弯；图像上下变化不能视为稳定线性的C定位关系。视觉居中阶段固定C，用A/B修正。",
+    "C_trial_hold_mm": 0,
+    "C_flexure_note": "前端重量造成伸缩杆下弯；C暂不自动追踪，启动保持0，已有C位置在0–100mm范围内保持。",
     "enforcement_scope": "主程序上位机追踪控制器及试验脚本执行此边界；原固件仍为原来的软件范围，未修改固件。",
     "A_command_degrees": [
-      60,
-      100
+      0,
+      160
     ],
-    "A_limit_basis": "2026-11-21 用户确认 B=29 mm 时 A 从70逐步到60全程无碰撞、无卡滞、无线缆拉扯；A=60、C=10时B从29分段下降到96，B=96时A从60按2度逐步转回70，用户再次确认全程间隙正常，授权范围60–100并恢复追踪。100为原上限。",
+    "A_limit_basis": "2026-11-23 用户明确授权原60–100度向两侧各扩大60度至0–160度，不进行范围扫测；历史扫测仅覆盖旧范围。",
     "A_range_validation": {
       "C_hold_mm": 10,
       "A_sweep_at_B_mm": [
@@ -149,7 +149,7 @@
     },
     "C_command_mm": [
       0,
-      30
+      100
     ]
   },
   "heading_reference": {
@@ -183,7 +183,7 @@
     "chassis_and_pump_power": "现场测试期间用户确认断开；后续需按当时实际状态核对"
   },
   "power_cycle_startup": {
-    "mode": "explicit_whole_machine_confirmation",
+    "mode": "automatic_confirmed_mcu_motor_restart",
     "observed_home_max_s": 5,
     "settle_margin_s": 3,
     "reference_return_distances": {
@@ -199,12 +199,18 @@
     "prepared_pose": [
       75,
       0,
-      10
+      0
     ],
     "evidence": "User reports the longest observed whole-machine autonomous homing finishes within about 5 seconds. Default wait is 5+3=8 seconds; enlarged-range scaling is an unvalidated estimate, not a hardware completion signal. No exact homing speed required.",
     "mcu_restart_returns_all_axes": true,
     "mcu_restart_evidence": "2026-11-23 user confirms B physically returns to top and C fully retracts on STM32 restart; STM32 and motors share supply and restart together. Program restart or ordinary UART reconnect is not this event.",
     "automatic_restart_detection": true,
     "automatic_restart_evidence": "User requests automatic background preparation. Fresh combined boot state: disabled, both origins unconfirmed, A90/B0/C0, command counter0, no motor fault, at least4 batches across0.75s after input-buffer discard; then8-second assumed homing wait. UART reconnect alone is insufficient."
+  },
+  "tracking_motion": {
+    "b_max_step_mm": 24,
+    "b_schedule_interval_s": 0.12,
+    "b_firmware_max_mm_s": 5,
+    "c_auto_tracking": false
   }
 }

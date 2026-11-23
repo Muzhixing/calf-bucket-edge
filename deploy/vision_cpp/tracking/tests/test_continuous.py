@@ -34,6 +34,15 @@ class GeometryTests(unittest.TestCase):
             self.ref.path.write_text(json.dumps(config))
             with self.assertRaises(RuntimeError):Limits(self.ref.path)
 
+    def test_expanded_range_and_retracted_startup_configuration(self):
+        from pathlib import Path
+        from startup import derive_wait_profile
+        limits=Limits(Path(__file__).resolve().parents[3]/'serial_rx'/'arm_reference.json')
+        self.assertEqual((limits.a_min,limits.a_max,limits.c_bounds,limits.c),(0,160,[0,100],0))
+        limits.check([0,0,0]);limits.check([160,96,100])
+        for q in ([-1,0,0],[161,0,0],[75,0,101]):
+            with self.assertRaises(RuntimeError):limits.check(q)
+        self.assertEqual(derive_wait_profile(limits)['wait_seconds'],20)
     def test_image_center_is_not_principal_point(self):
         p=self.policy;p.observe(self.target(0,1),80)
         self.assertAlmostEqual(p.world,80)
@@ -71,7 +80,7 @@ class GeometryTests(unittest.TestCase):
         a=self.policy.next_b(t,40,{'distance_m':.15,'distance_age_ms':20,'selected':d})
         b=self.policy.next_b(t,40,{'distance_m':.6,'distance_age_ms':20,'selected':d})
         self.assertLess(a,b)
-        self.assertEqual(self.policy.next_b(t,40,{'distance_m':.15,'distance_age_ms':900,'selected':d}),48)
+        self.assertEqual(self.policy.next_b(t,40,{'distance_m':.15,'distance_age_ms':900,'selected':d}),54)
     def test_continuous_policy_reduces_delay_in_bounded_motion_simulation(self):
         # Ideal 20 px/degree response with 80 ms observation delay, 10 Hz
         # commands, and 100 degree/s software servo. This is not a field result.
@@ -136,6 +145,13 @@ class ContinuousSerialTests(unittest.TestCase):
         self.assertLess(self.mcu.b,44);self.assertEqual(self.mcu.target,44)
         with self.assertRaises(RuntimeError):self.port.follow([80,42,10])
         self.assertEqual([f[5] for f in self.mcu.commands],[44,44])
+    def test_longer_B_move_keeps_A_responsive_and_preserves_C(self):
+        self.mcu.speed=1
+        self.assertTrue(self.port.follow([78,64,10]));self.acknowledge()
+        self.assertTrue(self.port.follow([80,64,10]));self.acknowledge()
+        self.assertLess(self.mcu.b,64)
+        self.assertEqual([f[5] for f in self.mcu.commands],[64,64])
+        self.assertTrue(all(f[6]==10 and f[8]==1 for f in self.mcu.commands))
     def test_bounded_command_window_and_count_wrap(self):
         self.port.expected=self.mcu.count=255;self.port.state['command_count_mod256']=255
         self.mcu.drop=True
@@ -145,12 +161,32 @@ class ContinuousSerialTests(unittest.TestCase):
         self.assertFalse(self.port.follow([86,40,10]))
         self.mcu.drop=False;self.acknowledge();self.assertEqual(self.port.expected,2)
     def test_illegal_pose_never_transmits(self):
-        for q in ([101,40,10],[79,41,10],[78,40,11],[83,40,10],[78,49,10]):
+        for q in ([101,40,10],[79,41,10],[78,40,11],[83,40,10],[78,65,10]):
             with self.assertRaises(RuntimeError):self.port.follow(q)
         self.assertEqual(self.mcu.commands,[])
 
 
 class AutomaticTests(unittest.TestCase):
+    def test_horizontal_error_does_not_block_lift_start_or_A_updates(self):
+        ref=Reference();mcu=MCU();mcu.speed=1
+        def factory(limits,log):return ContinuousArmPort(limits,log,port=mcu.path,sender_factory=Sender,check_holders=False)
+        s=Session(ref.directory.name,ref.limits,smooth=True,automatic=True,intrinsics=INTRINSICS,port_factory=factory)
+        worker=threading.Thread(target=s.arm_loop);worker.start()
+        try:
+            end=time.monotonic()+3.5
+            while time.monotonic()<end:
+                with s.lock:
+                    s.metadata={'arrival':time.monotonic()};s.target_id=1;s.vision_state='tracking'
+                    s.tracking={'box':[400,200,650,450],'offset_px':[80,100],'timestamp':time.monotonic(),'method':'flow'}
+                moving=[f for f in mcu.commands if f[8]&1 and f[5]>40]
+                if len(moving)>=2 and moving[-1][4]!=moving[0][4]:break
+                time.sleep(.02)
+            moving=[f for f in mcu.commands if f[8]&1 and f[5]>40]
+            self.assertTrue(moving,s.reason);self.assertEqual(moving[0][5],64)
+            self.assertTrue(any(f[4]!=moving[0][4] for f in moving[1:]))
+            self.assertTrue(all(f[6]==10 for f in mcu.commands));self.assertTrue(s.active,s.reason)
+        finally:s.stop_event.set();worker.join(4);mcu.close();ref.directory.cleanup()
+
     def test_real_lift_reversal_still_stops_inflight_motion(self):
         ref=Reference();mcu=MCU();mcu.speed=1
         def factory(limits,log):return ContinuousArmPort(limits,log,port=mcu.path,sender_factory=Sender,check_holders=False)
@@ -190,7 +226,11 @@ class AutomaticTests(unittest.TestCase):
                     self.assertEqual(list(enabled[0][4:7]),[78,round(start_b),10])
                     self.assertTrue(any(f[4]!=78 for f in enabled),mcu.commands)
                     self.assertFalse(any(not f[8] for f in mcu.commands),mcu.commands)
-                    self.assertAlmostEqual(mcu.b,round(start_b),places=1)
+                    # After normalization, independent B corrections may already
+                    # have started despite horizontal error (new parallel policy).
+                    later=[f for f in enabled[1:] if f[5]!=round(start_b)]
+                    self.assertTrue(all((f[5]-round(start_b))*dy>0 for f in later))
+                    self.assertTrue(0<=mcu.b<=96)
                     self.assertTrue(s.active,s.reason)
                 finally:s.stop_event.set();worker.join(4);mcu.close();ref.directory.cleanup()
 

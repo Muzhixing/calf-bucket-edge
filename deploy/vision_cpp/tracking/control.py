@@ -83,7 +83,7 @@ class FollowPolicy:
         self.diagnostics = {};self.observations=deque();self.filtered_world=None
         self.motion=MotionFilter()
         self.visual_motion=MotionFilter();self.visual_position=0.;self.previous_image_x=None
-        self.horizontal_ready_since=None
+        self.horizontal_ready_since=None;self.last_b_slot=None
 
     def observe(self, target, frame_a):
         stamp = target['timestamp']
@@ -188,12 +188,16 @@ class FollowPolicy:
             gain = clamp(z*1000/self.fy, .25, 2.)
         else:
             gain = 1.
-        delta = clamp(round(dy*gain*.7), -8, 8)
+        delta = clamp(round(dy*gain*.7), -self.limits.b_max_step, self.limits.b_max_step)
         return int(clamp(round(current)+delta, self.limits.b_min, self.limits.b_max))
 
     def allow_b(self,target,now):
-        """Reserve new vertical moves until the fast horizontal axis has caught up."""
-        if abs(target['offset_px'][0])>=25 or abs(self.velocity)>3:
-            self.horizontal_ready_since=None;return False
-        if self.horizontal_ready_since is None:self.horizontal_ready_since=now
-        return now-self.horizontal_ready_since>=.12
+        """Independent vertical correction; A continues while B is moving."""
+        return abs(target['offset_px'][1])>15
+
+    def choose_axis(self,a,old_a,b_due,now):
+        """A gets first slot, but cannot starve an independent B correction."""
+        if self.last_b_slot is None:self.last_b_slot=now
+        if b_due and (a==old_a or now-self.last_b_slot>=self.limits.b_schedule_interval):
+            self.last_b_slot=now;return 1
+        return 0

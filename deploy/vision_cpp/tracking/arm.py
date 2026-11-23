@@ -25,16 +25,23 @@ class Limits:
         self.sender=config['control_policy']['original_sender_module_on_rk3588']
         self.startup_policy=config.get('power_cycle_startup',{})
         self.c_bounds=config['operating_envelope'].get('C_command_mm',[0,30])
+        motion=config.get('tracking_motion',{})
+        self.b_max_step=motion.get('b_max_step_mm',24)
+        self.b_schedule_interval=motion.get('b_schedule_interval_s',.12)
         if not (all(isinstance(v,(int,float)) and math.isfinite(v) and v==round(v)
                     for v in (self.a_min,self.a_max))
                 and 0<=self.a_min<self.a_max<=180
-                and 0<=self.b_min<=self.b_max<=96 and 0<=self.c<=30):
+                and 0<=self.b_min<=self.b_max<=96
+                and len(self.c_bounds)==2 and all(isinstance(v,(int,float)) and math.isfinite(v) for v in self.c_bounds)
+                and 0<=self.c_bounds[0]<=self.c<=self.c_bounds[1]<=175
+                and isinstance(self.b_max_step,(int,float)) and math.isfinite(self.b_max_step) and 1<=self.b_max_step<=24
+                and isinstance(self.b_schedule_interval,(int,float)) and math.isfinite(self.b_schedule_interval) and .04<=self.b_schedule_interval<=.2):
             raise RuntimeError('invalid_arm_reference')
 
     def check(self,q):
         if len(q)!=3 or not all(math.isfinite(float(v)) for v in q):
             raise RuntimeError('invalid_pose')
-        if not (self.a_min<=q[0]<=self.a_max and self.b_min<=q[1]<=self.b_max and q[2]==self.c):
+        if not (self.a_min<=q[0]<=self.a_max and self.b_min<=q[1]<=self.b_max and self.c_bounds[0]<=q[2]<=self.c_bounds[1]):
             raise RuntimeError('pose_outside_working_range')
 
 
@@ -303,7 +310,7 @@ class ContinuousArmPort(ArmPort):
         current = pose(self.state); self.limits.check(current)
         old = self.target or [round(v) for v in current]
         changes = [abs(q[k]-old[k]) for k in range(3)]
-        if sum(d>.01 for d in changes)>1 or changes[0]>4 or changes[1]>8 or changes[2]!=0:
+        if sum(d>.01 for d in changes)>1 or changes[0]>4 or changes[1]>self.limits.b_max_step or changes[2]!=0:
             raise RuntimeError('invalid_continuous_target')
         if changes[1] and abs(current[1]-old[1])>.11:
             raise RuntimeError('lift_busy_preserve_goal')
@@ -356,5 +363,5 @@ class ContinuousArmPort(ArmPort):
                 raise RuntimeError('unexpected_mechanism_motion')
         if self.pending and now-self.pending[0][1]>.6:
             raise RuntimeError('command_ack_timeout')
-        if abs(self.state['lift_position_mm']-self.target[1])>.11 and now-self.b_started>8:
+        if abs(self.state['lift_position_mm']-self.target[1])>.11 and now-self.b_started>max(8,abs(self.target[1]-self.b_origin)/5+4):
             raise RuntimeError('movement_timeout')

@@ -86,12 +86,14 @@ class Session:
             'homing_assumed_after_wait':'等待结束，必要自检通过',
             'origin_registration_attempt':'登记 B/C 起点',
             'origin_registered_by_startup_assumption':'B/C 起点登记已确认，A 转向 75°',
-            'startup_c_preparing':'A75° 已确认，C 正在准备至 10 mm',
-            'power_cycle_preparation_complete':'A75° / C10 mm 准备完成，自动追踪已开启',
+            'startup_c_preparing':'A75° 已确认，正在准备 C',
+            'power_cycle_preparation_complete':'机械臂准备完成，自动追踪已开启',
             'automatic_follow_ready':'自动追踪已恢复',
             'startup_failed':'准备中断，机构保持停止',
             'control_error':'控制暂停，后台继续检查设备',
         }
+        if event=='power_cycle_preparation_complete':
+            messages[event]='A75° / C%s mm 准备完成，自动追踪已开启'%data.get('slide_position_mm',self.limits.c)
         if event in messages:self.ui_log(messages[event],'error' if event in ('startup_failed','control_error') else 'info')
         if event=='startup_self_check':
             if data.get('ready'):self.ui_log('相机、推理预热和图像处理已就绪')
@@ -197,7 +199,7 @@ class Session:
                               'auto_prepare':self.auto_prepare,'operator_paused':self.operator_paused,'events':events,
                               'motion_available':self.motion_allowed,
                               'limits':{'A':[self.limits.a_min,self.limits.a_max],
-                                        'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c},
+                                        'B':[self.limits.b_min,self.limits.b_max],'C':self.limits.c_bounds},
                               'arm':dict(self.arm),'startup':({**self.startup_store.status(),'self_check':self.startup_checks(),'report':self.diagnostic_call('finish') if self.startup_diagnostics else None} if self.startup_store else None)}
             data['tracking']['target_age_s']=max(0,time.monotonic()-track['timestamp']) if track else None
             if self.journal is not None:data['diagnostics']=self.journal.status()
@@ -261,7 +263,7 @@ class Session:
                     for d in metadata.get('detections',[]):
                         cv2.rectangle(annotated,(d['left'],d['top']),(d['right'],d['bottom']),(170,150,80),1)
                 label=('reacquiring' if state=='reacquiring' else phase) if active else ('observing' if target else state)
-                cv2.putText(annotated,f'TRACK {label} | C fixed {self.limits.c} mm',(18,695),cv2.FONT_HERSHEY_SIMPLEX,.6,(0,215,255),1)
+                cv2.putText(annotated,f'TRACK {label} | A/B follow',(18,695),cv2.FONT_HERSHEY_SIMPLEX,.6,(0,215,255),1)
                 _,encoded=cv2.imencode('.jpg',annotated,[cv2.IMWRITE_JPEG_QUALITY,80])
                 # Refresh compact preview every frame without changing tracker input.
                 _,compact=cv2.imencode('.jpg',cv2.resize(annotated,(640,360)),[cv2.IMWRITE_JPEG_QUALITY,60])
@@ -664,10 +666,10 @@ class Session:
                             a=policy.next_a(target,frame_a,q[0],now)
                             if port.target is None and abs(b-round(b))>.01:
                                 q[0]=pose(port.state)[0]  # Complete sub-mm B normalization alone.
-                            elif a!=q[0]:
-                                q[0]=a
-                            elif not b_moving and allow_b:
-                                q[1]=policy.next_b(target,b,metadata)
+                            else:
+                                b_goal=policy.next_b(target,b,metadata) if not b_moving and allow_b else q[1]
+                                if policy.choose_axis(a,q[0],b_goal!=q[1],now)==1:q[1]=b_goal
+                                else:q[0]=a
                             with self.lock:
                                 sent=self.active and not self.stop_event.is_set() and port.follow(q)
                             if sent:

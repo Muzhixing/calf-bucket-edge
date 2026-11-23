@@ -92,14 +92,16 @@ class PredictiveTests(unittest.TestCase):
         self.assertEqual(len(tracker.references),1)
         with self.assertRaises(RuntimeError):tracker.update(np.zeros_like(image)+25,1.4,[weak])
 
-    def test_A_priority_defers_B_during_horizontal_motion(self):
+    def test_A_priority_does_not_starve_parallel_B(self):
         ref=test_tracking.Reference();self.addCleanup(ref.directory.cleanup)
         p=FollowPolicy(ref.limits,690.8,690.8,695.7,374.9)
-        t={'offset_px':[0,100]}
-        p.velocity=8
-        for now in (1.,1.2,1.4):self.assertFalse(p.allow_b(t,now))
-        p.velocity=0;self.assertFalse(p.allow_b(t,1.5));self.assertTrue(p.allow_b(t,1.65))
-        t['offset_px'][0]=50;self.assertFalse(p.allow_b(t,1.7))
+        t={'offset_px':[150,100]};p.velocity=8
+        self.assertTrue(p.allow_b(t,1.))
+        self.assertEqual(p.choose_axis(80,78,True,1.),0)
+        self.assertEqual(p.choose_axis(80,78,True,1.13),1)
+        self.assertEqual(p.choose_axis(80,78,False,1.17),0)
+        self.assertEqual(p.choose_axis(80,78,True,1.26),1)
+        self.assertFalse(p.allow_b({'offset_px':[150,0]},1.3))
 
     def test_untextured_false_detections_cannot_escape_automatic_reacquisition(self):
         image=test_tracking.TrackingTests.scene();manager=TargetLock();manager.select(image,[480,250,720,450],1.)
