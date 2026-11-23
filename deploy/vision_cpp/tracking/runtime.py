@@ -85,13 +85,16 @@ class Session:
             'restart_preparation_wait':'开始回零等待，模型预热和自检并行',
             'homing_assumed_after_wait':'等待结束，必要自检通过',
             'origin_registration_attempt':'登记 B/C 起点',
-            'origin_registered_by_startup_assumption':'B/C 起点登记已确认，A 转向 75°',
+            'origin_registered_by_startup_assumption':'B/C 起点登记已确认，开始 A 准备',
             'startup_c_preparing':'A75° 已确认，正在准备 C',
             'power_cycle_preparation_complete':'机械臂准备完成，自动追踪已开启',
             'automatic_follow_ready':'自动追踪已恢复',
             'startup_failed':'准备中断，机构保持停止',
             'control_error':'控制暂停，后台继续检查设备',
         }
+        if event=='startup_a_check':
+            action={'left':'左侧','right':'右侧','return':'回正'}[data['stage']]
+            self.ui_log('A 自检 · %s %s°（B/C 保持）'%(action,data['target_deg']))
         if event=='power_cycle_preparation_complete':
             messages[event]='A75° / C%s mm 准备完成，自动追踪已开启'%data.get('slide_position_mm',self.limits.c)
         if event in messages:self.ui_log(messages[event],'error' if event in ('startup_failed','control_error') else 'info')

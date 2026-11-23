@@ -89,7 +89,7 @@ class PowerCycleStore:
             try:
                 d=json.loads(self.path.read_text())
                 if (d.get('version')!=1 or not isinstance(d.get('seen_requests'),list)
-                        or d.get('phase') not in ('unconfirmed','waiting','preflight','disable_pending','zero_pending','registered','a_moving','c_moving','ready','uncertain')):
+                        or d.get('phase') not in ('unconfirmed','waiting','preflight','disable_pending','zero_pending','registered','a_check_left','a_check_right','a_moving','c_moving','ready','uncertain')):
                     raise ValueError('invalid_state')
                 if not isinstance(d.get('zero_attempted'),bool):raise ValueError('invalid_zero_attempt_marker')
                 if d['phase']=='ready' and (not d['zero_attempted'] or not d.get('cycle_id') or not d.get('ready_telemetry')):
@@ -246,7 +246,8 @@ class StartupPort(ArmPort):
         return not s['enabled'] and s['state']==(4 if s['system_fault']==1 else 0)
 
     def preflight_pose(self,q):
-        if not (75<=q[0]<=90 and q[1]==0 and 0<=q[2]<=self.limits.c):
+        low,high=(self.limits.a_min,self.limits.a_max) if getattr(self,'sweeping',False) else (75,90)
+        if not (low<=q[0]<=high and q[1]==0 and 0<=q[2]<=self.limits.c):
             raise RuntimeError('unexpected_startup_pose')
         self.limits.check([q[0],0,self.limits.c])
 
@@ -263,10 +264,13 @@ class StartupPort(ArmPort):
         if not self.gateway.write_control_frame(self.frame([90,0,0],flags),repeats=1):
             raise RuntimeError('startup_write_failed')
 
-    def startup_move(self,q):
+    def startup_move(self,q,sweep=False):
+        if sweep:self.sweeping=True
         current=pose(self.state);self.check_state(self.state)
         self.preflight_pose(current);self.preflight_pose(q)
         allowed=(q==[75,0,0] and current==[90,0,0] or q==[75,0,self.limits.c] and current==[75,0,0])
+        if sweep:
+            allowed=(q[0] in (self.limits.a_min,self.limits.a_max,75) and q[1:]==[0,0] and current[1:]==[0,0])
         if not self.registered or not allowed or self.phase!='idle':raise RuntimeError('invalid_startup_move')
         if time.monotonic()-self.rx_at>.7:raise RuntimeError('stale_telemetry')
         self.origin=current;self.target=q;self.arrived_at=None
@@ -328,9 +332,19 @@ class StartupSequence:
             self.port.disabled_command(6);self.stage='zero'
         elif self.stage=='zero':
             self.store.phase('registered',origins_observed=True);self.log('origin_registered_by_startup_assumption',self.port.state)
-            self.store.phase('a_moving');self.port.startup_move([75,0,0]);self.stage='a'
+            if self.limits.startup_policy.get('a_startup_selftest'):
+                self.store.phase('a_check_left');self.log('startup_a_check',{'stage':'left','target_deg':self.limits.a_min})
+                self.port.startup_move([self.limits.a_min,0,0],sweep=True);self.stage='a_left'
+            else:
+                self.store.phase('a_moving');self.port.startup_move([75,0,0]);self.stage='a'
+        elif self.stage=='a_left':
+            self.store.phase('a_check_right');self.log('startup_a_check',{'stage':'right','target_deg':self.limits.a_max})
+            self.port.startup_move([self.limits.a_max,0,0],sweep=True);self.stage='a_right'
+        elif self.stage=='a_right':
+            self.store.phase('a_moving');self.log('startup_a_check',{'stage':'return','target_deg':75})
+            self.port.startup_move([75,0,0],sweep=True);self.stage='a'
         elif self.stage=='a':
-            if self.limits.c==0:
+            if self.limits.c==0 or self.limits.startup_policy.get('a_startup_selftest'):
                 self.complete()  # Already at C0: no C command or extra enable cycle.
             else:
                 self.log('startup_c_preparing',{'target_mm':self.limits.c})

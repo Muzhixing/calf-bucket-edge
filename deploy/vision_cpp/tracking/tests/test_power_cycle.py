@@ -144,6 +144,37 @@ class StartupPTYTests(unittest.TestCase):
         self.assertEqual(enabled,[bytes([75,0,0])])
         self.assertEqual(sum(f[8]==6 for f in self.mcu.commands),1)
         self.assertEqual(self.mcu.c,0);self.assertTrue(self.store.ready)
+    def test_A_only_sweep_hits_both_limits_and_returns_without_BC_travel(self):
+        self.ref.limits.a_min=0;self.ref.limits.a_max=160
+        self.ref.limits.c=0;self.ref.limits.startup_policy['a_startup_selftest']=True
+        seq=self.begin();self.run_until(lambda:seq.done,timeout=6)
+        enabled=[list(f[4:7]) for f in self.mcu.commands if f[8]&1]
+        self.assertEqual(enabled,[[0,0,0],[160,0,0],[75,0,0]])
+        self.assertEqual(sum(f[8]==6 for f in self.mcu.commands),1)
+        self.assertTrue(all(f[5:7]==bytes([0,0]) for f in self.mcu.commands))
+        self.assertEqual([75,0,0],[self.mcu.a,self.mcu.b,self.mcu.c])
+        self.assertTrue(self.store.ready);self.assertFalse(self.mcu.enabled)
+        self.assertEqual([v['stage'] for k,v in self.events if k=='startup_a_check'],['left','right','return'])
+    def test_A_only_sweep_cancellation_does_not_advance_or_register_again(self):
+        self.ref.limits.c=0;self.ref.limits.startup_policy['a_startup_selftest']=True
+        seq=self.begin();self.run_until(lambda:seq.stage=='a_left')
+        self.assertIsNone(seq.close('operator_stop'))
+        self.assertFalse(self.store.ready);self.assertFalse(self.mcu.enabled)
+        self.assertEqual(sum(f[8]==6 for f in self.mcu.commands),1)
+        self.assertEqual([f[4] for f in self.mcu.commands if f[8]&1],[self.ref.limits.a_min])
+        self.store.close();self.store=PowerCycleStore(self.path,5,'test',boot_id='test-host')
+        self.assertFalse(self.store.ready);self.assertTrue(self.store.data['zero_attempted'])
+    def test_A_sweep_missing_ack_cannot_advance_to_next_limit(self):
+        self.ref.limits.c=0;self.ref.limits.startup_policy['a_startup_selftest']=True
+        seq=self.begin();self.run_until(lambda:seq.stage=='a_left')
+        self.mcu.drop=True;time.sleep(.03)
+        # Deadline expiry must fail without adding another sweep target.
+        seq.port.deadline=time.monotonic()-1
+        with self.assertRaisesRegex(RuntimeError,'movement_timeout'):seq.tick()
+        self.assertFalse(self.store.ready)
+        self.assertEqual([f[4] for f in self.mcu.commands if f[8]&1],[self.ref.limits.a_min])
+        self.mcu.drop=False
+
     def test_existing_zero_flags_block_repeat_even_after_new_operator_request(self):
         self.mcu.zero_flags=True;self.mcu.fault=0
         seq=self.begin()

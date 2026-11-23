@@ -206,7 +206,9 @@
     "mcu_restart_evidence": "2026-11-23 user confirms B physically returns to top and C fully retracts on STM32 restart; STM32 and motors share supply and restart together. Program restart or ordinary UART reconnect is not this event.",
     "automatic_restart_detection": true,
     "automatic_restart_evidence": "User requests automatic background preparation. Fresh combined boot state: disabled, both origins unconfirmed, A90/B0/C0, command counter0, no motor fault, at least4 batches across0.75s after input-buffer discard; then8-second assumed homing wait. UART reconnect alone is insufficient.",
-    "fixed_wait_seconds": 8
+    "fixed_wait_seconds": 8,
+    "a_startup_selftest": true,
+    "motor_selftest_evidence": "2026-11-23 latest user request: A only, configured minimum then maximum then75; no B/C travel test. Fixed8-second software wait precedes the A sweep."
   },
   "tracking_motion": {
     "b_max_step_mm": 24,
