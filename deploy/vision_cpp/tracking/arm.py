@@ -24,6 +24,14 @@ class Limits:
         self.a_min,self.a_max=config['operating_envelope'].get('A_command_degrees',[70,100])
         self.sender=config['control_policy']['original_sender_module_on_rk3588']
         self.startup_policy=config.get('power_cycle_startup',{})
+        self.a_home=config.get('mechanisms',{}).get('A',{}).get('structural_zero_command',75)
+        if type(self.a_home) is not int or not 0<=self.a_home<=180:
+            raise RuntimeError('invalid_A_structural_zero')
+        self.boot_pose=self.startup_policy.get('whole_power_on_pose',[90,0,0])
+        if (not isinstance(self.boot_pose,list) or len(self.boot_pose)!=3
+                or any(type(v) is not int for v in self.boot_pose)
+                or not 0<=self.boot_pose[0]<=180 or self.boot_pose[1:]!=[0,0]):
+            raise RuntimeError('invalid_firmware_boot_pose')
         self.c_bounds=config['operating_envelope'].get('C_command_mm',[0,30])
         motion=config.get('tracking_motion',{})
         self.b_max_step=motion.get('b_max_step_mm',24)
@@ -49,12 +57,12 @@ def pose(s):
     return [s['servo_software_deg'],s['lift_position_mm'],s['slide_position_mm']]
 
 
-def reset_telemetry(s):
-    """Combined original-firmware boot signature, never counter-zero alone."""
+def reset_telemetry(s,boot_pose=(90,0,0)):
+    """Combined signature for the configured firmware, never counter-zero alone."""
     return (not s.get('enabled') and not s.get('lift_zero_confirmed')
             and not s.get('slide_zero_confirmed') and s.get('command_count_mod256')==0
-            and s.get('servo_software_deg')==90 and s.get('lift_position_mm')==0
-            and s.get('slide_position_mm')==0 and s.get('motor_fault')==0
+            and s.get('servo_software_deg')==boot_pose[0] and s.get('lift_position_mm')==boot_pose[1]
+            and s.get('slide_position_mm')==boot_pose[2] and s.get('motor_fault')==0
             and s.get('system_fault') in (0,1) and s.get('state') in (0,4))
 
 
@@ -179,7 +187,7 @@ class ArmPort:
         if frames:
             self.state=frames[-1];self.rx_at=time.monotonic()
             self.log('serial_rx',frames)
-            if getattr(self,'watch_firmware_reset',False) and reset_telemetry(self.state):
+            if getattr(self,'watch_firmware_reset',False) and reset_telemetry(self.state,self.limits.boot_pose):
                 # Firmware already disabled itself. Never interrupt autonomous homing
                 # with a stale target/stop packet from the previous controller epoch.
                 self.attempted=False;self.phase='idle';self.target=None

@@ -42,7 +42,7 @@ function render(s){
  current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,startup=t.startup,checks=startup?.self_check;
  const target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
  const states={waiting_device:'等待 STM32 连接',detecting_restart:'检测 STM32 状态',startup_waiting:'回零等待与自检',startup_checking:'等待自检就绪',startup_preparing:'正在准备机械臂',stop_unconfirmed:'停止未确认',following:'自动跟随',searching:'寻找目标',reacquiring:'目标暂失 · 等待重获',holding:'已居中 · 保持',range_holding:'行程受限 · 保持',waiting_frame:'等待新画面',stopping:'正在停止',disabled:'已暂停',idle:'设备就绪'};
- const preparation={waiting:'回零等待与自检',preflight:'核对机构状态',disable_pending:'确认串口通信',zero_pending:'登记 B/C 起点',registered:'起点已确认',a_check_left:'A 自检 · 左侧限位',a_check_right:'A 自检 · 右侧限位',a_moving:'A 回到 75°',c_moving:'C 准备中',ready:'自动追踪就绪',uncertain:'正在重新检查设备',unconfirmed:'等待设备启动'};
+ const preparation={waiting:'回零等待与自检',preflight:'核对机构状态',disable_pending:'确认串口通信',zero_pending:'登记 B/C 起点',registered:'起点已确认',a_check_left:'A 自检 · 左侧限位',a_check_right:'A 自检 · 右侧限位',a_moving:'A 回正',c_moving:'C 准备中',ready:'自动追踪就绪',uncertain:'正在重新检查设备',unconfirmed:'等待设备启动'};
  el('status').textContent=states[arm.phase]||(t.active?'自动运行':'设备准备中');
  if(t.operator_paused)el('status').textContent='已手动暂停';
  if(!t.motion_available)el('status').textContent='只读观察';

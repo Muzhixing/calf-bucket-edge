@@ -19,7 +19,7 @@ def derive_wait_profile(limits):
     if (len(limits.c_bounds)!=2 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in limits.c_bounds)
             or limits.c_bounds[0]!=0 or not limits.c<=limits.c_bounds[1]<=175):
         raise ValueError('invalid_startup_C_range')
-    distances={'A_deg':max(abs(limits.a_min-90),abs(limits.a_max-90)),
+    distances={'A_deg':max(abs(limits.a_min-limits.boot_pose[0]),abs(limits.a_max-limits.boot_pose[0])),
                'B_mm':max(abs(limits.b_min),abs(limits.b_max)),
                'C_mm':max(abs(v) for v in limits.c_bounds)}
     reference=policy.get('reference_return_distances',{'A_deg':30,'B_mm':96,'C_mm':30})
@@ -167,12 +167,12 @@ class PowerCycleStore:
 
 class RestartEvidence:
     """Require several fresh batches of the combined MCU boot signature."""
-    def __init__(self):self.reset()
+    def __init__(self,boot_pose=(90,0,0)):self.boot_pose=tuple(boot_pose);self.reset()
     def reset(self):self.since=None;self.last=None;self.samples=0
     def observe(self,frames,now):
         if not frames:return False
         if self.last is not None and now-self.last>.7:self.reset()
-        if not all(reset_telemetry(s) for s in frames):self.reset();return False
+        if not all(reset_telemetry(s,self.boot_pose) for s in frames):self.reset();return False
         if self.since is None:self.since=now
         # Coalesced frames count as one observation, not many independent samples.
         if self.last is None or now>self.last:self.samples+=1
@@ -182,10 +182,10 @@ class RestartEvidence:
 
 class RestartWatchPort(ArmPort):
     """Sole serial owner when idle: read only, including on close/failure."""
-    def __init__(self,*args,**kwargs):
+    def __init__(self,limits,*args,**kwargs):
         kwargs['defer_preflight']=True
-        self.opened_at=time.monotonic();self.evidence=RestartEvidence()
-        super().__init__(*args,**kwargs)
+        self.opened_at=time.monotonic();self.evidence=RestartEvidence(limits.boot_pose)
+        super().__init__(limits,*args,**kwargs)
     def reset_ready(self):
         frames=self.poll();now=time.monotonic()
         if now-self.opened_at<.4:return False
@@ -240,13 +240,13 @@ class StartupPort(ArmPort):
         self.healthy(s,allow_comms=True)
         if s['lift_zero_confirmed'] or s['slide_zero_confirmed']:
             raise RuntimeError('power_cycle_origins_already_registered')
-        if pose(s)!=[90,0,0]:raise RuntimeError('power_cycle_start_pose_mismatch')
+        if pose(s)!=self.limits.boot_pose:raise RuntimeError('power_cycle_start_pose_mismatch')
 
     def preflight_disabled(self,s):
         return not s['enabled'] and s['state']==(4 if s['system_fault']==1 else 0)
 
     def preflight_pose(self,q):
-        low,high=(self.limits.a_min,self.limits.a_max) if getattr(self,'sweeping',False) else (75,90)
+        low,high=(self.limits.a_min,self.limits.a_max) if getattr(self,'sweeping',False) else sorted((self.limits.a_home,self.limits.boot_pose[0]))
         if not (low<=q[0]<=high and q[1]==0 and 0<=q[2]<=self.limits.c):
             raise RuntimeError('unexpected_startup_pose')
         self.limits.check([q[0],0,self.limits.c])
@@ -261,16 +261,17 @@ class StartupPort(ArmPort):
         if time.monotonic()-self.rx_at>.7:raise RuntimeError('stale_telemetry')
         self.ack_flags=flags;self.move_counter=(self.expected+1)%256
         self.phase='startup_ack';self.deadline=time.monotonic()+1.5
-        if not self.gateway.write_control_frame(self.frame([90,0,0],flags),repeats=1):
+        if not self.gateway.write_control_frame(self.frame(self.limits.boot_pose,flags),repeats=1):
             raise RuntimeError('startup_write_failed')
 
     def startup_move(self,q,sweep=False):
         if sweep:self.sweeping=True
         current=pose(self.state);self.check_state(self.state)
         self.preflight_pose(current);self.preflight_pose(q)
-        allowed=(q==[75,0,0] and current==[90,0,0] or q==[75,0,self.limits.c] and current==[75,0,0])
+        home=self.limits.a_home
+        allowed=(q==[home,0,0] and current==self.limits.boot_pose or q==[home,0,self.limits.c] and current==[home,0,0])
         if sweep:
-            allowed=(q[0] in (self.limits.a_min,self.limits.a_max,75) and q[1:]==[0,0] and current[1:]==[0,0])
+            allowed=(q[0] in (self.limits.a_min,self.limits.a_max,home) and q[1:]==[0,0] and current[1:]==[0,0])
         if not self.registered or not allowed or self.phase!='idle':raise RuntimeError('invalid_startup_move')
         if time.monotonic()-self.rx_at>.7:raise RuntimeError('stale_telemetry')
         self.origin=current;self.target=q;self.arrived_at=None
@@ -282,7 +283,7 @@ class StartupPort(ArmPort):
         if self.phase!='startup_ack':return super().tick()
         now=time.monotonic()
         for s in self.poll():
-            if s['enabled'] or pose(s)!=[90,0,0]:raise RuntimeError('unexpected_mechanism_motion')
+            if s['enabled'] or pose(s)!=self.limits.boot_pose:raise RuntimeError('unexpected_mechanism_motion')
             if s['command_count_mod256'] not in (self.expected,self.move_counter):raise RuntimeError('unexpected_command_counter')
             if s['command_count_mod256']==self.move_counter:
                 self.healthy(s)
@@ -335,20 +336,24 @@ class StartupSequence:
             if self.limits.startup_policy.get('a_startup_selftest'):
                 self.store.phase('a_check_left');self.log('startup_a_check',{'stage':'left','target_deg':self.limits.a_min})
                 self.port.startup_move([self.limits.a_min,0,0],sweep=True);self.stage='a_left'
+            elif pose(self.port.state)==[self.limits.a_home,0,0]:
+                # New firmware already starts at the physical forward reference.
+                # Do not enable chassis heading hold just to command the same A angle.
+                self.store.phase('a_moving');self.stage='a'
             else:
-                self.store.phase('a_moving');self.port.startup_move([75,0,0]);self.stage='a'
+                self.store.phase('a_moving');self.port.startup_move([self.limits.a_home,0,0]);self.stage='a'
         elif self.stage=='a_left':
             self.store.phase('a_check_right');self.log('startup_a_check',{'stage':'right','target_deg':self.limits.a_max})
             self.port.startup_move([self.limits.a_max,0,0],sweep=True);self.stage='a_right'
         elif self.stage=='a_right':
-            self.store.phase('a_moving');self.log('startup_a_check',{'stage':'return','target_deg':75})
-            self.port.startup_move([75,0,0],sweep=True);self.stage='a'
+            self.store.phase('a_moving');self.log('startup_a_check',{'stage':'return','target_deg':self.limits.a_home})
+            self.port.startup_move([self.limits.a_home,0,0],sweep=True);self.stage='a'
         elif self.stage=='a':
             if self.limits.c==0 or self.limits.startup_policy.get('a_startup_selftest'):
                 self.complete()  # Already at C0: no C command or extra enable cycle.
             else:
                 self.log('startup_c_preparing',{'target_mm':self.limits.c})
-                self.store.phase('c_moving');self.port.startup_move([75,0,self.limits.c]);self.stage='c'
+                self.store.phase('c_moving');self.port.startup_move([self.limits.a_home,0,self.limits.c]);self.stage='c'
         elif self.stage=='c':self.complete()
 
     def complete(self):

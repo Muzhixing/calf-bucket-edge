@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "confirmed_on": "2026-11-21",
+  "confirmed_on": "2026-11-23",
   "timezone": "Asia/Shanghai",
   "evidence": "现场用户确认真实起点、方向和动作/回位；原协议状态回传交叉核对。未用量具标定角度或距离。",
   "control_policy": {
-    "firmware": "继续使用板上现有原固件，不烧录、不修改固件",
-    "firmware_source_reference_commit": "785123b41001efa6e673d0bca2a0376d9a7788ff",
-    "flash_identity_readback_verified": false,
+    "firmware": "2026-11-23 calibrated A73 startup + verified four-wheel encoder filter15 firmware; B/C registration follows the existing RK3588 8-second preparation workflow.",
+    "firmware_source_reference_commit": "0d82d7464510075750cec93a43f2b2a616c0eb02",
+    "flash_identity_readback_verified": true,
     "protocol": "原 v1：B3/B4 下行10字节；B5/B6 上行20字节，偏移18为1至17异或",
     "baud": 115200,
     "format": "8N1",
@@ -29,7 +29,8 @@
     "automatic_runtime_loading": true,
     "usage": "主程序追踪控制器读取工作范围和原发送器路径；此文件不修改固件，也不将历史快照视为当前位置。",
     "continuous_tracking_exception": "A保持高频预测控制，B无需等待横向居中；串口每帧仅改变一个目标，B新目标最迟让出一个A发送时隙（120ms），A/B可同时运动。C暂不自动追踪，保留当前位置。",
-    "firmware_identity_basis": "User reported flashed 785123b in the related chat; no firmware identity readback."
+    "firmware_identity_basis": "2026-11-23 final A73 image built from source recorded in firmware commit 0d82d7464510075750cec93a43f2b2a616c0eb02; ST-Link verify and halted readback identical. UART A73/B0/C0, pulse1311us and four encoder filters verified.",
+    "firmware_bin_sha256": "a71097d52748721a7e3132516278cfeffbf3f5e5388ccb958c66b6f1a08b1e41"
   },
   "mechanisms": {
     "A": {
@@ -38,14 +39,14 @@
       "frame_offset": 4,
       "signal_pin": "PE5",
       "unit": "command_degrees",
-      "structural_zero_command": 75,
-      "structural_zero_definition": "用户确认机械臂回正，A结构零位时摄像头端与车头前方对齐",
+      "structural_zero_command": 73,
+      "structural_zero_definition": "2026-11-23现场复核：75°略偏左，调整至73°后用户确认已经居中、摄像头与车头前方对齐。",
       "increasing_command": "向内，俯视逆时针；按用户照片黄杆左端偏向左下",
       "decreasing_command": "向外，俯视顺时针；按用户照片黄杆左端偏向左上",
-      "nominal_structural_angle_formula": "A协议角度 - 75，正号取向内/逆时针",
+      "nominal_structural_angle_formula": "A协议角度 - 73，正号取向内/逆时针",
       "physical_angle_scale_measured": false,
-      "firmware_startup_command": 90,
-      "startup_equals_structural_zero": false,
+      "firmware_startup_command": 73,
+      "startup_equals_structural_zero": true,
       "commands_observed_in_this_session": [
         60,
         62,
@@ -53,6 +54,7 @@
         66,
         68,
         70,
+        73,
         75,
         90,
         92,
@@ -168,7 +170,7 @@
     "protocol_yaw_reference": "相对固件上电建立的稳定航向，不是地理北；不因A回正而清零",
     "sensor_to_world_heading_offset_deg": null,
     "last_observed_yaw_is_not_a_permanent_zero": true,
-    "camera_world_yaw_if_camera_rotates_with_A": "近似为底盘世界航向 + (A协议角 - 75)；实际角度比例尚未量测"
+    "camera_world_yaw_if_camera_rotates_with_A": "近似为底盘世界航向 + (A协议角 - 73)；实际角度比例尚未量测"
   },
   "last_confirmed_snapshot_not_live": {
     "A_command_degrees": 75,
@@ -192,12 +194,12 @@
       "C_mm": 30
     },
     "whole_power_on_pose": [
-      90,
+      73,
       0,
       0
     ],
     "prepared_pose": [
-      75,
+      73,
       0,
       0
     ],
@@ -205,10 +207,10 @@
     "mcu_restart_returns_all_axes": true,
     "mcu_restart_evidence": "2026-11-23 user confirms B physically returns to top and C fully retracts on STM32 restart; STM32 and motors share supply and restart together. Program restart or ordinary UART reconnect is not this event.",
     "automatic_restart_detection": true,
-    "automatic_restart_evidence": "User requests automatic background preparation. Fresh combined boot state: disabled, both origins unconfirmed, A90/B0/C0, command counter0, no motor fault, at least4 batches across0.75s after input-buffer discard; then8-second assumed homing wait. UART reconnect alone is insufficient.",
+    "automatic_restart_evidence": "User requests automatic background preparation. Fresh combined boot state: disabled, both origins unconfirmed, A73/B0/C0, command counter0, no motor fault, at least4 batches across0.75s after input-buffer discard; then8-second assumed homing wait. UART reconnect alone is insufficient.",
     "fixed_wait_seconds": 8,
     "a_startup_selftest": true,
-    "motor_selftest_evidence": "2026-11-23 latest user request: A only, configured minimum then maximum then75; no B/C travel test. Fixed8-second software wait precedes the A sweep."
+    "motor_selftest_evidence": "2026-11-23 latest user request: A only, configured minimum then maximum then calibrated structural zero73; no B/C travel test. Fixed8-second software wait precedes the A sweep."
   },
   "tracking_motion": {
     "b_max_step_mm": 24,
