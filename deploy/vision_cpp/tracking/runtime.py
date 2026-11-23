@@ -634,7 +634,7 @@ class Session:
                         if identity!=target_id:
                             policy.reset();identity=target_id;alignment.reset()
                         was_holding=alignment.holding
-                        holding=alignment.update(target)
+                        holding=alignment.update(target,pose(port.state),self.limits,port.target)
                         if holding!=was_holding:
                             policy.reset()
                             self.log('alignment_hold' if holding else 'alignment_resume',
@@ -644,8 +644,9 @@ class Session:
                             # automatic intent, but send no enabled micro-corrections.
                             port.stop()
                             with self.lock:
-                                if self.reason=='working_range_limit':self.reason=''
-                                self.arm={'phase':'stopping' if port.phase=='stopping' else 'holding',
+                                if alignment.constrained:self.reason='working_range_limit'
+                                elif self.reason=='working_range_limit':self.reason=''
+                                self.arm={'phase':'stopping' if port.phase=='stopping' else 'range_holding' if alignment.constrained else 'holding',
                                           'telemetry':port.state,'timestamp':port.rx_at,'control':alignment.status()}
                             self.stop_event.wait(.01)
                             continue

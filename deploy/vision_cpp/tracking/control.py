@@ -21,12 +21,25 @@ class AlignmentGate:
 
     def reset(self):
         self.holding=False;self.radius=0.;self.stamp=-float('inf');self.outside_since=None
+        self.blocked=(False,False);self.constrained=False
 
-    def update(self,target):
+    def update(self,target,position=None,limits=None,goal=None):
         stamp=target['timestamp']
         if stamp<=self.stamp:return self.holding
         self.stamp=stamp
-        distance=math.hypot(*target['offset_px'])
+        dx,dy=target['offset_px'];blocked=(False,False)
+        if position is not None and limits is not None:
+            # Actual limit telemetry is required; an in-flight boundary target
+            # alone must not suppress a still-correctable error.
+            a,b=position[:2];ga,gb=(goal or position)[:2]
+            blocked=((a<=limits.a_min+.01 and ga<=limits.a_min+.01 and dx>0) or
+                     (a>=limits.a_max-.01 and ga>=limits.a_max-.01 and dx<0),
+                     (b<=limits.b_min+.01 and gb<=limits.b_min+.01 and dy<0) or
+                     (b>=limits.b_max-.01 and gb>=limits.b_max-.01 and dy>0))
+        if blocked!=self.blocked:
+            self.holding=False;self.outside_since=None
+        self.blocked=blocked
+        distance=math.hypot(0 if blocked[0] else dx,0 if blocked[1] else dy)
         if not self.holding:
             self.radius=alignment_radius(target)
             if distance<=self.radius:self.holding=True;self.outside_since=None
@@ -34,11 +47,14 @@ class AlignmentGate:
             if self.outside_since is None:self.outside_since=stamp
             elif stamp-self.outside_since>=.06:self.holding=False;self.outside_since=None
         else:self.outside_since=None
+        self.constrained=self.holding and any(blocked) and math.hypot(dx,dy)>self.radius
         return self.holding
 
     def status(self):
         return {'alignment_hold':self.holding,'alignment_radius_px':self.radius,
-                'alignment_resume_radius_px':1.5*self.radius}
+                'alignment_resume_radius_px':1.5*self.radius,
+                'alignment_blocked_axes':[axis for axis,blocked in zip(('A','B'),self.blocked) if blocked],
+                'alignment_hold_mode':'range_limit' if self.constrained else 'center' if self.holding else 'following'}
 
 
 class FollowPolicy:
