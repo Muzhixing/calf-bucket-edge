@@ -38,6 +38,7 @@ class Session:
         self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
         self.startup_request=None;self.startup_sequence=None;self.startup_window_started=None
         self.watch_port_factory=watch_port_factory;self.restart_watch=None;self.watch_retry_at=0.;self.watch_error=None
+        self.registered_startup_attempted=False
         self.auto_prepare=bool(motion_allowed and smooth and startup_store is not None and limits.startup_policy.get('automatic_restart_detection') and limits.startup_policy.get('mcu_restart_returns_all_axes') is True)
         self.operator_paused=bool(startup_store and startup_store.data.get('operator_paused'))
         self.ui_events=deque(maxlen=50);self.ui_lock=threading.Lock();self.ui_sequence=0;self.last_countdown=None
@@ -83,6 +84,8 @@ class Session:
             'restart_watch_connected':'已连接 STM32，正在检查复位状态',
             'automatic_restart_detected':'检测到 STM32 复位，自动进入准备流程',
             'restart_preparation_wait':'开始回零等待，模型预热和自检并行',
+            'registered_preparation_started':'STM32 已就绪，沿用 B/C 零点，开始自检',
+            'registered_preflight_complete':'实时状态与视觉自检通过，开始 A 自检',
             'homing_assumed_after_wait':'等待结束，必要自检通过',
             'origin_registration_attempt':'登记 B/C 起点',
             'origin_registered_by_startup_assumption':'B/C 起点登记已确认，开始 A 准备',
@@ -485,13 +488,16 @@ class Session:
 
     def begin_preparation(self,request_id,event,observed_at=None):
         if self.startup_store.confirm(request_id,event):
-            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
-            self.operator_paused=False;self.startup_request=self.startup_store.data['cycle_id']
-            self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
-            self.startup_window_started=observed_at if observed_at is not None else time.monotonic()
-            self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds,now=self.startup_window_started)
-            self.diagnostics_logged=False;self.last_countdown=None
-            self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
+            self.schedule_preparation(observed_at)
+
+    def schedule_preparation(self,observed_at=None):
+        if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+        self.operator_paused=False;self.startup_request=self.startup_store.data['cycle_id']
+        self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
+        self.startup_window_started=observed_at if observed_at is not None else time.monotonic()
+        self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds,now=self.startup_window_started)
+        self.diagnostics_logged=False;self.last_countdown=None
+        self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
 
     def advance_restart_watch(self):
         if not self.auto_prepare:return False
@@ -521,6 +527,14 @@ class Session:
                     else:
                         self.reason='startup_registration_uncertain'
                         self.ui_log('上次登记回传未确认，保持停止，未重复登记','warning')
+                elif (getattr(self.restart_watch,'registered_ready',False)
+                      and not self.registered_startup_attempted and not self.startup_store.error
+                      and self.startup_store.data['phase'] in ('unconfirmed','uncertain')):
+                    # A live registered controller needs no new reset or zero command.
+                    # One attempt per process prevents repeated sweeps after a failed self-test.
+                    self.startup_store.adopt_registered(q,self.limits.a_home)
+                    self.registered_startup_attempted=True
+                    self.schedule_preparation()
             self.watch_error=None
         except Exception as exc:
             if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
@@ -556,7 +570,7 @@ class Session:
                 with self.lock:
                     if self.startup_request is not None and not self.stop_event.is_set():sequence.tick()
             with self.lock:
-                remaining=max(0,self.startup_store.wait_seconds-(time.monotonic()-sequence.started))
+                remaining=max(0,sequence.wait_seconds-(time.monotonic()-sequence.started))
                 second=math.ceil(remaining)
                 if sequence.stage=='waiting' and second!=self.last_countdown:
                     self.last_countdown=second;self.ui_log('回零等待 · 剩余 %d 秒'%second if second else '等待自检就绪')

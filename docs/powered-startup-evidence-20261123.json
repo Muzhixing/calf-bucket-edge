@@ -1,0 +1,179 @@
+{
+  "firmware_changed": false,
+  "mcu_reset": false,
+  "runs": [
+    {
+      "run_id": "powered_startup_20261123_215333",
+      "zero_registration_commands": 0,
+      "startup_events": [
+        {
+          "event": "startup_a_check",
+          "data": {
+            "stage": "left",
+            "target_deg": 0
+          }
+        },
+        {
+          "event": "startup_a_check",
+          "data": {
+            "stage": "right",
+            "target_deg": 160
+          }
+        },
+        {
+          "event": "startup_a_check",
+          "data": {
+            "stage": "return",
+            "target_deg": 73
+          }
+        },
+        {
+          "event": "startup_failed",
+          "data": {
+            "reason": "firmware_fault",
+            "stop_error": null
+          }
+        }
+      ],
+      "faults": [
+        {
+          "timestamp": 17514.606210528,
+          "frame": {
+            "hex": "B5 01 08 00 04 0E 00 00 00 00 FF FF FF FF 54 03 00 00 54 B6",
+            "version": 1,
+            "command_count_mod256": 8,
+            "result": 0,
+            "result_name": "accepted",
+            "state": 4,
+            "state_name": "fault",
+            "flags": 14,
+            "enabled": false,
+            "lift_zero_confirmed": true,
+            "slide_zero_confirmed": true,
+            "angle_valid": true,
+            "distance_valid": false,
+            "heading_reference_established": false,
+            "unknown_flag_bits": 0,
+            "lift_position_tenths_mm": 0,
+            "slide_position_tenths_mm": 0,
+            "lift_position_mm": 0.0,
+            "slide_position_mm": 0.0,
+            "yaw_raw_tenths_deg": 65535,
+            "yaw_deg": null,
+            "ultrasound_raw_mm": 65535,
+            "ultrasound_mm": null,
+            "servo_software_deg": 84,
+            "system_fault": 3,
+            "system_fault_name": "HWT_data",
+            "motor_fault": 0,
+            "motor_fault_name": "none",
+            "uart_error_count_mod256": 0
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "powered_retry_20261123_220004",
+      "zero_registration_commands": 0,
+      "startup_events": [
+        {
+          "event": "startup_a_check",
+          "data": {
+            "stage": "left",
+            "target_deg": 0
+          }
+        },
+        {
+          "event": "startup_failed",
+          "data": {
+            "reason": "firmware_fault",
+            "stop_error": null
+          }
+        }
+      ],
+      "faults": [
+        {
+          "timestamp": 17900.49646179,
+          "frame": {
+            "hex": "B5 01 13 00 04 0E 00 00 00 00 FF FF FF FF 25 03 00 00 3E B6",
+            "version": 1,
+            "command_count_mod256": 19,
+            "result": 0,
+            "result_name": "accepted",
+            "state": 4,
+            "state_name": "fault",
+            "flags": 14,
+            "enabled": false,
+            "lift_zero_confirmed": true,
+            "slide_zero_confirmed": true,
+            "angle_valid": true,
+            "distance_valid": false,
+            "heading_reference_established": false,
+            "unknown_flag_bits": 0,
+            "lift_position_tenths_mm": 0,
+            "slide_position_tenths_mm": 0,
+            "lift_position_mm": 0.0,
+            "slide_position_mm": 0.0,
+            "yaw_raw_tenths_deg": 65535,
+            "yaw_deg": null,
+            "ultrasound_raw_mm": 65535,
+            "ultrasound_mm": null,
+            "servo_software_deg": 37,
+            "system_fault": 3,
+            "system_fault_name": "HWT_data",
+            "motor_fault": 0,
+            "motor_fault_name": "none",
+            "uart_error_count_mod256": 0
+          }
+        }
+      ]
+    }
+  ],
+  "final": {
+    "active": false,
+    "automatic": false,
+    "telemetry": {
+      "hex": "B5 01 14 00 00 2E 00 00 00 00 04 00 FF FF 25 00 00 00 1A B6",
+      "version": 1,
+      "command_count_mod256": 20,
+      "result": 0,
+      "result_name": "accepted",
+      "state": 0,
+      "state_name": "disabled",
+      "flags": 46,
+      "enabled": false,
+      "lift_zero_confirmed": true,
+      "slide_zero_confirmed": true,
+      "angle_valid": true,
+      "distance_valid": false,
+      "heading_reference_established": true,
+      "unknown_flag_bits": 0,
+      "lift_position_tenths_mm": 0,
+      "slide_position_tenths_mm": 0,
+      "lift_position_mm": 0.0,
+      "slide_position_mm": 0.0,
+      "yaw_raw_tenths_deg": 4,
+      "yaw_deg": 0.4,
+      "ultrasound_raw_mm": 65535,
+      "ultrasound_mm": null,
+      "servo_software_deg": 37,
+      "system_fault": 0,
+      "system_fault_name": "none",
+      "motor_fault": 0,
+      "motor_fault_name": "none",
+      "uart_error_count_mod256": 0
+    }
+  },
+  "regression": {
+    "discovered": 203,
+    "skipped": 6,
+    "initial_pass": 196,
+    "initial_error": "test_startup_diagnostics.Completed test double lacked new wait_seconds field",
+    "test_double_corrected": true,
+    "targeted_module_rerun": {
+      "tests": 16,
+      "passed": 16
+    },
+    "unique_passing_tests_after_correction": 197
+  }
+}

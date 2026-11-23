@@ -92,7 +92,10 @@ class PowerCycleStore:
                         or d.get('phase') not in ('unconfirmed','waiting','preflight','disable_pending','zero_pending','registered','a_check_left','a_check_right','a_moving','c_moving','ready','uncertain')):
                     raise ValueError('invalid_state')
                 if not isinstance(d.get('zero_attempted'),bool):raise ValueError('invalid_zero_attempt_marker')
-                if d['phase']=='ready' and (not d['zero_attempted'] or not d.get('cycle_id') or not d.get('ready_telemetry')):
+                reused=(d.get('reuse_existing_origins') is True and d.get('origins_observed') is True
+                        and d.get('registered_telemetry',{}).get('lift_zero_confirmed') is True
+                        and d.get('registered_telemetry',{}).get('slide_zero_confirmed') is True)
+                if d['phase']=='ready' and (not (d['zero_attempted'] or reused) or not d.get('cycle_id') or not d.get('ready_telemetry')):
                     raise ValueError('invalid_ready_record')
                 self.data=d
                 if d['phase'] not in ('unconfirmed','uncertain') and (d['phase']!='ready' or d.get('boot_id')!=self.boot_id):
@@ -150,9 +153,25 @@ class PowerCycleStore:
         with self.lock:
             self.data.update(phase=value,**fields);self._save()
 
+    def adopt_registered(self,telemetry,home):
+        """Use freshly observed firmware origins; this is not a new homing event."""
+        with self.lock:
+            if self.error:raise ValueError(self.error)
+            if self.data.get('operator_paused'):raise ValueError('operator_paused')
+            if self.data['phase'] not in ('unconfirmed','uncertain'):raise ValueError('preparation_already_in_progress')
+            if not registered_home(telemetry,home):raise ValueError('registered_home_not_ready')
+            previous_reason=self.data.get('reason')
+            self.data={'version':1,'phase':'waiting','seen_requests':self.data['seen_requests'],
+                       'cycle_id':str(uuid.uuid4()),'boot_id':self.boot_id,'confirmed_at':time.time(),
+                       'zero_attempted':False,'operator_paused':False,'reuse_existing_origins':True,
+                       'origins_observed':True,'registered_telemetry':dict(telemetry),
+                       'wait_seconds_used':0,'origin_evidence':'fresh_stable_registered_home',
+                       'previous_reason':previous_reason}
+            self._save()
+
     def before_zero(self):
         with self.lock:
-            if self.data['phase']!='disable_pending' or self.data['zero_attempted']:
+            if self.data['phase']!='disable_pending' or self.data['zero_attempted'] or self.data.get('reuse_existing_origins'):
                 raise RuntimeError('zero_registration_already_attempted')
             self.data.update(phase='zero_pending',zero_attempted=True,zero_attempt_at=time.time())
             self._save()
@@ -180,15 +199,48 @@ class RestartEvidence:
         return self.samples>=4 and now-self.since>=.75
 
 
+def registered_home(s,home):
+    if not s:return False
+    try:
+        return (not s['enabled'] and s['state']==0 and s['result']==0
+                and s['lift_zero_confirmed'] and s['slide_zero_confirmed']
+                and not s['system_fault'] and not s['motor_fault']
+                and s['angle_valid'] and s['heading_reference_established']
+                and s['yaw_deg'] is not None and math.isfinite(s['yaw_deg'])
+                and pose(s)==[home,0,0])
+    except (KeyError,TypeError,ValueError):return False
+
+
+class RegisteredHomeEvidence(RestartEvidence):
+    """Fresh stable disabled state, including ownership/error counters."""
+    def __init__(self,home):self.home=home;self.reset()
+    def reset(self):super().reset();self.counters=None
+    def observe(self,frames,now):
+        if not frames:return False
+        if self.last is not None and now-self.last>.7:self.reset()
+        counters=(frames[-1].get('command_count_mod256'),frames[-1].get('uart_error_count_mod256'))
+        if (None in counters or not all(registered_home(s,self.home) and
+                (s.get('command_count_mod256'),s.get('uart_error_count_mod256'))==counters for s in frames)):
+            self.reset();return False
+        if self.counters is not None and self.counters!=counters:self.reset()
+        self.counters=counters
+        if self.since is None:self.since=now
+        if self.last is None or now>self.last:self.samples+=1
+        self.last=now
+        return self.samples>=4 and now-self.since>=.75
+
+
 class RestartWatchPort(ArmPort):
     """Sole serial owner when idle: read only, including on close/failure."""
     def __init__(self,limits,*args,**kwargs):
         kwargs['defer_preflight']=True
         self.opened_at=time.monotonic();self.evidence=RestartEvidence(limits.boot_pose)
+        self.registered_evidence=RegisteredHomeEvidence(limits.a_home);self.registered_ready=False
         super().__init__(limits,*args,**kwargs)
     def reset_ready(self):
         frames=self.poll();now=time.monotonic()
         if now-self.opened_at<.4:return False
+        self.registered_ready=self.registered_evidence.observe(frames,now)
         return self.evidence.observe(frames,now)
     def shutdown(self):
         if self.fd is not None:os.close(self.fd);self.fd=None
@@ -207,7 +259,7 @@ def can_auto_prepare(store):
 class StartupPort(ArmPort):
     """Original-protocol port, bounded startup only, no CAN/new firmware fields."""
     def __init__(self,*args,**kwargs):
-        self.registered=False;self.ack_flags=None
+        self.registered=False;self.ack_flags=None;self.reuse_existing_origins=False
         self.opened_at=time.monotonic();self.preflight_history=deque(maxlen=128)
         kwargs['defer_preflight']=True
         super().__init__(*args,**kwargs)
@@ -237,6 +289,9 @@ class StartupPort(ArmPort):
             raise RuntimeError('heading_not_ready')
 
     def preflight_state(self,s):
+        if self.reuse_existing_origins:
+            if not registered_home(s,self.limits.a_home):raise RuntimeError('registered_home_not_ready')
+            return
         self.healthy(s,allow_comms=True)
         if s['lift_zero_confirmed'] or s['slide_zero_confirmed']:
             raise RuntimeError('power_cycle_origins_already_registered')
@@ -258,10 +313,12 @@ class StartupPort(ArmPort):
 
     def disabled_command(self,flags):
         if self.phase!='idle' or flags not in (0,6):raise RuntimeError('invalid_startup_command')
+        if self.reuse_existing_origins and flags==6:raise RuntimeError('existing_origins_must_not_be_registered_again')
         if time.monotonic()-self.rx_at>.7:raise RuntimeError('stale_telemetry')
         self.ack_flags=flags;self.move_counter=(self.expected+1)%256
         self.phase='startup_ack';self.deadline=time.monotonic()+1.5
-        if not self.gateway.write_control_frame(self.frame(self.limits.boot_pose,flags),repeats=1):
+        target=[self.limits.a_home,0,0] if self.reuse_existing_origins else self.limits.boot_pose
+        if not self.gateway.write_control_frame(self.frame(target,flags),repeats=1):
             raise RuntimeError('startup_write_failed')
 
     def startup_move(self,q,sweep=False):
@@ -283,14 +340,17 @@ class StartupPort(ArmPort):
         if self.phase!='startup_ack':return super().tick()
         now=time.monotonic()
         for s in self.poll():
-            if s['enabled'] or pose(s)!=self.limits.boot_pose:raise RuntimeError('unexpected_mechanism_motion')
+            target=[self.limits.a_home,0,0] if self.reuse_existing_origins else self.limits.boot_pose
+            if s['enabled'] or pose(s)!=target:raise RuntimeError('unexpected_mechanism_motion')
             if s['command_count_mod256'] not in (self.expected,self.move_counter):raise RuntimeError('unexpected_command_counter')
             if s['command_count_mod256']==self.move_counter:
                 self.healthy(s)
                 if s['result']!=0 or s['state']!=0:raise RuntimeError('startup_command_rejected')
                 zeros=s['lift_zero_confirmed'] and s['slide_zero_confirmed']
                 if self.ack_flags==6 and not zeros:raise RuntimeError('zero_registration_not_acknowledged')
-                if self.ack_flags==0 and (s['lift_zero_confirmed'] or s['slide_zero_confirmed']):raise RuntimeError('unexpected_origin_registration')
+                if self.ack_flags==0:
+                    if self.reuse_existing_origins and not zeros:raise RuntimeError('startup_origins_lost')
+                    if not self.reuse_existing_origins and (s['lift_zero_confirmed'] or s['slide_zero_confirmed']):raise RuntimeError('unexpected_origin_registration')
                 self.registered=bool(zeros);self.expected=self.move_counter;self.phase='idle'
                 self.log('startup_disabled_ack',{'flags':self.ack_flags,'telemetry':s});return
         if now-self.rx_at>.7 or now>self.deadline:raise RuntimeError('startup_ack_timeout_no_retry')
@@ -301,7 +361,10 @@ class StartupSequence:
         self.store,self.limits,self.log,self.port_factory=store,limits,log,port_factory
         self.port=None;self.started=time.monotonic() if started_at is None else started_at;self.stage='waiting';self.done=False
         self.ready_check=ready_check or (lambda:{'ready':True});self.last_check=None
-        self.log('restart_preparation_wait',{**store.status(),'window_started_at':self.started})
+        self.reuse_existing_origins=store.data.get('reuse_existing_origins') is True
+        self.wait_seconds=0 if self.reuse_existing_origins else store.wait_seconds
+        self.log('registered_preparation_started' if self.reuse_existing_origins else 'restart_preparation_wait',
+                 {**store.status(),'window_started_at':self.started})
 
     def tick(self):
         checks=self.ready_check()
@@ -309,12 +372,14 @@ class StartupSequence:
             self.last_check=checks;self.log('startup_self_check',checks)
         if self.stage=='waiting':
             # Open and read only; UART/heading preflight overlaps homing and model warmup.
-            if self.port is None:self.port=self.port_factory(self.limits,self.log)
+            if self.port is None:
+                self.port=self.port_factory(self.limits,self.log)
+                self.port.reuse_existing_origins=self.reuse_existing_origins
             self.port.poll()
-            if time.monotonic()-self.started<self.store.wait_seconds:return
+            if time.monotonic()-self.started<self.wait_seconds:return
             if not checks.get('ready') or not self.port.preflight_ready():return
             self.store.phase('preflight');self.stage='connect'
-            self.log('homing_assumed_after_wait',{'wait_seconds':self.store.wait_seconds,
+            self.log('registered_preflight_complete' if self.reuse_existing_origins else 'homing_assumed_after_wait',{'wait_seconds':self.wait_seconds,
                      'elapsed_seconds':time.monotonic()-self.started,'basis':self.store.wait_basis,
                      'hardware_complete_signal':False,'self_checks':checks})
             return
@@ -328,20 +393,14 @@ class StartupSequence:
         self.port.tick()
         if self.port.phase!='idle':return
         if self.stage=='disable':
+            if self.reuse_existing_origins:
+                self.begin_axis_preparation();return
             self.store.before_zero()  # Durable write-ahead; never retry flags6.
             self.log('origin_registration_attempt',self.store.status())
             self.port.disabled_command(6);self.stage='zero'
         elif self.stage=='zero':
             self.store.phase('registered',origins_observed=True);self.log('origin_registered_by_startup_assumption',self.port.state)
-            if self.limits.startup_policy.get('a_startup_selftest'):
-                self.store.phase('a_check_left');self.log('startup_a_check',{'stage':'left','target_deg':self.limits.a_min})
-                self.port.startup_move([self.limits.a_min,0,0],sweep=True);self.stage='a_left'
-            elif pose(self.port.state)==[self.limits.a_home,0,0]:
-                # New firmware already starts at the physical forward reference.
-                # Do not enable chassis heading hold just to command the same A angle.
-                self.store.phase('a_moving');self.stage='a'
-            else:
-                self.store.phase('a_moving');self.port.startup_move([self.limits.a_home,0,0]);self.stage='a'
+            self.begin_axis_preparation()
         elif self.stage=='a_left':
             self.store.phase('a_check_right');self.log('startup_a_check',{'stage':'right','target_deg':self.limits.a_max})
             self.port.startup_move([self.limits.a_max,0,0],sweep=True);self.stage='a_right'
@@ -355,6 +414,18 @@ class StartupSequence:
                 self.log('startup_c_preparing',{'target_mm':self.limits.c})
                 self.store.phase('c_moving');self.port.startup_move([self.limits.a_home,0,self.limits.c]);self.stage='c'
         elif self.stage=='c':self.complete()
+
+    def begin_axis_preparation(self):
+        self.port.check_state(self.port.state)
+        if not self.port.registered:raise RuntimeError('startup_origins_lost')
+        if self.limits.startup_policy.get('a_startup_selftest'):
+            self.store.phase('a_check_left');self.log('startup_a_check',{'stage':'left','target_deg':self.limits.a_min})
+            self.port.startup_move([self.limits.a_min,0,0],sweep=True);self.stage='a_left'
+        elif pose(self.port.state)==[self.limits.a_home,0,0]:
+            # Already home: avoid a redundant enable command.
+            self.store.phase('a_moving');self.stage='a'
+        else:
+            self.store.phase('a_moving');self.port.startup_move([self.limits.a_home,0,0]);self.stage='a'
 
     def complete(self):
         self.port.check_state(self.port.state);self.limits.check(pose(self.port.state))
