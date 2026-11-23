@@ -32,18 +32,20 @@ summary{width:fit-content}.options{margin-top:12px}
 </style></head><body><main>
 <header><h1>桶追踪</h1><span id="status" role="status">正在连接</span></header>
 <div class="console">
-<div id="stage"><img id="feed" src="/stream.mjpg" alt="实时追踪画面与中心准星"><canvas id="selection" width="1280" height="720"></canvas></div>
+<div id="stage"><img id="feed" alt="实时追踪画面与中心准星"><canvas id="selection" width="1280" height="720"></canvas></div>
 <aside aria-label="追踪读数与控制">
 <dl class="metrics">
 <div><dt>中心偏差</dt><dd id="offset">—</dd></div>
-<div><dt>画面输出 / 跟踪</dt><dd id="rates">—</dd></div>
+<div><dt>浏览器画面 / 板端跟踪</dt><dd id="rates">—</dd></div>
 <div id="distanceGroup" hidden><dt>目标距离</dt><dd id="distance"></dd></div>
 </dl>
 <p id="error" role="alert"></p>
+<p id="videoDelivery"></p>
+<p id="startupProgress" role="status"></p>
 <label id="legacyIsolation" hidden><input id="isolated" type="checkbox">已断开底盘行走动力</label>
 <div class="actions"><button id="start" disabled hidden>恢复追踪</button><button id="stop">停止机构</button></div>
 <details><summary>目标选择</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选容器</button><button id="cancel" hidden>取消框选</button></div></details>
-<details id="powerCyclePanel" hidden><summary>上电 / STM32 重启准备</summary>
+<details id="powerCyclePanel" hidden open><summary>上电 / STM32 重启准备</summary>
 <p id="powerCycleInfo"></p>
 <label>本次操作 <select id="restartEvent"><option value="whole">整机断电再上电</option><option value="mcu">重启 STM32（电机一同重启）</option></select></label>
 <label><input id="powerCycleConfirmed" type="checkbox">我确认刚完成上述操作，先前位置在已配置行程内，机构周围可安全运动；不是仅重启上位机程序或重连串口。</label>
@@ -56,17 +58,21 @@ summary{width:fit-content}.options{margin-top:12px}
 </main><script>
 const token='__CONTROL_TOKEN__', el=id=>document.getElementById(id);
 let current=null, first=null, selecting=false, busy=false, powerCycleRequest=null;
+let frameURL=null, deliveredAt=0, deliveredFPS=0, frameTransfers=[], frameStarted=0;
 const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认同一目标',target_reacquire_timeout:'目标暂不可见',target_appearance_ambiguous:'目标匹配不唯一，机构暂停',operator_stop:'已停止',operator_connection_lost:'页面连接中断，已请求停止',working_range_limit:'当前方向已到行程边界；仍监测其他方向偏差',origins_or_heading_not_ready:'请先恢复零位和航向',pose_outside_working_range:'当前位置超出工作范围或 C 位置不匹配',arm_not_stopped_or_another_controller:'机构尚未禁用或串口正由其他程序控制',no_fresh_telemetry:'未收到稳定串口回传',target_appearance_lost:'目标外观丢失，请重新选择',target_lost_geometry:'目标形状变化或被遮挡，请重新选择',target_lost_flow:'目标运动无法确认，请重新选择',insufficient_feature_coverage:'目标可用细节不足，请重新选择',target_geometry_jump:'目标变化过大，请重新选择',target_outside_tracking_window:'目标离开可追踪区域，请重新选择',tracking_frame_gap:'画面间隔过长，已请求停止',alignment_error_increased:'调整后偏差增大，已请求停止',telemetry_timeout:'串口回传超时，已请求停止',target_lost_features:'目标丢失，请重新选择',stale_target:'等待目标位置更新',waiting_for_target_frame:'正在等待新画面，恢复后自动续跟',stale_camera:'相机画面过期',selection_changed_reselect:'目标已移动，请重新框选',target_has_too_few_features:'目标细节不足，请扩大框选范围',target_has_too_little_texture:'目标纹理不足，请扩大框选范围'};
 async function api(action,body={}){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');return data;}
 function showError(e){el('error').textContent=e.message||String(e);}
 function textReason(reason){return reasons[reason]||reason||'';}
 Object.assign(reasons,{mcu_reset_reported:'已记录 STM32 重启，请确认后重新准备',power_cycle_confirmation_required:'等待上电或 STM32 重启确认；串口重连不会重新登记起点',power_cycle_preparing:'正在进行整机上电准备',power_cycle_wait_not_calibrated:'启动等待配置无效，请检查配置',power_cycle_origins_already_registered:'本轮起点已登记，已阻止重复登记',power_cycle_start_pose_mismatch:'回传与上电起点不一致，未登记零位',startup_ack_timeout_no_retry:'初始化回传未确认，已停止且不会重发零位登记',startup_origins_lost:'零位状态丢失，已停止；不能仅凭重连恢复',startup_self_check_lost:'启动自检状态失效，机构已停止',startup_state_unreadable:'初始化记录不可读，已暂停运动',firmware_fault:'机构报告故障，已暂停运动'});
 function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
- el('rates').textContent=s.preview&&!stale?s.preview.fps.toFixed(1)+' / '+s.preview.tracking_fps.toFixed(1)+' FPS':'—';
+ el('rates').textContent=s.preview&&!stale?(performance.now()-deliveredAt<1000?deliveredFPS.toFixed(1):'0.0')+' / '+s.preview.tracking_fps.toFixed(1)+' FPS':'—';
  el('legacyIsolation').hidden=!!t.continuous||!!t.active||!t.motion_available;
  el('start').hidden=t.active||!t.motion_available;
  el('start').disabled=!t.motion_available||selecting||stale||t.active||busy;
  const startup=t.startup;
+ const preparationNames={waiting:'等待回零与并行自检',preflight:'核对机构状态',disable_pending:'清理启动通信故障',zero_pending:'登记 B/C 零位',registered:'零位已登记',a_moving:'A 转向 75°',c_moving:'C 准备至 10 mm',ready:'准备完成 · 自动追踪就绪',uncertain:'准备状态未确认',unconfirmed:'等待确认本次上电或重启'};
+ const checks=startup?.self_check;
+ el('startupProgress').textContent=startup?`${preparationNames[startup.phase]||startup.phase}${arm.startup_wait_remaining_s>0?' · 剩余 '+arm.startup_wait_remaining_s.toFixed(1)+' 秒':''}。相机 ${checks?.camera_fresh?'✓':'等待'} · 推理预热 ${checks?.inference_warmup?.ready?'✓':'等待'} · 预览 ${checks?.preview_fresh?'✓':'等待'} · 串口 ${q?'已收到':'等待'}。`:(!t.motion_available?'只读观察模式 · 未执行机构自检和回零准备':'');
  el('powerCyclePanel').hidden=!startup||!t.motion_available;
  if(startup){
    el('powerCycleInfo').textContent=startup.wait_configured?`确认后等待 ${startup.wait_seconds} 秒；模型预热和自检同时进行，未完成则继续等待。随后登记起点、A 转到 75°、C 伸出到 10 mm，再自动追踪。回零按已确认的本机重启约定推定。`:'启动等待配置无效，暂不允许初始化。';
@@ -88,7 +94,7 @@ function render(s){current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetr
  if(t.active&&!q)el('status').textContent='正在核对机构回传';
  if(arm.phase==='stop_unconfirmed')el('status').textContent=states.stop_unconfirmed;
  if(['startup_waiting','startup_preparing','startup_checking'].includes(arm.phase))el('status').textContent=states[arm.phase];
- if(q?.system_fault||q?.motor_fault){el('status').textContent='机构故障';el('status').className='bad';}
+ if((q?.system_fault||q?.motor_fault)&&!(['startup_waiting','startup_checking','startup_preparing'].includes(arm.phase)&&q.system_fault===1&&!q.motor_fault)){el('status').textContent='机构故障';el('status').className='bad';}
  if(!t.motion_available&&arm.phase!=='stop_unconfirmed')el('status').textContent+=' · 只读';
  const direction=(value,negative,positive)=>value===0?'0':(value<0?negative:positive)+Math.abs(value).toFixed(0);
  el('offset').textContent=target&&!stale?direction(Math.round(target.offset_px[0]),'左','右')+' / '+direction(Math.round(target.offset_px[1]),'上','下')+' px':'—';
@@ -113,5 +119,22 @@ el('selection').onpointerdown=e=>{if(!selecting)return;first=point(e);el('select
 el('selection').onpointermove=e=>{if(!first)return;const end=point(e),ctx=el('selection').getContext('2d');ctx.clearRect(0,0,1280,720);ctx.strokeStyle='#ffe36c';ctx.lineWidth=3;ctx.strokeRect(first[0],first[1],end[0]-first[0],end[1]-first[1]);};
 el('selection').onpointerup=async e=>{if(!first)return;const end=point(e),start=first;first=null;const box=[Math.round(Math.min(start[0],end[0])),Math.round(Math.min(start[1],end[1])),Math.round(Math.max(start[0],end[0])),Math.round(Math.max(start[1],end[1]))];try{const r=await fetch('/snapshot.jpg',{cache:'no-store'});if(!r.ok)throw new Error('实时画面尚未就绪');const frameId=Number(r.headers.get('X-Frame-Id'));await r.arrayBuffer();await api('select',{frame_id:frameId,box});unfreeze();}catch(err){showError(err);}};
 window.addEventListener('pagehide',()=>{if(current?.tracking?.continuous)return;fetch('/api/stop',{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:'{}',keepalive:true}).catch(()=>{});});
-refresh();
+async function latestFrame(){
+ const began=performance.now(),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),1800);
+ try{
+   const response=await fetch('/frame.jpg?remote=1',{cache:'no-store',signal:controller.signal});
+   if(!response.ok)throw new Error('最新画面尚未就绪');
+   const blob=await response.blob();clearTimeout(timer);
+   const next=URL.createObjectURL(blob),old=frameURL;
+   el('feed').src=next;frameURL=next;
+   try{await el('feed').decode();}finally{if(old)URL.revokeObjectURL(old);}
+   deliveredAt=performance.now();frameTransfers.push(deliveredAt);frameTransfers=frameTransfers.filter(t=>deliveredAt-t<2000);
+   deliveredFPS=frameTransfers.length>1?(frameTransfers.length-1)*1000/(deliveredAt-frameTransfers[0]):0;
+   const transfer=deliveredAt-began,age=Number(response.headers.get('X-Frame-Age-Ms'));
+   el('videoDelivery').textContent=`最新帧 · 接收/解码 ${transfer.toFixed(0)} ms · 板端帧龄 ${Number.isFinite(age)?age.toFixed(0):'—'} ms`;
+   el('feed').style.opacity='1';
+ }catch(error){el('feed').style.opacity='.35';el('videoDelivery').textContent='等待最新画面，已停止显示积压帧';}
+ finally{clearTimeout(timer);setTimeout(latestFrame,Math.max(0,66-(performance.now()-began)));}
+}
+latestFrame();refresh();
 </script></body></html>

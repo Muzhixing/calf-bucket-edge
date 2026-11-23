@@ -53,6 +53,7 @@ class Session:
         self.image=None;self.metadata={};self.jpeg=None;self.frame_id=0;self.snapshots=deque(maxlen=2)
         self.video_id=0;self.video_at=0.;self.video_arrival=0.;self.video_fps=0.;self.track_fps=0.
         self.preview_image=None;self.preview_metadata={}
+        self.remote_jpeg=None;self.remote_video_id=0;self.remote_arrival=0.;self.remote_encoded_at=0.
         self.token=secrets.token_urlsafe(32)
         self.journal=None
 
@@ -215,6 +216,10 @@ class Session:
                 label=('reacquiring' if state=='reacquiring' else phase) if active else ('observing' if target else state)
                 cv2.putText(annotated,f'TRACK {label} | C fixed {self.limits.c} mm',(18,695),cv2.FONT_HERSHEY_SIMPLEX,.6,(0,215,255),1)
                 _,encoded=cv2.imencode('.jpg',annotated,[cv2.IMWRITE_JPEG_QUALITY,80])
+                remote=None
+                if time.monotonic()-self.remote_encoded_at>=1/15:
+                    _,compact=cv2.imencode('.jpg',cv2.resize(annotated,(960,540)),[cv2.IMWRITE_JPEG_QUALITY,65])
+                    remote=compact.tobytes()
                 now=time.monotonic();times.append(now)
                 if self.startup_diagnostics is not None:
                     self.diagnostic_call('metric','preview',(now-begin)*1000)
@@ -222,6 +227,9 @@ class Session:
                 fps=(len(times)-1)/(times[-1]-times[0]) if len(times)>1 else 0.
                 with self.condition:
                     # JPEG bytes and their sequence are published atomically.
+                    if remote is not None:
+                        self.remote_jpeg=remote;self.remote_video_id=previous
+                        self.remote_arrival=metadata['arrival'];self.remote_encoded_at=now
                     self.jpeg=encoded.tobytes();self.video_id=previous;self.video_at=now
                     self.video_arrival=metadata['arrival'];self.video_fps=fps;self.condition.notify_all()
                 overlay={'timestamp':target['timestamp'] if target else now,'state':label,'box':target['box'] if target else []}
@@ -627,8 +635,13 @@ def handler_for(session):
                     _,encoded=cv2.imencode('.jpg',image,[cv2.IMWRITE_JPEG_QUALITY,95])
                     self.respond(200,encoded.tobytes(),'image/jpeg',{'X-Frame-Id':seq})
                 elif path=='/frame.jpg':
-                    with session.lock:jpeg,seq=session.jpeg,session.video_id
-                    self.respond(200 if jpeg else 503,jpeg or b'','image/jpeg',{'X-Frame-Id':seq})
+                    with session.lock:
+                        compact=urlsplit(self.path).query=='remote=1'
+                        jpeg,seq,stamp=(session.remote_jpeg,session.remote_video_id,session.remote_arrival) if compact else (session.jpeg,session.video_id,session.video_arrival)
+                        age=max(0,time.monotonic()-stamp)
+                    fresh=jpeg is not None and age<=.4
+                    self.respond(200 if fresh else 503,jpeg if fresh else b'','image/jpeg',
+                                 {'X-Frame-Id':seq,'X-Frame-Age-Ms':round(age*1000,1)})
                 elif path=='/stream.mjpg':
                     self.connection.settimeout(2)
                     self.send_response(200);self.send_header('Content-Type','multipart/x-mixed-replace; boundary=frame')

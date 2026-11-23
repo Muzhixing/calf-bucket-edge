@@ -2,11 +2,15 @@ import tempfile
 import threading
 import time
 import unittest
+import urllib.request
+import urllib.error
+from http.server import ThreadingHTTPServer
+import cv2
 from unittest.mock import patch
 
 import numpy as np
 from preview import LatestFrames
-from runtime import Session
+from runtime import Session, handler_for
 from test_tracking import Reference
 
 
@@ -65,8 +69,29 @@ class PreviewTests(unittest.TestCase):
                 self.assertGreater(s.video_fps,20)
                 self.assertLess(s.track_fps,5)
                 self.assertIsNotNone(s.jpeg);circle.assert_not_called()
+                self.assertIsNotNone(s.remote_jpeg)
+                self.assertEqual(cv2.imdecode(np.frombuffer(s.remote_jpeg,np.uint8),cv2.IMREAD_COLOR).shape,(540,960,3))
                 self.assertFalse(s.active)
             finally:
                 s.stop_event.set()
                 for t in threads:t.join(2)
                 self.assertTrue(all(not t.is_alive() for t in threads))
+
+    def test_remote_snapshot_is_latest_only_and_rejects_stale_image(self):
+        ref=Reference();self.addCleanup(ref.directory.cleanup)
+        s=Session(ref.directory.name,ref.limits,motion_allowed=False)
+        server=ThreadingHTTPServer(('127.0.0.1',0),handler_for(s))
+        worker=threading.Thread(target=server.serve_forever);worker.start()
+        try:
+            url=f'http://127.0.0.1:{server.server_port}/frame.jpg?remote=1'
+            for n in range(10):
+                s.remote_jpeg=f'frame{n}'.encode();s.remote_video_id=n;s.remote_arrival=time.monotonic()
+            with urllib.request.urlopen(url) as response:
+                self.assertEqual(response.read(),b'frame9')
+                self.assertEqual(response.headers['X-Frame-Id'],'9')
+                self.assertLess(float(response.headers['X-Frame-Age-Ms']),400)
+            s.remote_arrival=time.monotonic()-5
+            with self.assertRaises(urllib.error.HTTPError) as error:urllib.request.urlopen(url)
+            self.assertEqual(error.exception.code,503)
+        finally:
+            server.shutdown();server.server_close();worker.join(2)
