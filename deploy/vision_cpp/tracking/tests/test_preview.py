@@ -6,6 +6,7 @@ import urllib.request
 import urllib.error
 from http.server import ThreadingHTTPServer
 import cv2
+import http.client
 from unittest.mock import patch
 
 import numpy as np
@@ -70,7 +71,7 @@ class PreviewTests(unittest.TestCase):
                 self.assertLess(s.track_fps,5)
                 self.assertIsNotNone(s.jpeg);circle.assert_not_called()
                 self.assertIsNotNone(s.remote_jpeg)
-                self.assertEqual(cv2.imdecode(np.frombuffer(s.remote_jpeg,np.uint8),cv2.IMREAD_COLOR).shape,(540,960,3))
+                self.assertEqual(cv2.imdecode(np.frombuffer(s.remote_jpeg,np.uint8),cv2.IMREAD_COLOR).shape,(360,640,3))
                 self.assertFalse(s.active)
             finally:
                 s.stop_event.set()
@@ -90,6 +91,15 @@ class PreviewTests(unittest.TestCase):
                 self.assertEqual(response.read(),b'frame9')
                 self.assertEqual(response.headers['X-Frame-Id'],'9')
                 self.assertLess(float(response.headers['X-Frame-Age-Ms']),400)
+            connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=2)
+            try:
+                for _ in range(3):
+                    connection.request('GET','/frame.jpg?remote=1')
+                    response=connection.getresponse()
+                    self.assertFalse(response.will_close);self.assertEqual(response.read(),b'frame9')
+                connection.request('GET','/status');response=connection.getresponse()
+                self.assertFalse(response.will_close);response.read()
+            finally:connection.close()
             s.remote_arrival=time.monotonic()-5
             with self.assertRaises(urllib.error.HTTPError) as error:urllib.request.urlopen(url)
             self.assertEqual(error.exception.code,503)

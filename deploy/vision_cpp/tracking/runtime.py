@@ -216,10 +216,9 @@ class Session:
                 label=('reacquiring' if state=='reacquiring' else phase) if active else ('observing' if target else state)
                 cv2.putText(annotated,f'TRACK {label} | C fixed {self.limits.c} mm',(18,695),cv2.FONT_HERSHEY_SIMPLEX,.6,(0,215,255),1)
                 _,encoded=cv2.imencode('.jpg',annotated,[cv2.IMWRITE_JPEG_QUALITY,80])
-                remote=None
-                if time.monotonic()-self.remote_encoded_at>=1/15:
-                    _,compact=cv2.imencode('.jpg',cv2.resize(annotated,(960,540)),[cv2.IMWRITE_JPEG_QUALITY,65])
-                    remote=compact.tobytes()
+                # Refresh compact preview every frame without changing tracker input.
+                _,compact=cv2.imencode('.jpg',cv2.resize(annotated,(640,360)),[cv2.IMWRITE_JPEG_QUALITY,60])
+                remote=compact.tobytes()
                 now=time.monotonic();times.append(now)
                 if self.startup_diagnostics is not None:
                     self.diagnostic_call('metric','preview',(now-begin)*1000)
@@ -227,9 +226,8 @@ class Session:
                 fps=(len(times)-1)/(times[-1]-times[0]) if len(times)>1 else 0.
                 with self.condition:
                     # JPEG bytes and their sequence are published atomically.
-                    if remote is not None:
-                        self.remote_jpeg=remote;self.remote_video_id=previous
-                        self.remote_arrival=metadata['arrival'];self.remote_encoded_at=now
+                    self.remote_jpeg=remote;self.remote_video_id=previous
+                    self.remote_arrival=metadata['arrival'];self.remote_encoded_at=now
                     self.jpeg=encoded.tobytes();self.video_id=previous;self.video_at=now
                     self.video_arrival=metadata['arrival'];self.video_fps=fps;self.condition.notify_all()
                 overlay={'timestamp':target['timestamp'] if target else now,'state':label,'box':target['box'] if target else []}
@@ -610,20 +608,22 @@ def handler_for(session):
     class Handler(BaseHTTPRequestHandler):
         protocol_version='HTTP/1.1'
         def log_message(self,*args):pass
-        def respond(self,code,body,content_type='application/json',extra=None):
+        def respond(self,code,body,content_type='application/json',extra=None,keep_alive=False):
             if not isinstance(body,bytes):body=json.dumps(body,ensure_ascii=False).encode()
             self.send_response(code);self.send_header('Content-Type',content_type)
-            self.send_header('Cache-Control','no-store');self.send_header('Connection','close')
+            keep_alive=keep_alive and self.headers.get('Connection','').lower()!='close'
+            self.send_header('Cache-Control','no-store');self.send_header('Connection','keep-alive' if keep_alive else 'close')
             self.send_header('Content-Length',str(len(body)))
             for k,v in (extra or {}).items():self.send_header(k,str(v))
-            self.end_headers();self.wfile.write(body);self.close_connection=True
+            self.end_headers();self.wfile.write(body);self.wfile.flush();self.close_connection=not keep_alive
         def do_GET(self):
             try:
+                self.connection.settimeout(3)
                 path=urlsplit(self.path).path
                 if path=='/':
                     html=(Path(__file__).parent/'index.html').read_text().replace('__CONTROL_TOKEN__',session.token)
                     self.respond(200,html.encode(),'text/html; charset=utf-8')
-                elif path=='/status':self.respond(200,session.status())
+                elif path=='/status':self.respond(200,session.status(),keep_alive=True)
                 elif path=='/snapshot.jpg':
                     with session.lock:
                         source=session.preview_image if session.preview_image is not None else session.image
@@ -641,7 +641,7 @@ def handler_for(session):
                         age=max(0,time.monotonic()-stamp)
                     fresh=jpeg is not None and age<=.4
                     self.respond(200 if fresh else 503,jpeg if fresh else b'','image/jpeg',
-                                 {'X-Frame-Id':seq,'X-Frame-Age-Ms':round(age*1000,1)})
+                                 {'X-Frame-Id':seq,'X-Frame-Age-Ms':round(age*1000,1)},keep_alive=True)
                 elif path=='/stream.mjpg':
                     self.connection.settimeout(2)
                     self.send_response(200);self.send_header('Content-Type','multipart/x-mixed-replace; boundary=frame')
