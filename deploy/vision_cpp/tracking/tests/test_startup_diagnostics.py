@@ -140,7 +140,7 @@ class RestartEntryTests(unittest.TestCase):
         old={'box':[300,200,600,450],'offset_px':[-80,0],'timestamp':time.monotonic()}
         s.tracking=old;s.startup_request='test-cycle'
         class Completed:
-            stage='c';done=True;port=None;started=time.monotonic()-8
+            stage='c';done=True;port=None;started=time.monotonic()-8;wait_seconds=8
             def tick(self):pass
             def close(self):return None
         s.startup_sequence=Completed()

@@ -4,8 +4,8 @@
   "timezone": "Asia/Shanghai",
   "evidence": "现场用户确认真实起点、方向和动作/回位；原协议状态回传交叉核对。未用量具标定角度或距离。",
   "control_policy": {
-    "firmware": "2026-11-23 calibrated A73 startup + verified four-wheel encoder filter15 firmware; B/C registration follows the existing RK3588 8-second preparation workflow.",
-    "firmware_source_reference_commit": "0d82d7464510075750cec93a43f2b2a616c0eb02",
+    "firmware": "2026-11-24 verified parallel B/C acceleration-limited firmware; A73 and four-wheel filter15 retained.",
+    "firmware_source_reference_commit": "93c31b1d09575fd05ff371bdc957f43e6b4a87a4",
     "flash_identity_readback_verified": true,
     "protocol": "原 v1：B3/B4 下行10字节；B5/B6 上行20字节，偏移18为1至17异或",
     "baud": 115200,
@@ -29,8 +29,9 @@
     "automatic_runtime_loading": true,
     "usage": "主程序追踪控制器读取工作范围和原发送器路径；此文件不修改固件，也不将历史快照视为当前位置。",
     "continuous_tracking_exception": "A保持高频预测控制，B无需等待横向居中；串口每帧仅改变一个目标，B新目标最迟让出一个A发送时隙（120ms），A/B可同时运动。C暂不自动追踪，保留当前位置。",
-    "firmware_identity_basis": "2026-11-23 final A73 image built from source recorded in firmware commit 0d82d7464510075750cec93a43f2b2a616c0eb02; ST-Link verify and halted readback identical. UART A73/B0/C0, pulse1311us and four encoder filters verified.",
-    "firmware_bin_sha256": "a71097d52748721a7e3132516278cfeffbf3f5e5388ccb958c66b6f1a08b1e41"
+    "firmware_identity_basis": "ST-Link programmed and readback matched 2026-11-24, B/C simultaneous 5mm outward and return observed by user.",
+    "firmware_bin_sha256": "24337a8679078cf30cd57ddf7c9c8a257fe7a1fa12fb11cacd5f4e7bcfc59a5d",
+    "parallel_bc": true
   },
   "mechanisms": {
     "A": {
@@ -210,12 +211,22 @@
     "automatic_restart_evidence": "User requests automatic background preparation. Fresh combined boot state: disabled, both origins unconfirmed, A73/B0/C0, command counter0, no motor fault, at least4 batches across0.75s after input-buffer discard; then8-second assumed homing wait. UART reconnect alone is insufficient.",
     "fixed_wait_seconds": 8,
     "a_startup_selftest": true,
-    "motor_selftest_evidence": "2026-11-23 latest user request: A only, configured minimum then maximum then calibrated structural zero73; no B/C travel test. Fixed8-second software wait precedes the A sweep."
+    "motor_selftest_evidence": "2026-11-24 user correction: self-test need not be simultaneous; use independent maximum-speed round trips. Fixed 8s software check, A sweep/home, then B0-96-0 with C0, then C0-100-0 with B0; A stays73. Firmware retains acceleration/braking and parallel ability for normal commands.",
+    "bc_startup_selftest": true,
+    "bc_startup_selftest_order": [
+      "B",
+      "C"
+    ]
   },
   "tracking_motion": {
     "b_max_step_mm": 24,
     "b_schedule_interval_s": 0.12,
-    "b_firmware_max_mm_s": 5,
-    "c_auto_tracking": false
+    "b_firmware_max_mm_s": 12.5,
+    "c_auto_tracking": false,
+    "c_firmware_max_mm_s": 31.45631067961165,
+    "b_firmware_accel_mm_s2": 25.0,
+    "c_firmware_accel_mm_s2": 78.64077669902913,
+    "b_far_position_gain": 1.0,
+    "b_fast_error_mm": 12.5
   }
 }

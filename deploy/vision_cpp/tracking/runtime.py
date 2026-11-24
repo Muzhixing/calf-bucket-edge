@@ -38,6 +38,7 @@ class Session:
         self.startup_store=startup_store;self.startup_port_factory=startup_port_factory
         self.startup_request=None;self.startup_sequence=None;self.startup_window_started=None
         self.watch_port_factory=watch_port_factory;self.restart_watch=None;self.watch_retry_at=0.;self.watch_error=None
+        self.registered_startup_attempted=False
         self.auto_prepare=bool(motion_allowed and smooth and startup_store is not None and limits.startup_policy.get('automatic_restart_detection') and limits.startup_policy.get('mcu_restart_returns_all_axes') is True)
         self.operator_paused=bool(startup_store and startup_store.data.get('operator_paused'))
         self.ui_events=deque(maxlen=50);self.ui_lock=threading.Lock();self.ui_sequence=0;self.last_countdown=None
@@ -83,20 +84,27 @@ class Session:
             'restart_watch_connected':'已连接 STM32，正在检查复位状态',
             'automatic_restart_detected':'检测到 STM32 复位，自动进入准备流程',
             'restart_preparation_wait':'开始回零等待，模型预热和自检并行',
+            'registered_preparation_started':'STM32 已就绪，沿用 B/C 零点，开始自检',
+            'registered_preflight_complete':'实时状态与视觉自检通过，开始 A 自检',
             'homing_assumed_after_wait':'等待结束，必要自检通过',
             'origin_registration_attempt':'登记 B/C 起点',
             'origin_registered_by_startup_assumption':'B/C 起点登记已确认，开始 A 准备',
             'startup_c_preparing':'A%d° 已确认，正在准备 C'%self.limits.a_home,
             'power_cycle_preparation_complete':'机械臂准备完成，自动追踪已开启',
             'automatic_follow_ready':'自动追踪已恢复',
-            'startup_failed':'准备中断，机构保持停止',
+            'startup_failed':'准备中断，自动动作已取消',
             'control_error':'控制暂停，后台继续检查设备',
         }
+        if event=='startup_bc_check':
+            self.ui_log(data['axis']+' 自检 · '+('最高设定速度向外' if data['stage']=='out' else '最高设定速度返回')+
+                        ' · B%s / C%s mm'%(data['target'][1],data['target'][2]))
         if event=='startup_a_check':
             action={'left':'左侧','right':'右侧','return':'回正'}[data['stage']]
             self.ui_log('A 自检 · %s %s°（B/C 保持）'%(action,data['target_deg']))
         if event=='power_cycle_preparation_complete':
             messages[event]='A%d° / C%s mm 准备完成，自动追踪已开启'%(self.limits.a_home,data.get('slide_position_mm',self.limits.c))
+        if event in ('startup_failed','control_error') and data.get('stop_error'):
+            messages[event]='停车未确认，请切断动力并检查连接'
         if event in messages:self.ui_log(messages[event],'error' if event in ('startup_failed','control_error') else 'info')
         if event=='startup_self_check':
             if data.get('ready'):self.ui_log('相机、推理预热和图像处理已就绪')
@@ -485,13 +493,16 @@ class Session:
 
     def begin_preparation(self,request_id,event,observed_at=None):
         if self.startup_store.confirm(request_id,event):
-            if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
-            self.operator_paused=False;self.startup_request=self.startup_store.data['cycle_id']
-            self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
-            self.startup_window_started=observed_at if observed_at is not None else time.monotonic()
-            self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds,now=self.startup_window_started)
-            self.diagnostics_logged=False;self.last_countdown=None
-            self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
+            self.schedule_preparation(observed_at)
+
+    def schedule_preparation(self,observed_at=None):
+        if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
+        self.operator_paused=False;self.startup_request=self.startup_store.data['cycle_id']
+        self.active=False;self.auto_follow=False;self.reason='power_cycle_preparing'
+        self.startup_window_started=observed_at if observed_at is not None else time.monotonic()
+        self.startup_diagnostics=StartupDiagnostics(self.startup_store.wait_seconds,now=self.startup_window_started)
+        self.diagnostics_logged=False;self.last_countdown=None
+        self.diagnostic_call('probe_async',self.folder,self.limits,self.expected_binding)
 
     def advance_restart_watch(self):
         if not self.auto_prepare:return False
@@ -521,6 +532,14 @@ class Session:
                     else:
                         self.reason='startup_registration_uncertain'
                         self.ui_log('上次登记回传未确认，保持停止，未重复登记','warning')
+                elif (getattr(self.restart_watch,'registered_ready',False)
+                      and not self.registered_startup_attempted and not self.startup_store.error
+                      and self.startup_store.data['phase'] in ('unconfirmed','uncertain')):
+                    # A live registered controller needs no new reset or zero command.
+                    # One attempt per process prevents repeated sweeps after a failed self-test.
+                    self.startup_store.adopt_registered(q,self.limits.a_home)
+                    self.registered_startup_attempted=True
+                    self.schedule_preparation()
             self.watch_error=None
         except Exception as exc:
             if self.restart_watch is not None:self.restart_watch.shutdown();self.restart_watch=None
@@ -556,7 +575,7 @@ class Session:
                 with self.lock:
                     if self.startup_request is not None and not self.stop_event.is_set():sequence.tick()
             with self.lock:
-                remaining=max(0,self.startup_store.wait_seconds-(time.monotonic()-sequence.started))
+                remaining=max(0,sequence.wait_seconds-(time.monotonic()-sequence.started))
                 second=math.ceil(remaining)
                 if sequence.stage=='waiting' and second!=self.last_countdown:
                     self.last_countdown=second;self.ui_log('回零等待 · 剩余 %d 秒'%second if second else '等待自检就绪')

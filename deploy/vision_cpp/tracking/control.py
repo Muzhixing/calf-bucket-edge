@@ -204,7 +204,11 @@ class FollowPolicy:
             gain = clamp(z*1000/self.fy, .25, 2.)
         else:
             gain = 1.
-        delta = clamp(round(dy*gain*.7), -self.limits.b_max_step, self.limits.b_max_step)
+        correction = dy*gain
+        # Large offsets use the geometric correction without the former 30%
+        # under-command. Do not create extra travel just to reach cruise speed.
+        factor = self.limits.b_far_gain if abs(correction)>=self.limits.b_fast_error else .7
+        delta = clamp(round(correction*factor), -self.limits.b_max_step, self.limits.b_max_step)
         return int(clamp(round(current)+delta, self.limits.b_min, self.limits.b_max))
 
     def allow_b(self,target,now):

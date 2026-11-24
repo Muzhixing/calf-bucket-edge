@@ -16,6 +16,15 @@ sys.path.insert(0,str(SERIAL_ROOT))
 from receive import Parser, DEFAULT_PORT, holders
 
 
+def close_serial(fd):
+    # Explicitly release exclusive mode only at ownership handoff/close.
+    # Linux PTYs retain TIOCEXCL while the simulated device's master is open.
+    try:
+        fcntl.ioctl(fd,termios.TIOCNXCL)
+    finally:
+        os.close(fd)
+
+
 class Limits:
     def __init__(self, reference):
         config=json.loads(Path(reference).read_text())
@@ -34,6 +43,18 @@ class Limits:
             raise RuntimeError('invalid_firmware_boot_pose')
         self.c_bounds=config['operating_envelope'].get('C_command_mm',[0,30])
         motion=config.get('tracking_motion',{})
+        self.parallel_bc=config['control_policy'].get('parallel_bc',False) is True
+        self.b_max_speed=motion.get('b_firmware_max_mm_s',5.)
+        self.c_max_speed=motion.get('c_firmware_max_mm_s',400*81/2060)
+        self.b_accel=motion.get('b_firmware_accel_mm_s2',25.)
+        self.c_accel=motion.get('c_firmware_accel_mm_s2',2000*81/2060)
+        self.b_far_gain=motion.get('b_far_position_gain',.7)
+        self.b_fast_error=motion.get('b_fast_error_mm',12.5)
+        if (any(type(v) not in (int,float) or not math.isfinite(v) or v<=0 for v in
+                (self.b_max_speed,self.c_max_speed,self.b_accel,self.c_accel,self.b_fast_error))
+                or not .7<=self.b_far_gain<=1
+                or self.startup_policy.get('bc_startup_selftest') and not self.parallel_bc):
+            raise RuntimeError('invalid_motion_profile_or_parallel_firmware')
         self.b_max_step=motion.get('b_max_step_mm',24)
         self.b_schedule_interval=motion.get('b_schedule_interval_s',.12)
         if not (all(isinstance(v,(int,float)) and math.isfinite(v) and v==round(v)
@@ -151,7 +172,7 @@ class ArmPort:
             self.gateway._open_serial()
             self.log('arm_serial_open_readonly' if defer_preflight else 'arm_ready',self.state)
         except BaseException:
-            if self.fd is not None:os.close(self.fd);self.fd=None
+            if self.fd is not None:close_serial(self.fd);self.fd=None
             raise
 
     def validate_preflight(self,frames):
@@ -254,7 +275,7 @@ class ArmPort:
                     q=pose(s)
                     if any(not min(a,b)-.01<=v<=max(a,b)+.01 for v,a,b in zip(q,self.origin,self.target)):
                         raise RuntimeError('unexpected_mechanism_motion')
-                    if s['enabled'] and q==self.target:
+                    if s['enabled'] and q==self.target and s['state']!=2:
                         if self.arrived_at is None:self.arrived_at=now
                         if now-self.arrived_at>=.1 and now-self.started>=.5:
                             self.stop();return
@@ -273,7 +294,7 @@ class ArmPort:
         except BaseException as exc:
             error=str(exc);self.log('stop_unconfirmed',{'reason':error})
         finally:
-            if self.fd is not None:os.close(self.fd);self.fd=None
+            if self.fd is not None:close_serial(self.fd);self.fd=None
         return error
 
 
@@ -371,5 +392,5 @@ class ContinuousArmPort(ArmPort):
                 raise RuntimeError('unexpected_mechanism_motion')
         if self.pending and now-self.pending[0][1]>.6:
             raise RuntimeError('command_ack_timeout')
-        if abs(self.state['lift_position_mm']-self.target[1])>.11 and now-self.b_started>max(8,abs(self.target[1]-self.b_origin)/5+4):
+        if abs(self.state['lift_position_mm']-self.target[1])>.11 and now-self.b_started>max(8,abs(self.target[1]-self.b_origin)/self.limits.b_max_speed+4):
             raise RuntimeError('movement_timeout')
