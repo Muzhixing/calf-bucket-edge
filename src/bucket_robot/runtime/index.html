@@ -1,22 +1,227 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>桶追踪控制台</title><style>
-:root{color-scheme:dark;font:14px/1.5 system-ui,"PingFang SC",sans-serif;color:#e7eee9;background:#101614}*{box-sizing:border-box}body{margin:0}main{max-width:1720px;margin:auto;padding:24px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}h1{font-size:20px;margin:0;font-weight:650}h2{font-size:13px;color:#a7b9af;font-weight:500;margin:0 0 12px}#status{color:#f0c975;display:flex;align-items:center;gap:8px}#status:before{content:"";width:7px;height:7px;background:currentColor;border-radius:50%}#status.good{color:#87d9ad}#status.bad,#error{color:#ffab9d}.console{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;align-items:start}.view{min-width:0}#stage{position:relative;width:100%;aspect-ratio:16/9;background:#080c0a;border:1px solid #2b3a31;border-radius:12px;overflow:hidden}#feed,#selection{width:100%;height:100%;display:block;object-fit:contain}#selection{position:absolute;inset:0;display:none;cursor:crosshair;touch-action:none}.view-footer{display:flex;justify-content:space-between;gap:16px;color:#82988b;font-size:12px;margin:10px 2px}aside{display:grid;gap:14px}.card{padding:18px;background:#19221d;border:1px solid #304137;border-radius:12px}#startupProgress{font-size:18px;font-weight:550;margin:0 0 14px}.checks{display:flex;gap:6px;flex-wrap:wrap}.check{font-size:11px;padding:4px 7px;border-radius:5px;background:#29322b;color:#bdba96}.check.ok{color:#9ed7b5;background:#203a2c}.metrics{display:grid;gap:12px;margin:16px 0 0}dt{font-size:11px;color:#92a79b}dd{margin:3px 0 0;font-variant-numeric:tabular-nums;font-size:14px}.actions{display:flex;gap:8px;margin-top:18px}button{font:inherit;cursor:pointer;color:inherit;border:1px solid #455a4d;border-radius:7px;padding:9px 12px;background:#24372c}button:hover{filter:brightness(1.12)}button:disabled{opacity:.4;cursor:default}.actions button{flex:1}#stop{background:#512b28;border-color:#82493e}#start{background:#24563c}.log-card{padding-bottom:10px}#eventLog{height:260px;overflow:auto;scrollbar-width:thin;font-size:12px}.log-row{display:grid;grid-template-columns:61px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #29372e}.log-row time{color:#7d9687;font-variant-numeric:tabular-nums}.log-row.warning{color:#e3cb8b}.log-row.error{color:#efa795}.muted,#startupReport{color:#8ca295;font-size:11px;margin:10px 0 0}#error{font-size:12px;margin:10px 0 0}#error:empty,#startupReport:empty,#help:empty,[hidden]{display:none!important}details{font-size:12px;color:#9eb2a6;padding:0 3px}summary{cursor:pointer}.options{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}#help{font-size:12px;color:#d2c891}
-@media(max-width:800px){main{padding:12px}.console{grid-template-columns:1fr}aside{grid-template-columns:1fr 1fr}.log-row{grid-template-columns:1fr;gap:0}#eventLog{height:240px}}@media(max-width:520px){aside{grid-template-columns:1fr}.view-footer{display:block}.log-row{grid-template-columns:61px 1fr}#eventLog{height:210px}}
-.health-item{padding:7px 0;border-bottom:1px solid var(--line,#30383e)}.health-item b{font-size:13px}.health-item p{font-size:12px;margin:3px 0;color:var(--muted,#a0a9b0)}.health-item[data-state="ready"] b{color:var(--green,#b0d6b7)}.health-item[data-state="unavailable"] b,.health-item[data-state="stale"] b{color:var(--red,#e0a2a2)}#capabilitySummary{font-size:12px;line-height:1.6}#retry{margin-top:8px}</style></head><body><main>
-<header><h1>桶追踪控制台</h1><span id="status" role="status">正在连接</span></header>
-<div class="console"><section class="view"><div id="stage"><img id="feed" alt="实时追踪画面"><canvas id="selection" width="1280" height="720"></canvas></div>
-<div class="view-footer"><span id="videoDelivery">正在获取最新画面</span><span>板端处理 <b id="rates">—</b></span></div><p id="help"></p></section>
-<aside><section class="card health-card"><h2>组件状态</h2><p id="healthSummary" role="status">后台检查中</p><div id="componentHealth" aria-live="polite"></div><p id="capabilitySummary"></p><button id="retry">重新检查组件</button></section><section class="card"><h2>自动运行</h2><p id="startupProgress">等待设备就绪</p><div class="checks"><span id="checkCamera" class="check">相机</span><span id="checkModel" class="check">模型</span><span id="checkSerial" class="check">串口</span></div>
-<dl class="metrics"><div><dt>机构位置</dt><dd id="pose">—</dd></div><div><dt>中心偏差</dt><dd id="offset">—</dd></div></dl>
-<p id="error" role="alert"></p><label id="legacyIsolation" hidden><input id="isolated" type="checkbox">底盘动力已断开</label>
-<div class="actions"><button id="start" hidden>恢复自动运行</button><button id="stop">停止机构</button></div><p id="startupReport"></p></section>
-<section class="card log-card"><h2>运行日志</h2><div id="eventLog" role="log" aria-live="polite"><p class="muted">正在等待设备状态…</p></div></section>
-<details><summary>目标工具</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选目标</button><button id="cancel" hidden>取消</button></div></details>
-</aside></div></main><script>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>桶追踪控制台</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #fff; --ink: #1f2937; --muted: #596273; --line: #e0e4e9;
+  --primary: #224d84; --fault: #a52a22; --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink); background: var(--paper);
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100dvh; }
+main { width: min(100%, 1380px); margin: auto; padding: 24px clamp(16px, 3vw, 40px); }
+h1, h2, p, figure, dl, dd { margin: 0; }
+h1 { font-size: 20px; font-weight: 600; }
+h2 { font-size: 14px; font-weight: 650; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: default; color: var(--muted); background: #f4f5f7; border-color: var(--line); }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.masthead, .video-label, figcaption, .section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.masthead { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+#status { display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; }
+#status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+#status.good { color: #17603b; }
+#status.bad, #error { color: var(--fault); }
+.console { display: grid; grid-template-columns: minmax(0, 1fr) minmax(235px, 255px); gap: clamp(20px, 2.5vw, 32px); padding-top: 18px; align-items: start; }
+.view { min-width: 0; }
+.video-label { margin-bottom: 10px; }
+.quiet, .muted { color: var(--muted); font-size: 12px; }
+#stage { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #20252c; color: #f3f4f6; }
+#feed, #selection { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+#feed { z-index: 1; }
+#selection { z-index: 2; display: none; cursor: crosshair; touch-action: none; }
+.placeholder { padding: 18px; text-align: center; }
+.placeholder strong { display: block; font-size: 17px; font-weight: 600; }
+.placeholder span { display: block; margin-top: 4px; font-size: 13px; color: #cbd0d8; }
+figcaption { min-height: 42px; flex-wrap: wrap; padding: 7px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.readings { display: grid; grid-template-columns: 1fr 1fr 1.3fr; padding-top: 12px; font-variant-numeric: tabular-nums; }
+.readings > div { min-width: 0; padding: 0 clamp(8px, 1.8vw, 20px); }
+.readings > div:first-child { padding-left: 0; }
+.readings > div:last-child { padding-right: 0; }
+.readings > div + div { border-left: 1px solid var(--line); }
+.readings dt { color: var(--muted); font-size: 12px; }
+.readings dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; margin-top: 3px; }
+.reading { font: 600 clamp(14px, 2vw, 20px)/1.4 var(--mono); white-space: nowrap; }
+.unit { color: var(--muted); font-size: 11px; }
+.rail > section + section, .rail > details { margin-top: 23px; }
+.section-head { min-height: 25px; margin-bottom: 8px; align-items: baseline; }
+#startupProgress { color: var(--muted); text-align: right; font-size: 12px; }
+.checks { list-style: none; margin: 0; padding: 5px 9px; border: 1px solid var(--line); background: #f7f8fa; }
+.check { display: grid; grid-template-columns: 6ch minmax(0, 1fr) auto; align-items: baseline; gap: 8px; min-height: 33px; padding: 6px 0; font-size: 12px; }
+.check + .check { border-top: 1px solid var(--line); }
+.check code { font: 600 12px/1.5 var(--mono); white-space: pre; color: var(--muted); }
+.check[data-result="ok"] code { color: #17603b; }
+.check[data-result="fail"] code, .check[data-result="fail"] .result { color: var(--fault); }
+.check[data-result="wait"] code { color: #80530f; }
+.check .result { color: var(--muted); text-align: right; }
+#retry { padding: 1px 0; background: transparent; border: 0; color: var(--primary); font-size: 12px; white-space: nowrap; }
+#retry:hover:not(:disabled) { text-decoration: underline; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.actions button, .options button { min-height: 38px; border: 1px solid #aab2be; border-radius: 3px; padding: 6px 8px; background: transparent; font-weight: 550; }
+button:hover:not(:disabled) { background: #f1f3f5; }
+.actions button:active:not(:disabled), .options button:active:not(:disabled) { transform: translateY(1px); }
+#start:not(:disabled) { background: var(--primary); color: #fff; border-color: var(--primary); }
+#start:hover:not(:disabled) { background: #173d6d; }
+#stop { border-color: #bda29f; color: var(--fault); }
+#error { margin-top: 8px; font-size: 13px; }
+#error:empty, #startupReport:empty, #help:empty { display: none; }
+#legacyIsolation { display: block; font-size: 12px; margin-bottom: 8px; }
+details { border-top: 1px solid var(--line); font-size: 12px; }
+summary { cursor: pointer; color: var(--muted); padding: 9px 0; }
+.options { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+#help { margin-top: 10px; color: #80530f; font-size: 12px; }
+.health-item { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.health-item b { font-size: 12px; font-weight: 600; }
+.health-item p { margin-top: 3px; color: var(--muted); overflow-wrap: anywhere; }
+#healthSummary, #capabilitySummary, #startupReport, #measurementNote, #processingReadings { margin: 7px 0; color: var(--muted); font-size: 12px; }
+.pose { margin: 8px 0; color: var(--muted); font-size: 12px; }
+#pose { display: block; margin-top: 3px; color: var(--ink); font-family: var(--mono); }
+#eventLog { max-height: 260px; overflow: auto; scrollbar-width: thin; }
+.log-row { display: grid; grid-template-columns: 65px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.log-row time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.log-row.warning { color: #80530f; }
+.log-row.error { color: var(--fault); }
+@media (max-width: 830px) {
+  .console { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .rail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+  .rail > section + section, .rail > details { margin-top: 0; }
+}
+@media (max-width: 500px) {
+  main { padding-top: 17px; }
+  .masthead { padding-bottom: 13px; }
+  .console { padding-top: 17px; }
+  .rail { display: block; }
+  .rail > section + section, .rail > details { margin-top: 20px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="masthead"><h1>桶追踪控制台</h1><span id="status" role="status">正在连接</span></header>
+  <div class="console">
+    <section class="view" aria-labelledby="camera-title">
+      <div class="video-label"><h2 id="camera-title">左相机</h2><span class="quiet" id="frameState">等待实时画面</span></div>
+      <figure>
+        <div id="stage">
+          <div class="placeholder" id="placeholder"><strong>等待新画面</strong><span>组件状态仍可查看</span></div>
+          <img id="feed" alt="实时追踪画面" width="1280" height="720" hidden>
+          <canvas id="selection" width="1280" height="720"></canvas>
+        </div>
+        <figcaption><span id="videoDelivery">正在获取最新画面</span><span id="frameMeta">—</span></figcaption>
+      </figure>
+      <dl class="readings" aria-label="画面测量读数">
+        <div><dt>画面帧率</dt><dd title="浏览器实际接收并解码的画面帧率"><span id="rates" class="reading">—</span><span class="unit">fps</span></dd></div>
+        <div><dt>目标纵深 Z</dt><dd title="原生检测所选桶身采样区域的相机前向Z，单位米"><span id="distance" class="reading">—</span><span class="unit">m</span></dd></div>
+        <div><dt>中心偏差 X / Y</dt><dd title="当前追踪目标相对画面中心，向右/向下为正"><span id="offset" class="reading">—</span><span class="unit">px</span></dd></div>
+      </dl>
+      <p id="help"></p>
+    </section>
+    <aside class="rail" aria-label="设备与运动">
+      <section aria-labelledby="equipment-title">
+        <div class="section-head"><h2 id="equipment-title">启动自检</h2><button id="retry" type="button">重新检查</button></div>
+        <ul class="checks" id="componentHealth" aria-label="实际设备检查结果">
+          <li class="check" data-result="wait"><code aria-hidden="true">[WAIT]</code><span>相机</span><span class="result">待检查</span></li>
+          <li class="check" data-result="wait"><code aria-hidden="true">[WAIT]</code><span>检测模型</span><span class="result">待检查</span></li>
+          <li class="check" data-result="wait"><code aria-hidden="true">[WAIT]</code><span>STM32</span><span class="result">待检查</span></li>
+          <li class="check" data-result="wait"><code aria-hidden="true">[WAIT]</code><span>A/B/C 机构</span><span class="result">待检查</span></li>
+          <li class="check" data-result="wait"><code aria-hidden="true">[WAIT]</code><span>四轮底盘</span><span class="result">待检查</span></li>
+        </ul>
+      </section>
+      <section aria-labelledby="motion-title">
+        <div class="section-head"><h2 id="motion-title">运动</h2><p id="startupProgress">等待设备就绪</p></div>
+        <label id="legacyIsolation" hidden><input id="isolated" type="checkbox">底盘动力已断开</label>
+        <div class="actions"><button id="start" hidden>恢复自动运行</button><button id="stop">停止机构</button></div>
+        <p id="error" role="alert"></p>
+        <details><summary>诊断详情</summary>
+          <p id="healthSummary" role="status">后台检查中</p>
+          <div id="componentDiagnostics"></div>
+          <p id="capabilitySummary"></p>
+          <p class="pose">机构位置<span id="pose">—</span></p>
+          <p id="processingReadings"></p>
+          <p id="startupReport"></p>
+          <p id="measurementNote">纵深取原生检测所选桶身的相机前向 Z，单位 m；不是机构行程或相机到目标的直线距离。X/Y 对应当前追踪目标，向右/向下为正。</p>
+        </details>
+      </section>
+      <details><summary>目标工具</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选目标</button><button id="cancel" hidden>取消</button></div></details>
+      <details><summary>运行日志</summary><div id="eventLog" role="log" aria-live="polite"><p class="muted">正在等待设备状态…</p></div></details>
+    </aside>
+  </div>
+</main>
+<script id="console-view-model">
+// Presentation only: these helpers never issue commands or decide motion permissions.
+const consoleView = (() => {
+  const finite = value => typeof value === 'number' && Number.isFinite(value);
+  const validAge = (value, limit) => finite(value) && value >= 0 && value <= limit;
+  function readings(s = {}, video = {}) {
+    const elapsed = finite(video.statusAgeSeconds) ? Math.max(0, video.statusAgeSeconds) : Infinity;
+    const frameAge = finite(s.frame_age_s) ? s.frame_age_s + elapsed : Infinity;
+    const frameFresh = validAge(s.frame_age_s, .4) && validAge(frameAge, .4);
+    const videoFresh = validAge(video.videoAgeSeconds, .4);
+    const t = s.tracking || {}, target = t.target;
+    const components = s.health?.components;
+    const observationReady = !components || components.calibration?.state === 'ready' && components.detector?.state === 'ready';
+    const targetFresh = frameFresh && observationReady && target && validAge(t.target_age_s + elapsed, .4) &&
+      validAge(t.target_age_s, .4) && Array.isArray(target.offset_px) && target.offset_px.length === 2 && target.offset_px.every(finite);
+    const processingAge = finite(s.published_at) && finite(s.arrival) ? Math.max(0, s.published_at - s.arrival) : 0;
+    const publicationAge = finite(s.frame_age_s) ? Math.max(0, s.frame_age_s - processingAge) : Infinity;
+    const distanceAge = finite(s.distance_age_ms) ? s.distance_age_ms / 1000 + publicationAge + elapsed : Infinity;
+    const measurementReady = observationReady && (!components || components.ranging?.state === 'ready');
+    const distanceFresh = frameFresh && measurementReady && s.detected === true &&
+      s.distance_kind === 'camera_forward_Z_bucket_body' && ['new', 'held'].includes(s.measurement_status) &&
+      finite(s.distance_m) && s.distance_m > 0 && validAge(s.distance_age_ms, 1500) && validAge(distanceAge, 1.5) &&
+      finite(s.distance_source_frame) && finite(s.frame_id) && s.distance_source_frame <= s.frame_id && s.distance_source_frame >= 0;
+    const signed = value => Math.round(value) > 0 ? '+' + Math.round(value) : Math.round(value) < 0 ? '−' + Math.abs(Math.round(value)) : '0';
+    const arm = t.arm || {}, q = arm.telemetry;
+    const poseAge = finite(s.arrival) && finite(s.frame_age_s) && finite(arm.timestamp) ? s.arrival + s.frame_age_s + elapsed - arm.timestamp : Infinity;
+    const poseFresh = (!components || components.serial?.state === 'ready') && validAge(poseAge, .7) &&
+      q && [q.servo_software_deg, q.lift_position_mm, q.slide_position_mm].every(finite);
+    return {
+      pose: poseFresh ? `A ${q.servo_software_deg}° · B ${q.lift_position_mm.toFixed(1)} · C ${q.slide_position_mm.toFixed(1)} mm` : '—',
+      fps: videoFresh && finite(video.deliveredFPS) && video.deliveredFPS > 0 ? video.deliveredFPS.toFixed(1) : '—',
+      distance: distanceFresh ? s.distance_m.toFixed(2) : '—',
+      offset: targetFresh ? target.offset_px.map(signed).join(' / ') : '—',
+      frameFresh, videoFresh, targetFresh: Boolean(targetFresh),
+    };
+  }
+  function check(key, item = {}, components = {}, startup = {}) {
+    const serialUnavailable = ['unavailable', 'stale'].includes(components.serial?.state);
+    if (['arm', 'chassis'].includes(key) && item.code === 'CONTROLLER_NOT_READY' && !startup.motionLatch &&
+        ['startup_waiting', 'startup_checking', 'startup_preparing'].includes(startup.phase)) return { result: 'wait', label: '准备中' };
+    if (['arm', 'chassis'].includes(key) && serialUnavailable &&
+        ['unknown', 'stale'].includes(item.state)) return { result: 'skip', label: '无法确认' };
+    if (key === 'detector' && components.camera?.state !== 'ready' &&
+        ['ready', 'unknown', 'stale'].includes(item.state)) return { result: 'wait', label: '等待图像' };
+    if (item.state === 'ready') return { result: 'ok', label: ['arm', 'chassis'].includes(key) ? '回传就绪' : key === 'serial' ? '有回传' : '正常' };
+    if (item.state === 'stale') return { result: 'fail', label: '数据过期' };
+    if (['unavailable', 'degraded'].includes(item.state)) return { result: 'fail', label: key === 'serial' ? '无回传' : ['arm', 'chassis'].includes(key) ? '未就绪' : '不可用' };
+    return { result: 'wait', label: item.state === 'recovering' ? '恢复中' : item.state === 'starting' ? '检查中' : '待检查' };
+  }
+  function frameRate(previous, id, at) {
+    const times = (previous.times || []).filter(time => at - time >= 0 && at - time < 2000);
+    const validId = typeof id === 'string' && id.trim() !== '' && Number.isSafeInteger(Number(id)) && Number(id) >= 0;
+    if (validId && id !== previous.id) times.push(at);
+    return {
+      id: validId ? id : previous.id, times,
+      fps: validId && times.length > 1 ? (times.length - 1) * 1000 / (times[times.length - 1] - times[0]) : 0,
+    };
+  }
+  return { readings, check, frameRate };
+})();
+</script>
+<script>
+
 const token='__CONTROL_TOKEN__', el=id=>document.getElementById(id);
 let current=null, first=null, selecting=false, busy=false;
-let frameURL=null, deliveredAt=0, deliveredFPS=0, frameTransfers=[], frameStarted=0;
+let frameURL=null, deliveredAt=0, deliveredFPS=0, deliveryRate={id:null,times:[]};
+let statusReceivedAt=0, deliveredFrameAge=Infinity;
 const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认同一目标',target_reacquire_timeout:'目标暂不可见',target_appearance_ambiguous:'目标匹配不唯一，机构暂停',operator_stop:'已停止',operator_connection_lost:'页面连接中断，已请求停止',working_range_limit:'目标超出当前可达范围；可修正方向已对准时保持停止',origins_or_heading_not_ready:'请先恢复零位和航向',pose_outside_working_range:'当前位置超出工作范围或 C 位置不匹配',arm_not_stopped_or_another_controller:'机构尚未禁用或串口正由其他程序控制',no_fresh_telemetry:'未收到稳定串口回传',target_appearance_lost:'目标外观丢失，请重新选择',target_lost_geometry:'目标形状变化或被遮挡，请重新选择',target_lost_flow:'目标运动无法确认，请重新选择',insufficient_feature_coverage:'目标可用细节不足，请重新选择',target_geometry_jump:'目标变化过大，请重新选择',target_outside_tracking_window:'目标离开可追踪区域，请重新选择',tracking_frame_gap:'画面间隔过长，已请求停止',alignment_error_increased:'调整后偏差增大，已请求停止',telemetry_timeout:'串口回传超时，已请求停止',target_lost_features:'目标丢失，请重新选择',stale_target:'等待目标位置更新',waiting_for_target_frame:'正在等待新画面，恢复后自动续跟',stale_camera:'相机画面过期',selection_changed_reselect:'目标已移动，请重新框选',target_has_too_few_features:'目标细节不足，请扩大框选范围',target_has_too_little_texture:'目标纹理不足，请扩大框选范围'};
 async function api(action,body={}){const r=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':token},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'操作失败');return data;}
 function showError(e){el('error').textContent=e.message||String(e);}
@@ -43,31 +248,50 @@ function renderHealth(h){
  el('healthSummary').textContent=h.state==='running'?'系统运行正常':'系统降级运行 · 可用功能继续运行';
  const box=el('componentHealth');box.replaceChildren();
  const labels={unknown:'状态未知',starting:'初始化中',ready:'正常',degraded:'降级',unavailable:'不可用',stale:'数据过期',recovering:'恢复中'};
- for(const key of ['camera','detector','calibration','motion_config','serial','arm','chassis','approach','ranging','preview','tracker','backend','journal','application']){
-   const item=h.components[key];if(!item)continue;
+ const markers={ok:'[ OK ]',fail:'[FAIL]',wait:'[WAIT]',skip:'[SKIP]'};
+ for(const [key,name] of [['camera','相机'],['detector','检测模型'],['serial','STM32'],['arm','A/B/C 机构'],['chassis','四轮底盘']]){
+   const item=h.components[key]||{}, state=consoleView.check(key,item,h.components,{phase:current?.tracking?.arm?.phase,motionLatch:h.motion_latch});
+   const row=document.createElement('li');row.className='check';row.dataset.result=state.result;
+   const marker=document.createElement('code');marker.textContent=markers[state.result];marker.setAttribute('aria-hidden','true');
+   const title=document.createElement('span');title.textContent=name;
+   const result=document.createElement('span');result.className='result';result.textContent=state.label;
+   row.title=[item.message,item.state!=='ready'?item.recovery:null].filter(Boolean).join('；');
+   row.append(marker,title,result);box.append(row);
+ }
+ const diagnostics=el('componentDiagnostics');diagnostics.replaceChildren();
+ for(const [key,item] of Object.entries(h.components)){
    if(key==='approach'&&item.code==='NOT_OBSERVED')continue;
-   if(['preview','tracker','backend','journal','application'].includes(key)&&['ready','unknown'].includes(item.state))continue;
    const row=document.createElement('div');row.className='health-item';row.dataset.state=item.state;
    const title=document.createElement('b');title.textContent=item.name+' · '+(labels[item.state]||item.state);
-   const text=document.createElement('p');text.textContent=item.message;
-   row.append(title,text);
+   const message=document.createElement('p');message.textContent=(item.code==='OK'?'':item.code+' · ')+item.message;
+   row.append(title,message);
    if(item.state!=='ready'){const recovery=document.createElement('p');recovery.textContent=item.recovery;row.append(recovery);}
-   box.append(row);
+   diagnostics.append(row);
  }
  const caps=h.capabilities;
  el('capabilitySummary').textContent=['preview','detection','arm_tracking','mission'].map((key,i)=>['画面','检测','机构追踪','行进任务'][i]+'：'+(caps[key]?.available?'可用':'不可用')).join(' · ');
- if(h.motion_latch){el('error').textContent=h.motion_latch.message+'；设备恢复后仍需明确恢复运动';}
+ if(h.motion_latch){el('error').textContent=h.motion_latch.message+(h.motion_latch.code==='STOP_UNCONFIRMED'?'；未确认禁用前禁止恢复运动':h.motion_latch.code==='OPERATOR_STOP'?'':'；设备恢复后仍需明确恢复运动');}
  const canResume=h.motion_enabled&&['camera','detector','calibration','motion_config','journal','serial'].every(key=>h.components[key]?.state==='ready')&&h.motion_latch?.code!=='STOP_UNCONFIRMED';
  el('start').disabled=busy||!canResume;el('start').hidden=!!current?.tracking?.active;
  el('stop').disabled=busy;
- for(const [id,key]of [['checkCamera','camera'],['checkModel','detector'],['checkSerial','serial']]){
-   el(id).textContent=h.components[key]?.name+'：'+(labels[h.components[key]?.state]||'状态未知');el(id).className='check '+(h.components[key]?.state==='ready'?'ok':'');
- }
  el('status').textContent=h.motion_latch?.code==='STOP_UNCONFIRMED'?'停止未确认':current?.tracking?.active?'运动任务运行中':h.state==='running'?'运行正常':'降级运行';
 }
+function renderReadings(s=current){
+ const now=performance.now(), readings=consoleView.readings(s||{}, {
+   statusAgeSeconds:statusReceivedAt?(now-statusReceivedAt)/1000:Infinity,
+   videoAgeSeconds:deliveredAt?(now-deliveredAt)/1000+deliveredFrameAge:Infinity,
+   deliveredFPS,
+ });
+ el('rates').textContent=readings.fps;el('distance').textContent=readings.distance;el('offset').textContent=readings.offset;el('pose').textContent=readings.pose;
+ el('feed').hidden=!readings.videoFresh;el('placeholder').hidden=readings.videoFresh;
+ el('frameMeta').textContent=readings.videoFresh?'1280 × 720':'—';
+ el('frameState').textContent=!readings.videoFresh?'等待新画面':!readings.frameFresh?'等待观测更新':s?.health?.capabilities?.detection?.available===false?'预览 · 检测不可用':readings.targetFresh?'目标已锁定':Array.isArray(s?.detections)?'检出 '+s.detections.length+' 个目标':'实时预览';
+ const fresh=s?.preview&&readings.frameFresh;
+ const fps=value=>typeof value==='number'&&Number.isFinite(value)?value.toFixed(1):'—';
+ el('processingReadings').textContent='画面输出 '+(fresh?fps(s.preview.fps):'—')+' fps · 追踪处理 '+(fresh?fps(s.preview.tracking_fps):'—')+' fps';
+}
 function render(s){
- current=s;const t=s.tracking||{},arm=t.arm||{},q=arm.telemetry,startup=t.startup,checks=startup?.self_check;
- const target=t.target_age_s!=null&&t.target_age_s>.15?null:t.target,stale=(s.preview?.frame_age_s??s.frame_age_s)>.4;
+ current=s;const t=s.tracking||{},arm=t.arm||{},startup=t.startup;
  const states={waiting_device:'等待 STM32 连接',detecting_restart:'检测 STM32 状态',startup_waiting:'回零等待与自检',startup_checking:'等待自检就绪',startup_preparing:'正在准备机械臂',stop_unconfirmed:'停止未确认',following:'自动跟随',searching:'寻找目标',reacquiring:'目标暂失 · 等待重获',holding:'已居中 · 保持',range_holding:'行程受限 · 保持',waiting_frame:'等待新画面',stopping:'正在停止',disabled:'已暂停',idle:'设备就绪'};
  const preparation={waiting:'回零等待与自检',preflight:'核对机构状态',disable_pending:'确认串口通信',zero_pending:'登记 B/C 起点',registered:'起点已确认',a_check_left:'A 自检 · 左侧限位',a_check_right:'A 自检 · 右侧限位',a_moving:'A 回正',bc_check_b_out:'B 自检 · 下降到上限',bc_check_b_return:'B 自检 · 返回原点',bc_check_c_out:'C 自检 · 伸出到上限',bc_check_c_return:'C 自检 · 返回原点',c_moving:'C 准备中',ready:'自动追踪就绪',uncertain:'正在重新检查设备',unconfirmed:'等待设备启动'};
  el('status').textContent=states[arm.phase]||(t.active?'自动运行':'设备准备中');
@@ -76,14 +300,6 @@ function render(s){
  el('status').className=arm.phase==='stop_unconfirmed'?'bad':t.active?'good':'';
  const preparing=['startup_waiting','startup_checking','startup_preparing'].includes(arm.phase);
  el('startupProgress').textContent=preparing?(preparation[startup?.phase]||'自检中')+(arm.startup_wait_remaining_s>0?' · '+Math.ceil(arm.startup_wait_remaining_s)+' 秒':''):t.operator_paused?'自动流程已暂停':startup?.phase==='ready'?'准备完成':states[arm.phase]||'等待设备就绪';
- el('checkCamera').textContent=checks?.camera_fresh?'相机已就绪':'相机等待中';
- el('checkModel').textContent=checks?.inference_warmup?.ready?'模型已就绪':'模型预热中';
- el('checkSerial').textContent=q?'串口已连接':'串口等待中';
- for(const [id,ok] of [['checkCamera',checks?.camera_fresh],['checkModel',checks?.inference_warmup?.ready],['checkSerial',!!q]])el(id).className='check '+(ok?'ok':'');
- el('rates').textContent=s.preview&&!stale?s.preview.tracking_fps.toFixed(1)+' FPS':'—';
- const poseFresh=!s.health||s.health.components.serial?.state==='ready';
- el('pose').textContent=q&&poseFresh?`A ${q.servo_software_deg}° · B ${q.lift_position_mm.toFixed(1)} · C ${q.slide_position_mm.toFixed(1)} mm`:q?'— 回传过期':'—';
- el('offset').textContent=target&&!stale?`横向 ${Math.round(target.offset_px[0])} · 纵向 ${Math.round(target.offset_px[1])} px`:'等待目标';
  el('start').hidden=!t.motion_available||(!t.operator_paused&&(t.active||t.auto_prepare));
  el('start').disabled=busy||!t.motion_available;
  el('stop').disabled=!t.motion_available;
@@ -93,9 +309,9 @@ function render(s){
  el('startupReport').textContent=report?'启动采样 · '+(report.metrics?.inference?.p95_ms!=null?'推理 P95 '+report.metrics.inference.p95_ms.toFixed(0)+' ms':'样本不足')+' · '+(report.status||'样本不足'):'';
  const quiet=['operator_stop','waiting_for_target_frame','target_reacquiring','power_cycle_preparing','power_cycle_confirmation_required','mcu_reset_reported','waiting_for_mcu_restart'];
  if(!busy)el('error').textContent=quiet.includes(t.reason)?'':textReason(t.reason);
- renderEvents(t.events||[]);renderHealth(s.health);
+ renderEvents(t.events||[]);renderHealth(s.health);renderReadings(s);
 }
-async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});render(await r.json());if(current.tracking?.active)await api('heartbeat');}catch(e){el('status').textContent='连接已断开';el('start').disabled=true;el('status').className='bad';el('offset').textContent='—';showError(e);}finally{setTimeout(refresh,350);}}
+async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});const s=await r.json();statusReceivedAt=performance.now();render(s);if(current.tracking?.active)await api('heartbeat');}catch(e){el('status').textContent='连接已断开';el('start').disabled=true;el('status').className='bad';el('offset').textContent='—';el('distance').textContent='—';showError(e);renderReadings();}finally{setTimeout(refresh,350);}}
 function unfreeze(){selecting=false;first=null;el('selection').style.display='none';el('cancel').hidden=true;el('feed').style.visibility='visible';el('help').textContent='';}
 el('retry').onclick=async()=>{try{await api('retry');}catch(e){showError(e);}};
 el('auto').onclick=async()=>{try{unfreeze();await api('auto');}catch(e){showError(e);}};
@@ -117,12 +333,15 @@ async function latestFrame(){
    const next=URL.createObjectURL(blob),old=frameURL;
    el('feed').src=next;frameURL=next;
    try{await el('feed').decode();}finally{if(old)URL.revokeObjectURL(old);}
-   deliveredAt=performance.now();frameTransfers.push(deliveredAt);frameTransfers=frameTransfers.filter(t=>deliveredAt-t<2000);
-   deliveredFPS=frameTransfers.length>1?(frameTransfers.length-1)*1000/(deliveredAt-frameTransfers[0]):0;
-   const transfer=deliveredAt-began,age=Number(response.headers.get('X-Frame-Age-Ms'));
+   deliveredAt=performance.now();deliveryRate=consoleView.frameRate(deliveryRate,response.headers.get('X-Frame-Id'),deliveredAt);
+   deliveredFPS=deliveryRate.fps;
+   const transfer=deliveredAt-began,rawAge=response.headers.get('X-Frame-Age-Ms'),age=rawAge===null?NaN:Number(rawAge);
+   deliveredFrameAge=Number.isFinite(age)?Math.max(0,(age+transfer)/1000):Infinity;
    el('videoDelivery').textContent=`最新帧 · 接收/解码 ${transfer.toFixed(0)} ms · 板端帧龄 ${Number.isFinite(age)?age.toFixed(0):'—'} ms`;
    el('feed').style.opacity='1';
  }catch(error){el('feed').style.opacity='.35';el('videoDelivery').textContent='等待最新画面，已停止显示积压帧';}
- finally{clearTimeout(timer);setTimeout(latestFrame,Math.max(0,66-(performance.now()-began)));}
+ finally{clearTimeout(timer);renderReadings();setTimeout(latestFrame,Math.max(0,66-(performance.now()-began)));}
 }
-latestFrame();refresh();</script></body></html>
+latestFrame();refresh();</script>
+</body>
+</html>
