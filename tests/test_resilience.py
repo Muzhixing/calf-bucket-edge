@@ -26,6 +26,53 @@ from bucket_robot.transport.telemetry import decode
 
 
 class HealthTests(unittest.TestCase):
+    def test_open_idle_uart_without_controller_reports_offline_and_recovers_on_real_bytes(self):
+        from bucket_robot.runtime.stationary import Session
+        from bucket_robot.runtime.startup import PowerCycleStore, RestartWatchPort
+        from tests.test_tracking import Reference, Sender
+
+        reference = Reference()
+        master, slave = os.openpty()
+        health = HealthRegistry()
+        for name in ("camera", "calibration", "detector"):
+            health.ready(name)
+        reference.limits.startup_policy.update(
+            automatic_restart_detection=True, mcu_restart_returns_all_axes=True
+        )
+        store = PowerCycleStore(Path(reference.directory.name) / "state.json", 8, "test")
+        session = Session(
+            reference.directory.name,
+            reference.limits,
+            smooth=True,
+            startup_store=store,
+            health=health,
+            watch_port_factory=lambda limits, log: RestartWatchPort(
+                limits, log, port=os.ttyname(slave), sender_factory=Sender, check_holders=False
+            ),
+        )
+        session.operator_paused = True
+        try:
+            session.advance_restart_watch()
+            session.restart_watch.opened_at -= 1
+            session.advance_restart_watch()
+            self.assertEqual(health.snapshot()["components"]["serial"]["code"], "STM32_OFFLINE")
+            self.assertEqual(health.snapshot()["components"]["arm"]["code"], "DEVICE_STATE_UNKNOWN")
+            os.write(master, frame())
+            for _ in range(20):
+                session.advance_restart_watch()
+                if health.snapshot()["components"]["serial"]["state"] == "ready":
+                    break
+                time.sleep(0.005)
+            self.assertEqual(health.snapshot()["components"]["serial"]["state"], "ready")
+            self.assertFalse(select.select([master], [], [], 0.05)[0])
+        finally:
+            if session.restart_watch:
+                session.restart_watch.shutdown()
+            store.close()
+            os.close(slave)
+            os.close(master)
+            reference.directory.cleanup()
+
     def test_camera_and_detection_work_without_motors_and_no_false_presence_claim(self):
         health = HealthRegistry()
         for component in ("camera", "preview", "detector", "calibration", "tracker"):
@@ -347,7 +394,10 @@ class FakeVision:
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("X-Frame-Id", str(owner.seq))
-                self.send_header("X-Observation", json.dumps(meta))
+                self.send_header(
+                    "X-Observation",
+                    json.dumps(meta, ensure_ascii=False).encode("utf-8").decode("latin-1"),
+                )
                 self.end_headers()
                 try:
                     self.wfile.write(data)
@@ -449,6 +499,7 @@ class ApplicationTests(unittest.TestCase):
         )
         self.until(lambda: self.app.session.remote_jpeg is not None)
         status = json.loads(self.get())
+        self.assertEqual(status["health"]["components"]["detector"]["message"], "正常")
         self.assertFalse(status["tracking"]["motion_available"])
         self.assertEqual(status["health"]["components"]["arm"]["code"], "DEVICE_STATE_UNKNOWN")
         self.assertIn(b"<html", self.get("/"))

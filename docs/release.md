@@ -81,4 +81,4 @@ python tools/release/deploy_release.py \
 
 `track`和`mission`现使用同一个先启动HTTP的应用外壳。发布前的`verify`仍执行完整清单验证；运行中的资源检查按组件归属降级，避免缺模型或串口导致整个页面消失。详见[故障隔离说明](resilience/README.md)。
 
-发布构建需同时包含`worker_channel.hpp`、`detector_process.hpp`以及由当前源码构建的原生程序。0.3.0的Python wheel和完整Linux ARM64原生程序均已完成本地构建，并通过无设备回放。尚未部署或切换板端入口，真实NPU与运动仍待现场验收。构建、审查和验收范围见[ARM复核记录](resilience/arm_review_20261126.md)。
+发布构建需同时包含`worker_channel.hpp`、`detector_process.hpp`以及由当前源码构建的原生程序。0.3.0的Python wheel和完整Linux ARM64原生程序均已完成本地构建，并通过无设备回放。随后已在独立板端目录完成真实摄像头、NPU及无控制器有效回传时的启动自检，原有服务入口未切换；实际目标和运动仍待现场验收。构建与审查见[ARM复核记录](resilience/arm_review_20261126.md)，本次实机证据见[板端自检记录](resilience/board_selfcheck_20261126.md)。

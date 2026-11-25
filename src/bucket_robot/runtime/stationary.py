@@ -180,7 +180,7 @@ class Session:
     def _log(self, event, data):
         messages = {
             "session_started": "系统启动，相机和模型正在准备",
-            "restart_watch_connected": "已连接 STM32，正在检查复位状态",
+            "restart_watch_connected": "串口已打开，等待 STM32 有效回传",
             "automatic_restart_detected": "检测到 STM32 复位，自动进入准备流程",
             "restart_preparation_wait": "开始回零等待，模型预热和自检并行",
             "registered_preparation_started": "STM32 已就绪，沿用 B/C 零点，开始自检",
@@ -1184,6 +1184,11 @@ class Session:
             ready = self.restart_watch.reset_ready()
             q = self.restart_watch.state
             if self.health is not None:
+                # Opening a USB UART does not prove a controller is present.
+                # The idle watcher deliberately keeps reading without throwing
+                # on silence; publish its freshness independently of boot evidence.
+                if now - max(self.restart_watch.opened_at, self.restart_watch.rx_at) > 0.7:
+                    self.health.disconnected("串口已打开，但未收到 STM32 有效回传")
                 health = self.health.snapshot()
                 if health["motion_latch"] or not health["capabilities"]["detection"]["available"]:
                     self.auto_follow = False

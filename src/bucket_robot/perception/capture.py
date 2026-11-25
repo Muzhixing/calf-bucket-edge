@@ -25,7 +25,11 @@ class NativeCapture:
         ) as response:
             if response.status != 200:
                 raise RuntimeError("frame_not_advanced")
-            metadata = json.loads(response.headers["X-Observation"])
+            # The native backend writes UTF-8 JSON into this header. Python's
+            # HTTP parser preserves header bytes as Latin-1 code points.
+            metadata = json.loads(
+                response.headers["X-Observation"].encode("latin-1").decode("utf-8")
+            )
             frame_id = int(response.headers["X-Frame-Id"])
             encoded = response.read(expected + 1)
         if frame_id != metadata["frame_id"]:
