@@ -24,6 +24,14 @@ test('real forward Z remains in metres; current tracking offsets use right/down 
   assert.equal(result.pose, 'A 73° · B 0.0 · C 10.0 mm');
   assert.equal(result.fps, '16.8');
 });
+test('temperatures expire after sensor age plus status delay; missing sensors stay unknown', () => {
+  const thermal = { age_s: .8, sensors: [{ label: 'NPU', celsius: 63.769 }, { label: 'GPU', celsius: null }] };
+  assert.equal(view.temperatures(thermal, .2)[0].value, '63.8');
+  assert.equal(view.temperatures(thermal, .2)[1].value, '—');
+  assert.equal(view.temperatures(thermal, 2.21)[0].value, '—');
+  assert.equal(view.temperatures({ ...thermal, age_s: null }, 0)[0].value, '—');
+  assert.equal(view.temperatures({ ...thermal, age_s: -1 }, 0)[0].value, '—');
+});
 test('missing data never becomes zero or a sample value', () => {
   const result = view.readings();
   for (const key of ['distance', 'offset', 'fps', 'pose']) assert.equal(result[key], '—');

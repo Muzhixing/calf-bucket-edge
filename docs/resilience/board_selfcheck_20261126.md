@@ -37,3 +37,9 @@
 ## 下一项工作
 
 有人值守、补充照明和目标桶后，验证实际目标检测与读数，再接入可用 STM32 按现有现场验收顺序测试追踪、机构和四轮任务。主分支继续由用户验收后合并。
+
+## 控制台温度与滚动更新
+
+随后按用户要求运行独立候选 `/home/elf/bucket/releases/20261126-console-thermal-v3`（97 项清单验证通过），原生程序、模型和标定沿用上述已核验输入，更新 Python/UI。温度由内核实际热区读取：SoC、bigcore0/1、littlecore、center、GPU、NPU、iwlwifi_1，共 8 路。侧边控制台可持续显示实际温度，诊断内容限制在最多 320px/40dvh 内并可独立上下滚动；视频、检测与无控制器回传提示继续运行。
+
+温度采样是独立只读线程，停止组件仍先执行原有控制退出流程。传感器缺失或过期不会改变运动能力判断。相关 22 项检查、静态/格式检查和 wheel 构建通过。板端记录位于 `/home/elf/bucket/stage-1983457/verified-status-v3.json`、`console-v3.log`、`process-v3.json`；本地资料位于 `outputs/thermal_ui_20261126/`。

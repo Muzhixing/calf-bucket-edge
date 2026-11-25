@@ -22,6 +22,7 @@ from bucket_robot.resources import default_reference
 from bucket_robot.runtime.health import HealthRegistry
 from bucket_robot.runtime.http import handler_for
 from bucket_robot.runtime.supervision import VisualSupervisor
+from bucket_robot.runtime.thermal import ThermalMonitor
 
 
 class WaitingView:
@@ -71,6 +72,7 @@ class Application:
     def __init__(self, args, native_args, *, session_factory=None, process_factory=None):
         self.args, self.native_args = args, list(native_args)
         self.health = HealthRegistry(motion_enabled=not args.observe_only)
+        self.thermal = ThermalMonitor()
         self.session = WaitingView(self.health)
         self.token = self.session.token
         self.stop_event = threading.Event()
@@ -158,6 +160,7 @@ class Application:
     def status(self):
         data = self.session.status()
         data["health"] = self.health.snapshot()
+        data["thermal"] = self.thermal.snapshot()
         if self.args.mission:
             data["task"] = self.task_status
             data["tracking"]["motion_available"] = data["health"]["capabilities"]["mission"][
@@ -564,6 +567,10 @@ class Application:
     def run(self):
         web = threading.Thread(target=self.server.serve_forever, name="bucket-http", daemon=True)
         web.start()
+        thermal = threading.Thread(
+            target=self.thermal.run, args=(self.stop_event,), name="bucket-thermal", daemon=True
+        )
+        thermal.start()
         self.start_worker("bootstrap", self.bootstrap, ())
         began = time.monotonic()
         try:
@@ -612,6 +619,7 @@ class Application:
         finally:
             self.stop_event.set()
             self.close_components()
+            thermal.join(2)
             self.server.shutdown()
             self.server.server_close()
             web.join(2)
