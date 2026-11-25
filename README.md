@@ -1,25 +1,38 @@
-# 投喂车视觉识别与机械臂追踪
+# 投喂车视觉与追踪控制
 
-当前实时视觉后端为 **C++**，模型为 **B1_C0_REG_FP16**。原启动入口已接入目标追踪与 A/B 居中控制：连续识别后锁定同一个目标，点击“开始机构追踪”后随目标位置调整。C 保持 10 mm，B 工作范围为 0–96 mm；默认仅观察。当前视角未识别到目标时可“框选容器”；本次白色容器在调整后的视角已完成一次自动识别与居中，其他视角的识别率仍需验证。
+RK3588上的实时采集、RKNN检测和双目计算使用C++；目标追踪、机构/底盘控制与任务编排使用标准Python包`bucket_robot`。静止追踪与行进任务共享同一TrackingController、身份策略与串口事务。
+
+## 开发与检查
 
 ```sh
-cd deploy/vision_v2
-./deploy.sh
-./view_live.sh                     # 快速测距
-./view_live.sh --depth-scale 1     # 全分辨率测距
-./view_live.sh --observe-only     # 完全禁用机构控制，仅观察
+python3.10 -m venv .venv
+.venv/bin/python -m pip install -e '.[desktop,dev]'
+.venv/bin/python -m unittest discover -s tests -t . -v
+.venv/bin/ruff check src tools/field tools/release tools/calibration tools/build
+.venv/bin/ruff format --check src tests tools/field tools/release tools/calibration tools/build
+.venv/bin/python -m build --wheel
 ```
 
-本机通过 SSH 打开 `http://127.0.0.1:8788/`，Ctrl+C 停止并释放相机。板端在 `/home/elf/deploy/vision_v2` 运行 `./view_hdmi.sh` 可直接显示 HDMI 画面；桌面须先停止。
+RK3588沿用已核验的Python/OpenCV/NumPy与系统RKNN环境；正式发布从wheel解包加载，不通过安装桌面OpenCV依赖替换板端环境。
 
-- `deploy/vision_cpp/`：当前原生计算与显示、构建及启动脚本。
-- `deploy/vision_cpp/tracking/`：Python 目标追踪、控制页面及原协议串口控制；采集、检测和测距仍在 C++ 中。
-- `deploy/vision_v2/`：当前冻结模型、标定、相机配置、采集与独立参照验收工具，以及本机启动入口。
-- `docs/`：运行说明、视觉输出接口及保留的硬件参考/论文快照。
-- `research/`：按要求保留的论文、封存资料及研究证据，不上传工程仓库。
+## 人工维护入口
 
-2026-11-18 未接入追踪控制时，同源双目回放、相同 HDMI 显示负载的对照中，C++ 进程树 PSS 为 179.9 MiB，较原实现减少约 160.4 MiB；稳定画面约 30 FPS、新距离约 10 次/秒。该内存结果不包含新增 Python 追踪进程。
+- [架构与依赖规则](docs/architecture.md)：能力所有权、数据流、扩展任务的方法。
+- [构建与发布手册](docs/release.md)：CMake、wheel、完整发布包、校验与部署。
+- [故障隔离与恢复](docs/resilience/README.md)：缺设备、失败降级、能力门控和停止确认。
+- [本地ARM64构建](tools/build/README.md)：容器、显式工具链和无设备回放验证。
+- [重构决策](docs/adr/0001-python-package-and-control-ownership.md)：采用分层应用与渐进迁移的理由。
+- `src/bucket_robot/tracking/controller.py`：两个业务入口共用的追踪控制器。
+- `src/bucket_robot/motion/`：命令约束、持续目标事务、ACK及禁用确认。
+- `src/bucket_robot/missions/`：阶段编排；不得重复编写轴控制或串口发送。
+- `tests/`：统一回归入口；`tools/`为人工工具；`experiments/`为候选算法。
 
-模型和标定在启动时核验 SHA-256。当前测的是视差采样区域对应的相机前向 Z；桶框中心用于对齐，桶口作业中心尚未独立定位。伸缩臂装配后须校准零位、方向、可用行程和投放点偏移。
+## 运行入口
 
-[运行说明](docs/runtime.md) · [视觉输出接口](docs/interfaces/api-rules.md) · [采集与验收](deploy/vision_v2/README.md) · [C++ 构建](deploy/vision_cpp/README.md) · [当前实测版本](docs/tracking-release-20261122.md)
+完整发布包提供`run_track.sh`和`run_mission.sh`。先按发布手册核验包与当前设备状态，再按已有现场流程运行。`python -m bucket_robot --help`和`python -m bucket_robot verify <release>`只显示帮助或校验文件，不启动设备。
+
+旧`deploy/`入口保留兼容转发；原Python实现已经移入正式包。旧assisted脚本需要显式设置`BUCKET_RELEASE_ROOT`，统一使用A/B追踪，不再默认拼接日期目录。冻结v1及既有板端入口作为回退保留，重构候选包通过软件回归不代表已完成新的实车验收。
+
+## 资源与记录
+
+模型选择、相机标定及原生源码仍在`deploy/vision_cpp/`；默认机构配置随包发布于`src/bucket_robot/resources/`。`outputs/`保存本地验证资料，`research/`保存论文与研究档案，均不作为正式程序的运行依赖。历史现场证据及各阶段适用范围保留在`docs/`。

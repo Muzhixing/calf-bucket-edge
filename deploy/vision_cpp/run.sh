@@ -20,6 +20,6 @@ for arg in "$@"; do
     break
   fi
 done
-exec python3 "$BASE/tracking/runtime.py" --native "$BASE/vision" --model "$BASE/assets/B1_C0_REG_FP16.rknn" \
+exec python3 -m bucket_robot track --native "$BASE/vision" --model "$BASE/assets/B1_C0_REG_FP16.rknn" \
   --calibration "$BASE/assets/calibration.yml" --calibration-sha "$(cat calibration.sha256)" \
   --cores 0_1_2 --assets "$BASE/assets" --output "$BASE/runs/$ID" --id "$ID" "$@"

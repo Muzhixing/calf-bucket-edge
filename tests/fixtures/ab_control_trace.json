@@ -1,0 +1,6808 @@
+{
+  "provenance": "Generated from before_sources.tar.gz, before the refactor; no hardware",
+  "policy_sha256": "d80da2b38bba72afdc412f1e8d313ca97e724b2d1c0439e7577f9a7907346020",
+  "intrinsics": [
+    700,
+    700,
+    640,
+    360
+  ],
+  "rows": [
+    {
+      "state": {
+        "servo_software_deg": 90,
+        "lift_position_mm": 30.0,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 10.0,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          88,
+          30,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 89,
+        "lift_position_mm": 30.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        88,
+        30,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.05,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          87,
+          30,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 88,
+        "lift_position_mm": 30.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        87,
+        30,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.1,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          87,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 87,
+        "lift_position_mm": 30.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        87,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.15,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          87,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 87,
+        "lift_position_mm": 31.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        87,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.2,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          86,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 86,
+        "lift_position_mm": 31.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        86,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.25,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          84,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 85,
+        "lift_position_mm": 32.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        84,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.3,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          84,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 84,
+        "lift_position_mm": 32.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        84,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.35,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          84,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 84,
+        "lift_position_mm": 33.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        84,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.4,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          83,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 83,
+        "lift_position_mm": 33.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        83,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.45,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          81,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 82,
+        "lift_position_mm": 34.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        81,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.5,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          81,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 81,
+        "lift_position_mm": 34.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        81,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.55,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          81,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 81,
+        "lift_position_mm": 35.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        81,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.6,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          80,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 80,
+        "lift_position_mm": 35.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        80,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.65,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          78,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 79,
+        "lift_position_mm": 36.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        78,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.7,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          78,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 78,
+        "lift_position_mm": 36.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        78,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.75,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          78,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 78,
+        "lift_position_mm": 37.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        78,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.8,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          77,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 77,
+        "lift_position_mm": 37.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        77,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.85,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          75,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 76,
+        "lift_position_mm": 38.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        75,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.9,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          75,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 75,
+        "lift_position_mm": 38.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        75,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 10.95,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 10.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          75,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 75,
+        "lift_position_mm": 39.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        75,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.0,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          74,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 74,
+        "lift_position_mm": 39.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        74,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.05,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          72,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 73,
+        "lift_position_mm": 40.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        72,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.1,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          72,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 72,
+        "lift_position_mm": 40.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        72,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.15,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          72,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 72,
+        "lift_position_mm": 41.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        72,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.2,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          71,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 71,
+        "lift_position_mm": 41.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        71,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.25,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          69,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 70,
+        "lift_position_mm": 42.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        69,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.3,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          69,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 69,
+        "lift_position_mm": 42.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        69,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.35,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          69,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 69,
+        "lift_position_mm": 43.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        69,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.4,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          68,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 68,
+        "lift_position_mm": 43.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        68,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.45,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          66,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 67,
+        "lift_position_mm": 44.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        66,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.5,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          66,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 66,
+        "lift_position_mm": 44.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        66,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.55,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          66,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 66,
+        "lift_position_mm": 45.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        66,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.6,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          65,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 65,
+        "lift_position_mm": 45.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        65,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.65,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          63,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 64,
+        "lift_position_mm": 46.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        63,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.7,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          63,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 63,
+        "lift_position_mm": 46.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        63,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.75,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          63,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 63,
+        "lift_position_mm": 47.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        63,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.8,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          62,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 62,
+        "lift_position_mm": 47.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        62,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.85,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          60,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 61,
+        "lift_position_mm": 48.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        60,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.9,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          60,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 60,
+        "lift_position_mm": 48.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        60,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 11.95,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 11.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          60,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 60,
+        "lift_position_mm": 49.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        60,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.0,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 12.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          59,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 59,
+        "lift_position_mm": 49.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        59,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.05,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 12.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          57,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 58,
+        "lift_position_mm": 50.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        57,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.1,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 12.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          57,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 57,
+        "lift_position_mm": 50.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        57,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.15,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 12.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          57,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 57,
+        "lift_position_mm": 51.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        57,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.2,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          70,
+          55
+        ],
+        "timestamp": 12.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          56,
+          54,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        56,
+        54,
+        0
+      ],
+      "b_origin": 30.0,
+      "now": 12.25,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.3,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.35,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.4,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.45,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.5,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.55,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.6,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.65,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.7,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.75,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.8,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.85,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.9,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 12.95,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 12.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.0,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.05,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.1,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.15,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.2,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.25,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.3,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.35,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.4,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.45,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          0,
+          0
+        ],
+        "timestamp": 13.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.5,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.55,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": null,
+        "stop": true,
+        "holding": true,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 30.0,
+      "now": 13.6,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          56,
+          52,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": true
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 56,
+        "lift_position_mm": 52.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        56,
+        52,
+        0
+      ],
+      "b_origin": 51.5,
+      "now": 13.65,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          59,
+          52,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 57,
+        "lift_position_mm": 52.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        59,
+        52,
+        0
+      ],
+      "b_origin": 51.5,
+      "now": 13.7,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          59,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 58,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        59,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 13.75,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          59,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 59,
+        "lift_position_mm": 51.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        59,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 13.8,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          59,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 59,
+        "lift_position_mm": 50.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        59,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 13.85,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          60,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 60,
+        "lift_position_mm": 50.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        60,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 13.9,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          61,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 61,
+        "lift_position_mm": 49.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        61,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 13.95,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 13.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          62,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 62,
+        "lift_position_mm": 49.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        62,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.0,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          62,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 62,
+        "lift_position_mm": 48.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        62,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.05,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          63,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 63,
+        "lift_position_mm": 48.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        63,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.100000000000001,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.100000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          64,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 64,
+        "lift_position_mm": 47.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        64,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.15,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          65,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 65,
+        "lift_position_mm": 47.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        65,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.2,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          65,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 65,
+        "lift_position_mm": 46.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        65,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.25,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          66,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 66,
+        "lift_position_mm": 46.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        66,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.3,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          67,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 67,
+        "lift_position_mm": 45.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        67,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.350000000000001,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.350000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          68,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 68,
+        "lift_position_mm": 45.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        68,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.4,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          68,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 68,
+        "lift_position_mm": 44.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        68,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.45,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          69,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 69,
+        "lift_position_mm": 44.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        69,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.5,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          70,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 70,
+        "lift_position_mm": 43.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        70,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.55,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          71,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 71,
+        "lift_position_mm": 43.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        71,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.600000000000001,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.600000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          71,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 71,
+        "lift_position_mm": 42.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        71,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.65,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          72,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 72,
+        "lift_position_mm": 42.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        72,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.7,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          73,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 73,
+        "lift_position_mm": 41.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        73,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.75,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          74,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 74,
+        "lift_position_mm": 41.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        74,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.8,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          74,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 74,
+        "lift_position_mm": 40.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        74,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.850000000000001,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.850000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          75,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 75,
+        "lift_position_mm": 40.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        75,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.9,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          76,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 76,
+        "lift_position_mm": 39.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        76,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 14.95,
+      "identity": 1,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 14.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          77,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 77,
+        "lift_position_mm": 39.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        77,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.0,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          79,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 78,
+        "lift_position_mm": 38.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        79,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.05,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          80,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 79,
+        "lift_position_mm": 38.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        80,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.100000000000001,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.100000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          80,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 80,
+        "lift_position_mm": 37.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        80,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.15,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          80,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 80,
+        "lift_position_mm": 37.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        80,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.2,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          81,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 81,
+        "lift_position_mm": 36.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        81,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.25,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          82,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 82,
+        "lift_position_mm": 36.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        82,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.3,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          83,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 83,
+        "lift_position_mm": 35.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        83,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.350000000000001,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.350000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          83,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 83,
+        "lift_position_mm": 35.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        83,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.4,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          84,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 84,
+        "lift_position_mm": 34.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        84,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.45,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          85,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 85,
+        "lift_position_mm": 34.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        85,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.5,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          86,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 86,
+        "lift_position_mm": 33.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        86,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.55,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          86,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 86,
+        "lift_position_mm": 33.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        86,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.600000000000001,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.600000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          87,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 87,
+        "lift_position_mm": 32.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        87,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.65,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          88,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 88,
+        "lift_position_mm": 32.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        88,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.7,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          89,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 89,
+        "lift_position_mm": 31.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        89,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.75,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          89,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 89,
+        "lift_position_mm": 31.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        89,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.8,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          90,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 90,
+        "lift_position_mm": 30.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        90,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.850000000000001,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.850000000000001,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          91,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 91,
+        "lift_position_mm": 30.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        91,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.9,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 29.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 15.95,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          -55,
+          -45
+        ],
+        "timestamp": 15.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          28,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 29.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        28,
+        0
+      ],
+      "b_origin": 52.0,
+      "now": 16.0,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          28,
+          0
+        ],
+        "stop": true,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 29.0,
+        "slide_position_mm": 0
+      },
+      "target": null,
+      "b_origin": 52.0,
+      "now": 16.05,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 29.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.1,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 30.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.15,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 30.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.2,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 31.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.25,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 31.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.3,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 32.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.35,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 32.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.4,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 33.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.45,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 33.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.5,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 34.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.55,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 34.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.6,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 35.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.65,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 35.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.7,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 36.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.75,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 36.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.8,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 37.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.85,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 37.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.9,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 38.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 16.95,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 16.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 38.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.0,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 39.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.05,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 39.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.1,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 40.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.15,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 40.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.2,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.2,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 41.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.25,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 41.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.3,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 42.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.35,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 42.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.4,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 43.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.45,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.45,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 43.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.5,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 44.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.55,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 44.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.6,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 45.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.65,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 45.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.7,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.7,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 46.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.75,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 46.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.8,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 47.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.85,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 47.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.9,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 48.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 17.95,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 17.95,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 48.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.0,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.0,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 49.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.05,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.05,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 49.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.1,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.1,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 50.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.15,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.15,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 50.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.200000000000003,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.200000000000003,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 51.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.25,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.25,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 51.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.3,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.3,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 52.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.35,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.35,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 52.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.4,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.4,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          53,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 53.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        53,
+        0
+      ],
+      "b_origin": 29.0,
+      "now": 18.450000000000003,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.450000000000003,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 53.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.5,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.5,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 54.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.55,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.55,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 54.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.6,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.6,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 55.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.65,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.65,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 55.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.700000000000003,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.700000000000003,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 56.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.75,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.75,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 56.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.8,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.8,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 57.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.85,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.85,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 57.5,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.9,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.9,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    },
+    {
+      "state": {
+        "servo_software_deg": 92,
+        "lift_position_mm": 58.0,
+        "slide_position_mm": 0
+      },
+      "target": [
+        92,
+        77,
+        0
+      ],
+      "b_origin": 53.0,
+      "now": 18.950000000000003,
+      "identity": 2,
+      "target_observation": {
+        "box": [
+          400,
+          200,
+          650,
+          450
+        ],
+        "offset_px": [
+          5,
+          80
+        ],
+        "timestamp": 18.950000000000003,
+        "method": "flow"
+      },
+      "expected": {
+        "goal": [
+          92,
+          77,
+          0
+        ],
+        "stop": false,
+        "holding": false,
+        "normalizing_b": false
+      }
+    }
+  ]
+}

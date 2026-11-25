@@ -1,22 +1,20 @@
 #!/bin/sh
+# Standard CMake configure/build/install; this script keeps the legacy output paths.
 set -eu
-cd "$(dirname "$0")"
-BASE=$(pwd)
-SDK=${RKNN_SDK_DIR:-$BASE/deps/rknn}
-CV=${OPENCV_PREFIX:-$BASE/deps/install}
-GST_HEADERS=${GST_INCLUDE_DIR:-$BASE/deps/headers/usr/include/gstreamer-1.0}
-mkdir -p lib
-# Link to local copies and give the runtime a deployment-local library search path.
-for name in core imgproc imgcodecs calib3d features2d flann videoio; do
-    cp -L "$CV/lib/libopencv_$name.so.4.10.0" "lib/libopencv_$name.so.410.new"
-    mv -f "lib/libopencv_$name.so.410.new" "lib/libopencv_$name.so.410"
+BASE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+BUILD=${BUCKET_NATIVE_BUILD_DIR:-$BASE/build}
+CMAKE_BIN=${BUCKET_CMAKE:-cmake}
+"$CMAKE_BIN" -S "$BASE" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release \
+  -DOPENCV_PREFIX="${OPENCV_PREFIX:-$BASE/deps/install}" \
+  -DRKNN_SDK_DIR="${RKNN_SDK_DIR:-$BASE/deps/rknn}" \
+  -DGST_INCLUDE_DIR="${GST_INCLUDE_DIR:-$BASE/deps/headers/usr/include/gstreamer-1.0}"
+"$CMAKE_BIN" --build "$BUILD" --parallel "${BUCKET_BUILD_JOBS:-1}"
+"$CMAKE_BIN" --install "$BUILD" --prefix "$BUILD/package"
+mkdir -p "$BASE/lib"
+for library in "$BUILD/package/lib/"*.so.*; do
+  name=$(basename "$library")
+  cp "$library" "$BASE/lib/$name.new"
+  mv -f "$BASE/lib/$name.new" "$BASE/lib/$name"
 done
-g++ -O3 -std=c++17 -Wall -Wextra -Wno-deprecated-declarations -pthread main.cpp \
-  -I"$SDK" -I"$CV/include/opencv4" -I"$GST_HEADERS" \
-  $(pkg-config --cflags glib-2.0 gobject-2.0 libdrm) \
-  -L"$CV/lib" -Wl,-rpath,'$ORIGIN/lib' \
-  -lopencv_calib3d -lopencv_imgcodecs -lopencv_imgproc -lopencv_core -lopencv_videoio \
-  -L/usr/lib -lrknnrt -lcrypto \
-  -l:libgstapp-1.0.so.0 -l:libgstreamer-1.0.so.0 \
-  $(pkg-config --libs glib-2.0 gobject-2.0 libdrm) -o .vision.new
-mv -f .vision.new vision
+cp "$BUILD/package/vision" "$BASE/.vision.new"
+mv -f "$BASE/.vision.new" "$BASE/vision"

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bucket-robot"
+version = "0.3.0"
+description = "RK3588 bucket perception, tracking and motion control"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24,<3"]
+
+[project.optional-dependencies]
+desktop = ["opencv-python-headless>=4.10,<4.11"]
+dev = ["build>=1.2", "ruff>=0.8"]
+
+[project.scripts]
+bucket-track = "bucket_robot.runtime.application:track_main"
+bucket-mission = "bucket_robot.runtime.application:mission_main"
+bucket-forward = "bucket_robot.missions.forward:main"
+bucket-telemetry = "bucket_robot.transport.telemetry:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bucket_robot = ["resources/*.json", "runtime/*.html"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["F", "E9"]

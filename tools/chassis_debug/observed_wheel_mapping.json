@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-23",
+  "orientation": "Vehicle's forward travel direction defines left/right and front/rear",
+  "purpose": "Diagnostic observations only; not loaded by motion control",
+  "encoder_channels": {
+    "A": {
+      "timer": "TIM2",
+      "counter_address": "0x40000024",
+      "source_nominal_position": "left_front",
+      "observed_physical_position": "right_rear",
+      "evidence": "outputs/chassis_debug_20261123/registers/manual_leftrear_20261123_01/registers.jsonl",
+      "run_name_note": "Named before user clarified that the manually rotated wheel was physically right rear",
+      "operator_confirmation": "用户确认转的是车朝向的右后轮",
+      "samples": 624,
+      "net_counts": -14700,
+      "opposite_main_read_intervals": 0,
+      "motion_direction_physical": "not recorded as forward/backward; operator maintained one direction",
+      "matching_pwm_output_verified": false,
+      "latest_evidence": "outputs/chassis_debug_20261123/registers/mapping_four_20261123_01/registers.jsonl",
+      "order_evidence": "Operator specified LF, RF, RR, LR and confirmed completion; observed activation order D, B, A, C",
+      "active_window_s": [
+        37.848,
+        44.865
+      ]
+    },
+    "B": {
+      "timer": "TIM3",
+      "source_nominal_position": "left_rear",
+      "observed_physical_position": "right_front",
+      "latest_evidence": "outputs/chassis_debug_20261123/registers/mapping_four_20261123_01/registers.jsonl",
+      "order_evidence": "Operator specified LF, RF, RR, LR and confirmed completion; observed activation order D, B, A, C",
+      "active_window_s": [
+        18.363,
+        27.103
+      ],
+      "matching_pwm_output_verified": false
+    },
+    "C": {
+      "timer": "TIM4",
+      "source_nominal_position": "right_front",
+      "observed_physical_position": "left_rear",
+      "latest_evidence": "outputs/chassis_debug_20261123/registers/mapping_four_20261123_01/registers.jsonl",
+      "order_evidence": "Operator specified LF, RF, RR, LR and confirmed completion; observed activation order D, B, A, C",
+      "active_window_s": [
+        45.306,
+        52.763
+      ],
+      "matching_pwm_output_verified": false
+    },
+    "D": {
+      "timer": "TIM8",
+      "source_nominal_position": "right_rear",
+      "observed_physical_position": "left_front",
+      "latest_evidence": "outputs/chassis_debug_20261123/registers/mapping_four_20261123_01/registers.jsonl",
+      "order_evidence": "Operator specified LF, RF, RR, LR and confirmed completion; observed activation order D, B, A, C",
+      "active_window_s": [
+        10.826,
+        18.003
+      ],
+      "matching_pwm_output_verified": false
+    }
+  },
+  "pwm_to_physical_wheel_mapping_verified": false,
+  "raw_register_key_note": "encoder_lf/lb/rf/rb and pwm_lf/lb/rf/rb in raw JSON are nominal channel names A/B/C/D, not independently verified physical positions",
+  "completed_encoder_order": [
+    "D",
+    "B",
+    "A",
+    "C"
+  ],
+  "warning": "Encoder location mapping only; physical forward/backward sign and PWM-to-wheel matching have not been independently established."
+}

@@ -219,12 +219,15 @@ struct Display {
   std::vector<std::thread> clients;
   std::atomic<int> active{0};
   int server = -1;
-  std::string html, folder;
+  std::string html, folder, tracking_overlay;
   bool hdmi;
   long displayed = 0;
   Display(bool on_hdmi, int port, const std::string &assets,
-          const std::string &output)
-      : folder(output), hdmi(on_hdmi) {
+          const std::string &output, const std::string &overlay_file = "")
+      : folder(output),
+        tracking_overlay(overlay_file.empty() ? output + "/tracking_overlay.json"
+                                             : overlay_file),
+        hdmi(on_hdmi) {
     std::ifstream f(assets + "/preview.html");
     html.assign(std::istreambuf_iterator<char>(f), {});
     { // Loopback capture/status also serves the tracking controller in HDMI mode.
@@ -279,7 +282,7 @@ struct Display {
           // The controller publishes only observations/confirmed state here;
           // serial ownership remains in the original-protocol worker.
           try {
-            std::ifstream state_file(folder + "/tracking_overlay.json");
+            std::ifstream state_file(tracking_overlay);
             if (state_file) {
               std::string body((std::istreambuf_iterator<char>(state_file)), {});
               if (body.size() < 16384) {
@@ -414,7 +417,8 @@ struct Display {
         response("application/json", s);
         return;
       }
-      if (path == "/capture.jpg" || path == "/capture.bgr") {
+      if (path == "/capture.jpg" || path == "/capture.bgr" ||
+          path == "/capture.sbs.bgr") {
         Packet p;
         {
           std::unique_lock<std::mutex> lock(mutex);
@@ -432,16 +436,22 @@ struct Display {
           // for overlay/JPEG/HDMI completion adds display latency to feedback.
           p = pending;
         }
-        if (p.left.empty() || p.json.empty()) {
+        const bool stereo = path == "/capture.sbs.bgr";
+        if (p.left.empty() || p.json.empty() ||
+            (stereo && (p.raw.rows != 720 || p.raw.cols != 2560 ||
+                        p.raw.type() != CV_8UC3))) {
           sendtext(fd, "HTTP/1.1 503 Unavailable\r\nContent-Length: 0\r\n\r\n");
           return;
         }
         // Local controller consumes exact pixels without a JPEG encode/decode
         // round trip. Keep the JPEG route for field evidence and diagnostics.
-        const bool raw = path == "/capture.bgr";
+        const bool raw = path == "/capture.bgr" || stereo;
         std::vector<uchar> encoded;
         cv::Mat pixels;
-        if (raw) pixels = p.left.isContinuous() ? p.left : p.left.clone();
+        if (raw) {
+          const cv::Mat &source = stereo ? p.raw : p.left;
+          pixels = source.isContinuous() ? source : source.clone();
+        }
         else cv::imencode(".jpg", p.left, encoded, {cv::IMWRITE_JPEG_QUALITY, 90});
         size_t size = raw ? pixels.total()*pixels.elemSize() : encoded.size();
         std::string header = "HTTP/1.1 200 OK\r\nConnection: close\r\n"

@@ -19,7 +19,6 @@ htmlcov/
 /outputs/
 /v1/
 /v2/
-/tests/
 /calibration_assets/
 /docs/history/
 /docs/hardware/
@@ -29,7 +28,6 @@ htmlcov/
 /docs/README.md
 /HANDOFF_BACKBONE_STUDY.md
 /CONTRIBUTING.md
-/pyproject.toml
 /requirements-dev.txt
 /tools/package_field_evidence.py
 /tools/stm32_uart_diagnostic.py
@@ -46,3 +44,10 @@ htmlcov/
 # Local mock/motion task fixtures
 /config/mock_task.json
 /config/vehicle_motion_task.json
+
+# Standard package build output
+*.egg-info/
+/build/
+/dist/
+/releases/
+/deploy/vision_cpp/build/

@@ -304,7 +304,8 @@ float percentile(std::vector<float> v, double q) {
 }
 struct Geometry {
   cv::Mat lm1, lm2, rm1, rm2;
-  double factor, fx, fy;
+  double factor=0, fx=1, fy=1;
+  Geometry()=default;
   Geometry(const std::string &path) {
     cv::FileStorage f(path, cv::FileStorage::READ);
     check(f.isOpened(), "calibration open");
@@ -595,7 +596,9 @@ struct ProcessStereo {
       close(send_fd);
       close(receive_fd);
       int status;
-      waitpid(pid, &status, 0);
+      auto deadline=now()+.2;
+      while(waitpid(pid,&status,WNOHANG)==0 && now()<deadline) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      if(waitpid(pid,&status,WNOHANG)==0) { kill(pid,SIGKILL);while(waitpid(pid,&status,0)<0 && errno==EINTR) {} }
     }
     if (memory && memory != MAP_FAILED)
       munmap(memory, 2 * image_bytes + thumb_bytes);

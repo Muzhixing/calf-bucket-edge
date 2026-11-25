@@ -27,6 +27,7 @@ std::string sha256(const std::string &path) {
     s << std::setw(2) << int(b);
   return s.str();
 }
+#include "detector_process.hpp"
 struct Guidance {
   std::optional<Box> previous;
   long target_start = 0, aligned_since = 0;
@@ -91,6 +92,8 @@ int main(int argc, char **argv) {
   signal(SIGINT, signal_stop);
   signal(SIGTERM, signal_stop);
   signal(SIGHUP, signal_stop);
+  if (argc > 1 && std::string(argv[1]) == "--detector-worker")
+    return detector_worker(argc, argv);
   try {
     std::map<std::string, std::string> a{
         {"--seconds", "3600"},
@@ -99,9 +102,17 @@ int main(int argc, char **argv) {
         {"--id", "live"},
         {"--device",
          "/dev/v4l/by-id/usb-USB_Camera_USB_Camera_01.00.00-video-index0"}};
-    bool hdmi = false;
+    bool hdmi = false, disable_model = false, raw_preview = false;
     for (int i = 1; i < argc; ++i) {
       std::string k = argv[i];
+      if (k == "--disable-model") {
+        disable_model = true;
+        continue;
+      }
+      if (k == "--raw-preview") {
+        raw_preview = true;
+        continue;
+      }
       if (k == "--hdmi") {
         hdmi = true;
         continue;
@@ -110,7 +121,7 @@ int main(int argc, char **argv) {
                 k == "--id" || k == "--device" || k == "--model" ||
                 k == "--calibration" || k == "--calibration-sha" ||
                 k == "--assets" || k == "--output" || k == "--replay" ||
-                k == "--cores",
+                k == "--cores" || k == "--tracking-overlay",
             "unknown argument");
       check(i + 1 < argc, "missing argument value");
       a[k] = argv[++i];
@@ -126,42 +137,56 @@ int main(int argc, char **argv) {
                              "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW"
                              "XYZ0123456789_.-") == std::string::npos,
           "invalid run id");
-    auto modelpath = fs::canonical(a.at("--model")).string(),
-         calpath = fs::canonical(a.at("--calibration")).string();
-    auto hash = sha256(modelpath);
-    check(
-        hash ==
-            "4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7",
-        "frozen model hash mismatch");
-    check(sha256(calpath) == a.at("--calibration-sha"),
-          "calibration matrix hash mismatch");
+    std::string modelpath = a.count("--model") ? a["--model"] : "";
+    std::string calpath = a.count("--calibration") ? a["--calibration"] : "";
+    std::string hash = "unavailable";
+    std::string calibration_hash = "unavailable";
+    bool calibration_valid = false;
+    std::unique_ptr<Geometry> calibrated;
+    if (!raw_preview) {
+      try {
+        calibration_hash = sha256(calpath);
+        check(calibration_hash == a.at("--calibration-sha"),
+              "calibration matrix hash mismatch");
+        calibrated = std::make_unique<Geometry>(calpath);
+        calibration_valid = true;
+      } catch (const std::exception &e) {
+        std::cerr << "calibration unavailable: " << e.what() << '\n';
+      }
+    }
+    Geometry raw_geometry;
+    Geometry &geo = calibrated ? *calibrated : raw_geometry;
+    try {
+      hash = sha256(modelpath);
+    } catch (const std::exception &) {
+    }
     std::string output = a.at("--output");
     check(fs::create_directory(output), "output exists or cannot be created");
     std::cerr << "MODEL=" << modelpath << " SHA256=" << hash
-              << "\nCALIBRATION=" << calpath << " SHA256=" << sha256(calpath)
+              << "\nCALIBRATION=" << calpath << " SHA256=" << calibration_hash
               << "\nRGB / 640x360+140 vertical padding / score .536 / NMS .45 "
                  "/ depth_scale="
               << scale << " / serial disabled\nOUTPUT=" << fs::absolute(output)
               << '\n';
     std::ofstream(output + "/binding.json")
         << "{\"model_sha256\":\"" << hash << "\",\"calibration_sha256\":\""
-        << sha256(calpath) << "\",\"depth_scale\":" << scale
+        << calibration_hash << "\",\"depth_scale\":" << scale
         << ",\"backend\":\"cpp\",\"input\":\""
         << (a.count("--replay") ? "replay" : "camera")
         << "\",\"serial_enabled\":false}\n";
     affinity({4, 5, 6, 7});
     cv::setNumThreads(1);
-    Geometry geo(calpath);
-    ProcessStereo stereo(geo, scale);
-    affinity({6});
-    Model model(modelpath);
-    if (a.count("--cores")) {
-      auto c = a["--cores"];
-      check(c == "auto" || c == "0_1_2", "core mask");
-      if (c == "0_1_2")
-        check(!rknn_set_core_mask(model.ctx, RKNN_NPU_CORE_0_1_2),
-              "NPU all cores");
+    std::unique_ptr<ProcessStereo> stereo;
+    if (calibration_valid) {
+      try {
+        stereo = std::make_unique<ProcessStereo>(geo, scale);
+      } catch (const std::exception &e) {
+        std::cerr << "range unavailable: " << e.what() << '\n';
+      }
     }
+    affinity({6});
+    ProcessDetector model(fs::absolute(argv[0]).string(), modelpath,
+                          a.count("--cores") ? a["--cores"] : "auto");
     std::vector<cv::Mat> images;
     if (a.count("--replay")) {
       std::ifstream list(a["--replay"]);
@@ -176,7 +201,9 @@ int main(int argc, char **argv) {
       }
       check(!images.empty(), "empty replay corpus");
     }
-    Display display(hdmi, port, a.at("--assets"), output);
+    Display display(hdmi, port, a.at("--assets"), output,
+                    a.count("--tracking-overlay") ? a["--tracking-overlay"]
+                                                  : "");
     Source reader(geo, a["--device"], images);
     Guidance guidance(id);
     std::ofstream log(output + "/frames.jsonl");
@@ -201,7 +228,9 @@ int main(int argc, char **argv) {
       Timings timing;
       timing["left_remap_ms"] = item.remap_ms;
       timing["left_remap_opencl"] = item.remap_opencl ? 1 : 0;
-      auto detections = model.detect_with_recovery(item.left, timing);
+      auto detections = (!disable_model && calibration_valid)
+                            ? model.detect_with_recovery(item.left, timing)
+                            : std::vector<Box>{};
       std::optional<Box> box;
       if (!detections.empty())
         box = detections[0];
@@ -225,35 +254,45 @@ int main(int argc, char **argv) {
       bool discarded = false;
       long attempted_source = source;
       double attempted_time = source_time;
-      if (stereo.ready()) {
-        attempt = stereo.get();
-        ++attemptcount;
-        if (epoch == source_epoch && same(box, source_box) &&
-            now() - source_time <= 1.5) {
-          fresh = attempt->z;
-          last_reason = reasons[attempt->reason];
-          if (fresh) {
-            value = value ? .9 * *fresh + .1 * *value : *fresh;
-            accepted_source = source;
-            accepted_time = source_time;
-            accepted_box = source_box;
-            thumb = attempt->thumb;
-            roi = attempt->roi;
-            ++newcount;
-            ++rate_new;
+      try {
+        if (stereo && stereo->ready()) {
+          attempt = stereo->get();
+          ++attemptcount;
+          if (epoch == source_epoch && same(box, source_box) &&
+              now() - source_time <= 1.5) {
+            fresh = attempt->z;
+            last_reason = reasons[attempt->reason];
+            if (fresh) {
+              value = value ? .9 * *fresh + .1 * *value : *fresh;
+              accepted_source = source;
+              accepted_time = source_time;
+              accepted_box = source_box;
+              thumb = attempt->thumb;
+              roi = attempt->roi;
+              ++newcount;
+              ++rate_new;
+            }
+          } else {
+            discarded = true;
+            last_reason = "obsolete_target_or_frame";
           }
-        } else {
-          discarded = true;
-          last_reason = "obsolete_target_or_frame";
         }
-      }
-      if (box && !stereo.pending) {
-        source = seq;
-        source_time = item.arrival;
-        source_box = box;
-        source_epoch = epoch;
-        stereo.submit(item.left, item.raw(cv::Rect(1280, 0, 1280, 720)), *box,
-                      timing);
+        if (box && stereo && !stereo->pending) {
+          source = seq;
+          source_time = item.arrival;
+          source_box = box;
+          source_epoch = epoch;
+          stereo->submit(item.left, item.raw(cv::Rect(1280, 0, 1280, 720)),
+                         *box, timing);
+        }
+        if (stereo && stereo->pending && now() - stereo->submitted > 2)
+          throw std::runtime_error("range timeout");
+      } catch (const std::exception &e) {
+        std::cerr << "range disabled: " << e.what() << '\n';
+        stereo.reset();
+        value.reset();
+        accepted_box.reset();
+        thumb.release();
       }
       double end = now();
       ++count;
@@ -277,7 +316,8 @@ int main(int argc, char **argv) {
       p.status = fresh ? "new" : value ? "held" : "invalid";
       p.thumb = thumb;
       p.roi = roi;
-      auto g = guidance.update(p, geo);
+      auto g =
+          calibration_valid ? guidance.update(p, geo) : std::string("null");
       std::ostringstream row;
       row << std::setprecision(12);
       std::string selected = box ? boxes_json({*box}) : "[]";
@@ -288,7 +328,8 @@ int main(int argc, char **argv) {
           << ",\"detected\":" << (box ? "true" : "false")
           << ",\"selected\":" << selected
           << ",\"detections\":" << boxes_json(detections)
-          << ",\"tracking_candidates\":" << boxes_json(model.tracking_candidates)
+          << ",\"tracking_candidates\":"
+          << boxes_json(model.tracking_candidates)
           << ",\"distance_m\":" << number(value)
           << ",\"raw_distance_m\":" << number(fresh)
           << ",\"measurement_status\":\"" << p.status
@@ -314,14 +355,38 @@ int main(int argc, char **argv) {
           << ",\"discarded\":" << (discarded ? "true" : "false")
           << ",\"worker\":"
           << (attempt ? timings_json(attempt->timing) : "null") << '}';
+      std::string detector_state =
+          disable_model || !calibration_valid ? "unavailable" : model.state;
+      std::string detector_code = disable_model        ? "MODEL_DISABLED"
+                                  : !calibration_valid ? "CALIBRATION_INVALID"
+                                                       : model.code;
+      auto base = row.str();
+      base.pop_back();
+      row.str("");
+      row.clear();
+      row << base;
+      row << ",\"components\":{\"detector\":{\"state\":\"" << detector_state
+          << "\",\"code\":\"" << detector_code << "\",\"message\":\""
+          << (detector_state == "ready" ? "正常" : "检测不可用，正在重新检查")
+          << "\"},"
+          << "\"calibration\":{\"state\":\""
+          << (calibration_valid ? "ready" : "unavailable") << "\",\"code\":\""
+          << (calibration_valid ? "OK" : "CALIBRATION_INVALID")
+          << "\",\"message\":\""
+          << (calibration_valid ? "正常" : "标定不可用，仅显示原始画面")
+          << "\"},"
+          << "\"ranging\":{\"state\":\"" << (stereo ? "ready" : "unavailable")
+          << "\",\"code\":\"" << (stereo ? "OK" : "RANGING_UNAVAILABLE")
+          << "\",\"message\":\"" << (stereo ? "正常" : "测距不可用") << "\"}}}";
       p.json = row.str();
       log << p.json << '\n';
       if (count % 30 == 0)
         log.flush();
       display.submit(std::move(p));
     }
-    if (stereo.pending)
-      stereo.get();
+    // Workers have bounded shutdown; inference failure never owns camera
+    // lifetime.
+    stereo.reset();
     double duration = now() - start;
     std::ostringstream summary;
     summary << "{\"seconds\":" << duration << ",\"frames\":" << count
