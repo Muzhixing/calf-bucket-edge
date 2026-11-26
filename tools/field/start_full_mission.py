@@ -19,7 +19,12 @@ import time
 from urllib.request import urlopen
 
 
-DEFAULT_RELEASE = Path("/home/elf/bucket/releases/0.3.3")
+_BUNDLED_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_RELEASE = (
+    _BUNDLED_ROOT
+    if (Path(__file__).parent.name == "field" and (_BUNDLED_ROOT / "manifest.json").is_file())
+    else Path("/home/elf/bucket/releases/0.3.3")
+)
 RUN_ROOT = Path("/home/elf/bucket/runs")
 
 

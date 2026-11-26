@@ -1,6 +1,5 @@
-import os, sys
-from pathlib import Path
 import unittest
+from unittest.mock import patch
 import cv2
 import numpy as np
 from bucket_robot.perception.session import RecoveringTarget
@@ -100,7 +99,10 @@ class TargetRecoveryTests(unittest.TestCase):
                 self.assertTrue(targets, mission.reason)
                 self.assertEqual(mission.reacquired, 1)
                 self.assertTrue(all(t["task_target_id"] == 1 for t in targets))
-                self.assertIn("relocation_evidence", targets[0])
+                self.assertTrue(
+                    targets[0].get("relocation_evidence")
+                    or targets[0].get("appearance_recovery_evidence")
+                )
             else:
                 self.assertFalse(targets, case)
 
@@ -144,6 +146,53 @@ class TargetRecoveryTests(unittest.TestCase):
             if t is not None:
                 break
         self.assertIsNotNone(t)
+
+    def test_known_appearance_recovers_far_from_old_box_without_ORB_or_new_identity(self):
+        previous, old = self.scene(box=(40, 300, 340, 600))
+        manager = RecoveringTarget(True)
+        manager.select(previous, old, 1)
+        manager.update(previous, dict(arrival=1, detections=[self.detection(old)]))
+        trusted = manager.manager.tracker
+        manager.missing("initial_camera_turn")
+        self.assertIs(manager.frozen, trusted)
+        current = np.full_like(previous, 25)
+        box = [600, 320, 840, 560]
+        current[320:560, 600:840] = cv2.resize(previous[300:600, 40:340], (240, 240))
+        answer = None
+        with patch(
+            "bucket_robot.perception.relocation.known_feature_relocation", return_value=None
+        ) as slow_search:
+            for i in range(12):
+                answer = manager.update(
+                    current, dict(arrival=1.2 + i * 0.04, detections=[self.detection(box)])
+                )
+                if answer is not None:
+                    break
+            slow_search.assert_not_called()
+        self.assertIsNotNone(answer, manager.reason)
+        self.assertEqual(answer["task_target_id"], 1)
+        proof = answer["appearance_recovery_evidence"]
+        self.assertTrue(proof["known_appearance_verified"])
+        self.assertGreaterEqual(proof["candidate_detection_votes"], 2)
+        self.assertLessEqual(proof["candidate_verify_s"], 0.4)
+
+    def test_known_only_verifier_never_seeds_unknown_nearby_bucket(self):
+        from bucket_robot.perception.target import TargetLock, TargetTracker
+
+        old, box = self.scene()
+        other, _ = self.scene(seed=921)
+        verifier = TargetLock("manual")
+        reference = TargetTracker(old, box, 1)
+        for i in range(10):
+            result = verifier.verified_reappearance(
+                other,
+                1.2 + i * 0.04,
+                [self.detection(box)],
+                reference=reference,
+                require_known=True,
+            )
+            self.assertIsNone(result)
+            self.assertIsNone(verifier.provisional)
 
     def test_stage_handoff_reverifies_shifted_same_bucket(self):
         seed, b = self.scene()

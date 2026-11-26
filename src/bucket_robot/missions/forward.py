@@ -524,6 +524,7 @@ def main():
                 # a newly arrived frame must not look as though it is future-dated.
                 now = time.monotonic()
                 target = obs["target"]
+                policy.set_a_rate_limit(10 if gate.started is None and not post_aligning else 30)
                 current = pose(p.state)[0]
                 settled = abs(current - (p.target or [current])[0]) <= 1
                 vertical_plan = (

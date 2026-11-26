@@ -47,6 +47,9 @@ class FixedPolicy:
     def reset(self):
         pass
 
+    def set_a_rate_limit(self, value):
+        pass
+
     def frame_angle(self, p, stamp):
         return p.state["servo_software_deg"]
 

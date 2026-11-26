@@ -4,6 +4,7 @@ import numpy as np
 from bucket_robot.perception.target import (
     TargetLock,
     TargetTracker,
+    EdgeTracker,
     visible_detection_box,
     iou,
     weighted_ncc,
@@ -41,6 +42,7 @@ class RecoveringTarget:
         self.selection_image = None
         self.selection_box = None
         self.relocation_probe = None
+        self.known_recovery = None
 
     def select(self, image, box, stamp):
         self.manager.select(image, box, stamp)
@@ -53,6 +55,7 @@ class RecoveringTarget:
         self.latest = dict(box=list(box), timestamp=stamp)
         self.previous_image = image
         self.frozen = None
+        self.known_recovery = None
 
     def load_verified_reference(self, image, box, stamp):
         """Carry a previously verified frame across a stopped stage handoff."""
@@ -68,10 +71,19 @@ class RecoveringTarget:
             self.recovery_stamp = -float("inf")
             self.relocation_votes = []
             self.relocation_probe = None
+            self.known_recovery = TargetLock("manual")
+            self.known_recovery.loss_since = self.latest["timestamp"] if self.latest else None
             if self.latest is not None and self.previous_image is not None:
                 box = visible_detection_box(self.latest["box"], self.previous_image.shape)
                 try:
-                    self.frozen = TargetTracker(self.previous_image, box, self.latest["timestamp"])
+                    trusted = getattr(self.manager, "tracker", None)
+                    self.frozen = (
+                        trusted
+                        if isinstance(trusted, TargetTracker)
+                        and not isinstance(trusted, EdgeTracker)
+                        and trusted.stamp == self.latest["timestamp"]
+                        else TargetTracker(self.previous_image, box, self.latest["timestamp"])
+                    )
                 except (RuntimeError, TypeError, ValueError):
                     self.frozen = None
         self.reason = reason
@@ -90,6 +102,48 @@ class RecoveringTarget:
         if metadata["arrival"] <= self.recovery_stamp:
             return None
         self.recovery_stamp = metadata["arrival"]
+        # Reuse the mature known-appearance + fresh-flow verifier. A camera
+        # turn may move this exact bucket outside the old position gate.
+        # require_known excludes its automatic new-identity fallback entirely.
+        if self.known_recovery is not None:
+            known = self.known_recovery.verified_reappearance(
+                image,
+                metadata["arrival"],
+                metadata.get("detections", []),
+                reference=self.frozen,
+                require_known=True,
+            )
+            if known is not None:
+                evidence = {
+                    k: known[k]
+                    for k in (
+                        "known_appearance_verified",
+                        "candidate_verify_s",
+                        "candidate_seed_score",
+                        "candidate_detection_votes",
+                    )
+                }
+                matches = [
+                    d
+                    for d in metadata.get("detections", [])
+                    if d["score"] >= 0.536
+                    and iou(known["box"], [d[k] for k in ("left", "top", "right", "bottom")])
+                    >= 0.55
+                ]
+                if len(matches) == 1:
+                    raw = [matches[0][k] for k in ("left", "top", "right", "bottom")]
+                    return self._install_recovered(
+                        image,
+                        metadata,
+                        raw if self.bearing else known["box"],
+                        appearance_recovery_evidence=evidence,
+                    )
+            if self.known_recovery.provisional is not None:
+                # Keep this fresh-frame path responsive. Running slow global
+                # feature relocation here can itself exceed the verifier's
+                # frame-gap bound and restart confirmation indefinitely.
+                self.reason = "verifying_known_appearance"
+                return None
         # Recovery belongs to the old target, never to the highest-scoring box.
         candidates = []
         old = self.latest["box"]
@@ -156,14 +210,25 @@ class RecoveringTarget:
         if iou(result["box"], box) < 0.55:
             self.reason = "recovery_geometry_disagree"
             return None
+        return self._install_recovered(
+            image,
+            metadata,
+            raw if self.bearing else box,
+            **(
+                {"relocation_evidence": result["relocation_evidence"]}
+                if result.get("relocation_evidence")
+                else {}
+            ),
+        )
+
+    def _install_recovered(self, image, metadata, box, **evidence):
         manager = BearingLock() if self.bearing else TargetLock("manual")
-        manager.select(image, raw if self.bearing else box, metadata["arrival"])
+        manager.select(image, box, metadata["arrival"])
         target = manager.update(image, metadata)
         if target is None:
             self.reason = "recovery_install_not_verified"
             return None
-        if result.get("relocation_evidence"):
-            target["relocation_evidence"] = result["relocation_evidence"]
+        target.update(evidence)
         self.manager = manager
         self.reacquired += 1
         self.state = "tracking"
@@ -171,6 +236,7 @@ class RecoveringTarget:
         self.latest = target
         self.previous_image = image
         self.frozen = None
+        self.known_recovery = None
         return self._decorate(target)
 
     def _decorate(self, target):

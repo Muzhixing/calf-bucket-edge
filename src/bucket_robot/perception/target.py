@@ -923,12 +923,18 @@ class TargetLock:
         )
         return result
 
-    def verified_reappearance(self, image, stamp, detections, reference=None):
+    def verified_reappearance(
+        self, image, stamp, detections, reference=None, *, require_known=False
+    ):
         """A known appearance seeds a candidate; fresh geometric frames verify it.
 
         No provisional box is exposed to motion. This can bridge detector misses
         without reusing an old coordinate or accepting a lone unverified hit.
         """
+        if require_known and reference is None:
+            return None
+        if self.provisional is not None and require_known and not self.provisional["known"]:
+            self.provisional = None
         if self.provisional is not None:
             pending = self.provisional
             candidate = pending["tracker"]
@@ -955,6 +961,7 @@ class TargetLock:
                     pending["frames"] >= 3
                     and stamp - pending["started"] >= required_span
                     and (pending["known"] or detector_confirmed)
+                    and (not require_known or detector_confirmed and associated is not None)
                 ):
                     delay = stamp - self.loss_since if self.loss_since is not None else None
                     initial = self.generation == 0
@@ -970,6 +977,7 @@ class TargetLock:
                     result["candidate_verify_s"] = stamp - pending["started"]
                     result["candidate_seed_score"] = pending["score"]
                     result["candidate_detection_votes"] = len(pending["votes"])
+                    result["known_appearance_verified"] = bool(pending["known"])
                     if delay is not None:
                         result["relock_delay_s"] = delay
                     return result
@@ -1020,7 +1028,7 @@ class TargetLock:
                 continue
         # Changed views need independent detector votes plus fresh geometry.
         # This is a new automatic acquisition, not proof of old visual identity.
-        if not matches and len(nearby) == 1:
+        if not require_known and not matches and len(nearby) == 1:
             matches = nearby
         if len(matches) == 1:
             d, b, known = matches[0]

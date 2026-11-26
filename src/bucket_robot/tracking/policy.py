@@ -126,6 +126,7 @@ class FollowPolicy:
         # This empirical scale includes the arm's offset camera and servo ratio.
         # Do not assume the camera rotates about its own optical center.
         self.profile = response_profile
+        self.a_rate_limit = 30.0
         self.active_response = response_profile
         self._response_parameters()
         self.reset()
@@ -178,6 +179,12 @@ class FollowPolicy:
         self.previous_image_x = None
         self.horizontal_ready_since = None
         self.last_b_slot = None
+
+    def set_a_rate_limit(self, value):
+        if type(value) not in (int, float) or not math.isfinite(value) or not 1 <= value <= 30:
+            raise ValueError("invalid_A_rate_limit")
+        self.a_rate_limit = float(value)
+        self.rate = clamp(self.rate, -self.a_rate_limit, self.a_rate_limit)
 
     def observe(self, target, frame_a):
         stamp = target["timestamp"]
@@ -291,7 +298,7 @@ class FollowPolicy:
             desired = float(current)
         remaining = desired - self.command
         # Braking distance bounds the ramp before reaching a moving setpoint.
-        rate_limit = min(30.0, math.sqrt(2 * 180 * abs(remaining)))
+        rate_limit = min(self.a_rate_limit, math.sqrt(2 * 180 * abs(remaining)))
         wanted_rate = clamp(remaining / dt, -rate_limit, rate_limit)
         acceleration = (
             360 if self.rate * wanted_rate <= 0 or abs(wanted_rate) < abs(self.rate) else 180
@@ -316,6 +323,7 @@ class FollowPolicy:
                 "desired_A": desired,
                 "command_A": result,
                 "rate_A_dps": self.rate,
+                "rate_limit_A_dps": self.a_rate_limit,
             }
         )
         return result
