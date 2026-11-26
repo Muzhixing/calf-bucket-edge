@@ -82,7 +82,12 @@ class RecoveringTarget:
                         if isinstance(trusted, TargetTracker)
                         and not isinstance(trusted, EdgeTracker)
                         and trusted.stamp == self.latest["timestamp"]
-                        else TargetTracker(self.previous_image, box, self.latest["timestamp"])
+                        else TargetTracker(
+                            self.previous_image,
+                            box,
+                            self.latest["timestamp"],
+                            segment_foreground=not isinstance(trusted, EdgeTracker),
+                        )
                     )
                 except (RuntimeError, TypeError, ValueError):
                     self.frozen = None
