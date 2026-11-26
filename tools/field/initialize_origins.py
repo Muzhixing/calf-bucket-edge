@@ -1,6 +1,7 @@
-"""Disabled-only UART initialization using the explicit standing physical assumption."""
+"""UART origin initialization and optional acknowledged return to registered home."""
 
 import json
+import math
 from pathlib import Path
 import time
 import uuid
@@ -28,7 +29,16 @@ def read_policy(path):
     return policy
 
 
-def initialize(limits, ledger, log, *, port_factory=StartupPort, wait_seconds=None, timeout=18):
+def initialize(
+    limits,
+    ledger,
+    log,
+    *,
+    port_factory=StartupPort,
+    wait_seconds=None,
+    timeout=18,
+    return_home=False,
+):
     profile = derive_wait_profile(limits)
     wait = profile["wait_seconds"] if wait_seconds is None else wait_seconds
     store = PowerCycleStore(ledger, profile["wait_seconds"], profile["wait_basis"])
@@ -36,7 +46,10 @@ def initialize(limits, ledger, log, *, port_factory=StartupPort, wait_seconds=No
     try:
         if store.error:
             raise RuntimeError(store.error)
+        if store.data.get("operator_paused"):
+            raise RuntimeError("operator_paused")
         port = port_factory(limits, log)
+        port.return_registered_home = return_home
         began = time.monotonic()
         while True:
             port.poll()
@@ -54,16 +67,43 @@ def initialize(limits, ledger, log, *, port_factory=StartupPort, wait_seconds=No
             time.sleep(0.01)
         initial = dict(port.state)
         if reused:
+            port.registered = True
+            port.watch_firmware_reset = True
+            if return_home and pose(initial) != [limits.a_home, 0, 0]:
+                log("registered_home_return_started", initial)
+                until = time.monotonic() + 90
+                while pose(port.state) != [limits.a_home, 0, 0]:
+                    if time.monotonic() > until:
+                        raise RuntimeError("registered_home_return_timeout")
+                    while time.monotonic() < port.ready_at:
+                        port.tick()
+                        time.sleep(0.01)
+                    a, b, c = pose(port.state)
+                    if c:
+                        goal = [a, b, 0]
+                    elif b:
+                        goal = [a, max(0, math.ceil(b - 20)), 0]
+                    else:
+                        goal = [a + max(-4, min(4, limits.a_home - a)), 0, 0]
+                    port.registered_return_step(goal)
+                    while port.phase != "idle":
+                        if time.monotonic() > until:
+                            raise RuntimeError("registered_home_return_timeout")
+                        port.tick()
+                        time.sleep(0.01)
+                log("registered_home_return_completed", port.state)
+            final = dict(port.state)
             if not store.ready:
                 store.invalidate("adopt_fresh_registered_home")
-                store.adopt_registered(initial, limits.a_home)
-                store.phase("ready", ready_at=time.time(), ready_telemetry=initial)
-            log("valid_origins_reused_without_registration", initial)
+                store.adopt_registered(final, limits.a_home)
+                store.phase("ready", ready_at=time.time(), ready_telemetry=final)
+            log("valid_origins_reused_without_registration", final)
             return dict(
                 initial=initial,
-                final_state=initial,
+                final_state=final,
                 zero_registered_now=False,
                 origins_reused=True,
+                returned_home=pose(initial) != pose(final),
                 output_enabled=False,
             )
         if not reset_telemetry(initial, limits.boot_pose):

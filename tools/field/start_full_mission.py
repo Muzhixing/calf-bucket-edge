@@ -114,7 +114,12 @@ def main():
     ap.add_argument(
         "--initialize-only", action="store_true", help="仅恢复STM32零点，随后保持只读预览"
     )
+    ap.add_argument(
+        "--prepare-only", action="store_true", help="登记或复用零点并收回机构，不启动底盘任务"
+    )
     args = ap.parse_args()
+    if args.initialize_only and args.prepare_only:
+        ap.error("--initialize-only与--prepare-only不能同时使用")
     release = DEFAULT_RELEASE
     sys.path.insert(0, str(release / "python"))
     from bucket_robot.runtime.release import ReleaseLayout
@@ -130,6 +135,12 @@ def main():
     if args.check:
         print("只读检查通过，未停止进程、未打开控制串口、未启动运动。", flush=True)
         return 0
+
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt("signal_" + str(signum))
+
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
 
     RUN_ROOT.mkdir(parents=True, exist_ok=True)
     with (RUN_ROOT / ".manual-launch.lock").open("a") as lock:
@@ -166,6 +177,7 @@ def main():
                     Limits(default_reference()),
                     Path.home() / ".local/state/bucket-arm/launcher-startup.json",
                     log,
+                    return_home=not args.initialize_only,
                 )
             except Exception as exc:
                 (out / "initialization_result.json").write_text(
@@ -185,9 +197,9 @@ def main():
             "--seconds",
             "1800",
         ]
-        if args.initialize_only:
+        if args.initialize_only or args.prepare_only:
             restore_preview(release, out)
-            print("初始化完成，输出禁用；已恢复只读预览，不启动底盘或机构运动。", flush=True)
+            print("准备完成，输出禁用；已恢复只读预览，不启动底盘任务。", flush=True)
             return 0
         (out / "launch.json").write_text(
             json.dumps(

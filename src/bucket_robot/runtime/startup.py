@@ -519,6 +519,7 @@ class StartupPort(ArmPort):
         self.registered = False
         self.ack_flags = None
         self.reuse_existing_origins = False
+        self.return_registered_home = False
         self.opened_at = time.monotonic()
         self.preflight_history = deque(maxlen=128)
         kwargs["defer_preflight"] = True
@@ -565,6 +566,12 @@ class StartupPort(ArmPort):
 
     def preflight_state(self, s):
         if self.reuse_existing_origins:
+            if self.return_registered_home:
+                ArmPort.check_state(s)
+                if s["result"] != 0:
+                    raise RuntimeError("firmware_rejected_command")
+                self.limits.check(pose(s))
+                return
             if not registered_home(s, self.limits.a_home):
                 raise RuntimeError("registered_home_not_ready")
             return
@@ -578,6 +585,9 @@ class StartupPort(ArmPort):
         return not s["enabled"] and s["state"] == (4 if s["system_fault"] == 1 else 0)
 
     def preflight_pose(self, q):
+        if self.reuse_existing_origins and self.return_registered_home:
+            self.limits.check(q)
+            return
         if getattr(self, "bc_sweeping", False):
             self.limits.check(q)
             if q[0] != self.limits.a_home:
@@ -596,6 +606,38 @@ class StartupPort(ArmPort):
         self.healthy(s)
         if self.registered and not (s["lift_zero_confirmed"] and s["slide_zero_confirmed"]):
             raise RuntimeError("startup_origins_lost")
+
+    def registered_return_step(self, q):
+        """Return C, then B, then A through the existing acknowledged arm owner."""
+        if not (self.return_registered_home and self.reuse_existing_origins and self.registered):
+            raise RuntimeError("registered_return_not_prepared")
+        ArmPort.check_state(self.state)
+        self.limits.check(q)
+        current = pose(self.state)
+        if self.phase != "idle" or self.state["enabled"]:
+            raise RuntimeError("registered_return_requires_disabled_chassis")
+        if current[2] > 0:
+            if q != [current[0], current[1], 0] or any(v != round(v) for v in current[:2]):
+                raise RuntimeError("registered_return_requires_C_only_retraction")
+            if time.monotonic() < self.ready_at or time.monotonic() - self.rx_at > 0.35:
+                raise RuntimeError("registered_return_not_fresh_or_ready")
+            self.origin, self.target = current, q
+            self.arrived_at = None
+            self.move_counter = (self.expected + 1) % 256
+            self.phase, self.attempted = "moving", True
+            self.started = time.monotonic()
+            self.deadline = self.started + current[2] / self.limits.c_max_speed + 4
+            if not self.gateway.write_control_frame(self.frame(q, True), repeats=1):
+                raise RuntimeError("retraction_write_failed_no_retry")
+            return
+        if current[1] > 0:
+            allowed = q[0] == current[0] and 0 <= q[1] < current[1] and q[2] == 0
+        else:
+            home = self.limits.a_home
+            allowed = q[1:] == [0, 0] and min(current[0], home) <= q[0] <= max(current[0], home)
+        if not allowed:
+            raise RuntimeError("registered_return_order_or_direction_invalid")
+        self.move(q)
 
     def disabled_command(self, flags):
         if self.phase != "idle" or flags not in (0, 6):

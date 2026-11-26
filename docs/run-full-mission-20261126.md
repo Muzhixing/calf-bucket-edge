@@ -1,6 +1,6 @@
 # 完整靠桶流程的运行方式
 
-完整任务的机构与底盘流程已在`0.3.3-postgeometry-rc3-20261126`实车验收；稳定整合版保留在`/home/elf/bucket/releases/0.3.3`，包含视频传输优化和启动零点准备。默认启动入口现指向`/home/elf/bucket/releases/0.3.4-close-track-rc4-20261126`，包含初锁和近距离大目标连续性修复；该修复已通过实时只读图像检查，尚未进行新版整车验收。一次主程序自动完成识别、A/B追踪、20%巡航、近处减速、约20cm停车、必要的左视对齐、b/2时间估算侧移、暂停追踪、B回0、C伸150mm并禁用停车。正常控制为115200串口。
+完整任务的机构与底盘流程已在`0.3.3-postgeometry-rc3-20261126`实车验收；稳定整合版保留在`/home/elf/bucket/releases/0.3.3`，包含视频传输优化和启动零点准备。默认启动入口现指向`/home/elf/bucket/releases/0.3.4-startup-home-rc5-20261126`，包含初锁、近距离大目标连续性修复及启动自动机构归位。视觉修复已通过实时只读图像检查，启动准备已实机验证，非零位置归位已通过串口模拟；整合新版尚未完成整车路线验收。一次主程序自动完成识别、A/B追踪、20%巡航、近处减速、约20cm停车、必要的左视对齐、b/2时间估算侧移、暂停追踪、B回0、C伸150mm并禁用停车。正常控制为115200串口。
 
 Mac终端直接运行：
 
@@ -14,7 +14,7 @@ ssh -t rk3588 /home/elf/bucket/start_full_mission.sh
 /home/elf/bucket/start_full_mission.sh
 ```
 
-运行前车辆放回起点，A回到73°。按用户2026-11-26的明确要求，启动时默认B在顶部、C完全收回，不再重复询问。这是用户指定的物理前提，不是独立传感器证据；版本内`field/startup_policy.json`明确记录该条件。
+运行前车辆放回起点，留出机构归位空间。已有有效零点时，启动入口按新鲜回传的实际位置依次收回C、B回顶、A回73°，每步确认停车；已经归位则直接沿用，不重复动作。STM32重新上电、零点丢失时，按用户2026-11-26的明确要求默认B在顶部、C完全收回，不再重复询问。这是用户指定的物理前提，不是独立传感器证据；版本内`field/startup_policy.json`明确记录该条件。
 
 启动入口读取新鲜串口回传：已有有效B/C零点时直接沿用；检测到稳定的STM32重启特征（A73/B0/C0、零点均未登记、命令计数0、输出禁用）后，按原8秒等待配置与正常航向/故障检查，发送禁用命令再登记B/C零点。新登记只发送禁用帧，不移动机构或底盘。持久化账本保证同一次未确认的登记不会盲目重发；重启之外的异常状态不会被默认条件覆盖。
 
@@ -40,10 +40,18 @@ RK3588本机控制台为`http://127.0.0.1:8788/`。终端Ctrl+C会要求主程�
 /home/elf/bucket/start_full_mission.sh --initialize-only
 ```
 
+仅准备机构并保留停车预览（会自动收回机构，不启动底盘任务）：
+
+```sh
+/home/elf/bucket/start_full_mission.sh --prepare-only
+```
+
+`--initialize-only`保持原来的不移动机构语义；`--prepare-only`与正常启动均可复用有效零点完成归位。归位通过现有115200串口事务执行，不重发零点登记，不发送底盘运动指令，出错时执行原停车确认流程。
+
 原始等效任务命令如下；同一端口已有控制台时应使用上面的启动入口，由它处理已结束的旧实例：
 
 ```sh
-/home/elf/bucket/releases/0.3.4-close-track-rc4-20261126/run_mission.sh \
+/home/elf/bucket/releases/0.3.4-startup-home-rc5-20261126/run_mission.sh \
   --out "/home/elf/bucket/runs/manual_$(date +%Y%m%d_%H%M%S)/automatic" \
   --execute-post-geometry --wall-budget 420 --seconds 1800
 ```
