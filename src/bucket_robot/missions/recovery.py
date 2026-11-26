@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import math
+from bucket_robot.tracking.aim import horizontal_aligned
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,7 @@ class RecoverySettings:
     deceleration_per_s: float = 10.0
     acceleration_per_s: float = 8.0
     initial_confirm_s: float = 0.7
+    initial_confirm_frames: int = 3
     recovery_confirm_s: float = 0.25
     target_max_age_s: float = 0.35
     control_gap_s: float = 0.25
@@ -135,7 +137,7 @@ class RecoveryGate:
             and horizontal
             and a >= self.left - 1
             and command_aligned
-            and abs(target["offset_px"][0]) <= 20
+            and horizontal_aligned(target)
             and settled
             and (commanded_a is None or abs(a - commanded_a) < 0.1)
         ):
@@ -169,7 +171,7 @@ class RecoveryGate:
             motion_permitted
             and self.allow_a
             and horizontal
-            and abs(target["offset_px"][0]) <= (40 if self.started is not None else 20)
+            and horizontal_aligned(target, 40 if self.started is not None else 20)
             and (settled or self.started is not None)
         )
         confirmed = False
@@ -185,7 +187,8 @@ class RecoveryGate:
                 if self.started is None
                 else self.settings.recovery_confirm_s
             )
-            confirmed = self.stable_frames >= 3 and stamp - self.stable_since >= span
+            frames = self.settings.initial_confirm_frames if self.started is None else 3
+            confirmed = self.stable_frames >= frames and stamp - self.stable_since >= span
         else:
             self._unstable()
         if confirmed:

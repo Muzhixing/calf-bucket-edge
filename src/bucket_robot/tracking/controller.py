@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 from bucket_robot.domain.ports import TrackingPort
 from bucket_robot.domain.state import pose
 from bucket_robot.tracking.policy import AlignmentGate, next_ab_tracking_goal
+from bucket_robot.tracking.aim import aimed_target, horizontal_aligned
 
 
 @dataclass(frozen=True)
@@ -36,8 +37,12 @@ class TrackingController:
         self.alignment.reset()
         self.identity = None
 
+    def target(self, target):
+        return aimed_target(target, getattr(getattr(self.policy, "limits", None), "aim_area", None))
+
     def step(self, port: TrackingPort, target, metadata, now, identity=None):
         """Apply identity, freshness, hold and the shared A/B scheduler once."""
+        target = self.target(target)
         if target is None or not 0 <= now - target["timestamp"] <= self.target_max_age:
             self.reset()
             return TrackingDecision(stop=True, reason="waiting_for_target_frame")
@@ -61,11 +66,12 @@ class TrackingController:
 
     def horizontal_goal(self, port: TrackingPort, target, now, centering=False):
         """A-only operation of the same policy while a task owns the chassis."""
+        target = self.target(target)
         current = pose(port.state)[0]
         goal = self.policy.next_a(
             target, self.policy.frame_angle(port, target["timestamp"]), current, now
         )
-        if centering and abs(target["offset_px"][0]) <= 15:
+        if centering and horizontal_aligned(target, 15):
             self.policy.reset()
             return current
         return goal
@@ -73,6 +79,7 @@ class TrackingController:
     def vertical_plan(self, now, target, b, metadata, position=None, goal=None):
         """Determine B readiness using the same alignment and vertical policy."""
         self.vertical_reason = None
+        target = self.target(target)
         if (
             target is None
             or not 0 <= now - target.get("timestamp", -math.inf) <= self.target_max_age

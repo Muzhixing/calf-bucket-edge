@@ -228,6 +228,10 @@
     "b_firmware_accel_mm_s2": 25.0,
     "c_firmware_accel_mm_s2": 78.64077669902913,
     "b_far_position_gain": 1.0,
-    "b_fast_error_mm": 12.5
+    "b_fast_error_mm": 12.5,
+    "aim_area": {
+      "placement": "top_center",
+      "area_fraction": 0.1
+    }
   }
 }

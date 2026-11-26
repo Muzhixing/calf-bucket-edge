@@ -4,8 +4,8 @@ from bucket_robot.missions.recovery import RecoveryGate
 
 
 class PostAlignmentGate(RecoveryGate):
-    def __init__(self, seconds):
-        super().__init__(seconds)
+    def __init__(self, seconds, settings=None):
+        super().__init__(seconds, settings=settings)
         self.left_latched = False
         self.confirm_since = self.confirm_stamp = None
         self.confirm_frames = 0

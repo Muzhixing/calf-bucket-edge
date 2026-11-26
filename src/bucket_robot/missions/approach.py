@@ -35,6 +35,7 @@ def run_approach(
     target_session=None,
     continuous=False,
     existing_port=None,
+    align_upper_after_stop=False,
 ):
     if continuous:
         from bucket_robot.missions.continuous_approach import run_continuous_approach
@@ -53,6 +54,7 @@ def run_approach(
             verified_surface_band=verified_surface_band,
             target_session=target_session,
             existing_port=existing_port,
+            align_upper_after_stop=align_upper_after_stop,
         )
     if recover_loss:
         from bucket_robot.missions.recovering_approach import run_recovering_approach

@@ -59,6 +59,7 @@ class AlignmentGate:
         self.outside_since = None
         self.blocked = (False, False)
         self.constrained = False
+        self.region = None
 
     def update(self, target, position=None, limits=None, goal=None):
         stamp = target["timestamp"]
@@ -83,8 +84,16 @@ class AlignmentGate:
             self.outside_since = None
         self.blocked = blocked
         distance = math.hypot(0 if blocked[0] else dx, 0 if blocked[1] else dy)
+        if "aim_region_px" in target:
+            x1, y1, x2, y2 = target["aim_region_px"]
+            half_w, half_h = (x2 - x1) / 2, (y2 - y1) / 2
+            distance = max(
+                0 if blocked[0] else abs(dx) / half_w,
+                0 if blocked[1] else abs(dy) / half_h,
+            )
+        self.region = target.get("aim_region_px")
         if not self.holding:
-            self.radius = alignment_radius(target)
+            self.radius = 1.0 if self.region else alignment_radius(target)
             if distance <= self.radius:
                 self.holding = True
                 self.outside_since = None
@@ -96,13 +105,15 @@ class AlignmentGate:
                 self.outside_since = None
         else:
             self.outside_since = None
-        self.constrained = self.holding and any(blocked) and math.hypot(dx, dy) > self.radius
+        total_error = max(abs(dx) / half_w, abs(dy) / half_h) if self.region else math.hypot(dx, dy)
+        self.constrained = self.holding and any(blocked) and total_error > self.radius
         return self.holding
 
     def status(self):
         return {
             "alignment_hold": self.holding,
             "alignment_radius_px": self.radius,
+            "alignment_region_px": self.region,
             "alignment_resume_radius_px": 1.5 * self.radius,
             "alignment_blocked_axes": [
                 axis for axis, blocked in zip(("A", "B"), self.blocked) if blocked

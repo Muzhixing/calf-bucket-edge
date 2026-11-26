@@ -557,6 +557,7 @@ class Application:
                 self.args.drive_budget,
                 execute_post_geometry=getattr(self.args, "execute_post_geometry", False),
                 resume_post_plan=getattr(self.args, "resume_post_plan", None),
+                cruise_speed=getattr(self.args, "cruise_speed", 80),
             ),
             env=env,
             start_new_session=True,
@@ -732,6 +733,7 @@ def parser():
     ap.add_argument("--drive-budget", type=float, default=120)
     ap.add_argument("--wall-budget", type=float, default=300)
     ap.add_argument("--execute-post-geometry", action="store_true")
+    ap.add_argument("--cruise-speed", type=int, choices=range(1, 81), default=80)
     ap.add_argument("--resume-post-plan", type=Path)
     return ap
 

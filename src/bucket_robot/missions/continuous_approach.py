@@ -6,8 +6,8 @@ import time
 
 from bucket_robot.missions.approach_policy import ApproachGate
 from bucket_robot.missions.forward_range import ForwardRange
-from bucket_robot.missions.recovery import RecoveryGate
-from bucket_robot.motion.arm import pose
+from bucket_robot.missions.recovery import RecoveryGate, RecoverySettings
+from bucket_robot.motion.arm import Limits, pose
 from bucket_robot.motion.chassis import HeldArmLimits
 from bucket_robot.motion.combined import LateralPort
 from bucket_robot.perception.observer import StereoObserver
@@ -37,6 +37,7 @@ def run_continuous_approach(
     verified_surface_band=None,
     target_session=None,
     existing_port=None,
+    align_upper_after_stop=False,
 ):
     from bucket_robot.perception.assisted_range.stereo import Geometry
 
@@ -52,7 +53,8 @@ def run_continuous_approach(
         pulses=0,
     )
     p = observer = ranger = None
-    gate = RecoveryGate(20, left=999)
+    speed = 20 if align_upper_after_stop else 8
+    gate = RecoveryGate(20, left=999, settings=RecoverySettings(cruise=speed))
     alignment = ApproachGate()
     with (out / "events.jsonl").open("x", buffering=1) as stream:
 
@@ -86,8 +88,12 @@ def run_continuous_approach(
                 p.lateral = True
                 p.fixed_a = pose(p.state)[0]
             else:
-                p = LateralPort(HeldArmLimits(reference), log)
+                p = LateralPort(
+                    Limits(reference) if align_upper_after_stop else HeldArmLimits(reference), log
+                )
                 p.rearm()
+            if align_upper_after_stop:
+                p.max_velocity = 20
             p.log = log
             result["initial_state"] = dict(p.state)
             observer = StereoObserver(
@@ -102,11 +108,12 @@ def run_continuous_approach(
             )
             observer.thread.start()
             ranger = ForwardRange(
-                StereoRangeSource(observer), calibration, model, verified_surface_band
+                StereoRangeSource(observer), calibration, model, verified_surface_band, cruise=speed
             )
             ranger.thread.start()
             last_status = 0.0
             last_range = -1
+            upper_aligned_at = None
             while True:
                 if (out / "STOP").exists() or (out.parent / "STOP").exists():
                     raise KeyboardInterrupt("operator_stop")
@@ -129,6 +136,40 @@ def run_continuous_approach(
                     if m["frame_id"] != last_range:
                         log("range_decision", plan)
                         last_range = m["frame_id"]
+                if plan["near"] and align_upper_after_stop and upper_aligned_at is None:
+                    from bucket_robot.missions.vertical import align_parked
+                    from bucket_robot.tracking.controller import TrackingController
+                    from bucket_robot.tracking.policy import FollowPolicy
+
+                    matrix = observer.geometry.c["P1"]
+                    controller = TrackingController(
+                        FollowPolicy(
+                            Limits(reference),
+                            matrix[0, 0],
+                            matrix[1, 1],
+                            matrix[0, 2],
+                            matrix[1, 2],
+                        )
+                    )
+                    result["upper_alignment"] = align_parked(observer, p, controller, out, log)
+                    upper_aligned_at = result["upper_alignment"]["settled_at"]
+                    if result["upper_alignment"]["moved"]:
+                        ranger.invalidate_before(upper_aligned_at)
+                        continue
+                    upper_aligned_at = plan["measurement"]["capture_time"]
+                if upper_aligned_at is not None:
+                    if time.monotonic() - upper_aligned_at > 25:
+                        raise RuntimeError("waiting_range_after_upper_alignment_timeout")
+                    m = plan.get("measurement") or {}
+                    if (
+                        not m.get("valid")
+                        or m.get("capture_time", 0) < upper_aligned_at
+                        or not plan.get("static_verified")
+                        or not usable
+                    ):
+                        time.sleep(0.005)
+                        continue
+                    plan = dict(plan, near=True)
                 if plan["near"]:
                     result["last_measurement"] = plan["measurement"]
                     result["reason"] = "target_distance_reached"

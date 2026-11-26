@@ -72,3 +72,14 @@ class ForwardRangeTests(unittest.TestCase):
         self.assertFalse(answer["near"])
         self.assertFalse(answer["permit"])
         self.assertEqual(answer["reason"], "range_worker_unavailable")
+
+    def test_arm_movement_rejects_even_matching_old_measurement_until_post_settle_capture(self):
+        r = self.ranger(capture=1, distance=0.19)
+        r.static_since = 0.5
+        r.invalidate_before(2)
+        with patch("bucket_robot.missions.forward_range.static_surface_matches", return_value=True):
+            self.assertFalse(r.evaluate(2.1, self.obs(2.1), None, True)["permit"])
+            r.answer["measurement"].update(capture_time=2.2, frame_id=5)
+            answer = r.evaluate(2.3, self.obs(2.3), None, True)
+            self.assertTrue(answer["static_verified"])
+            self.assertTrue(answer["near"])

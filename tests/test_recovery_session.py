@@ -65,6 +65,8 @@ class RecoverySessionTests(unittest.TestCase):
         distance_first=False,
         post=False,
         left_first=False,
+        cruise=8,
+        a_start_only=False,
     ):
         m = MCU()
         if left_first:
@@ -125,28 +127,36 @@ class RecoverySessionTests(unittest.TestCase):
             ]
         if post:
             args += ["--post-approach-plan", "--execute-post-geometry"]
+        if cruise != 8:
+            args += ["--cruise-speed", str(cruise)]
+        if a_start_only:
+            args.remove("--a-only")
+            args += ["--track-b", "--a-start-only"]
 
         class Range:
-            def __init__(self, *args):
+            def __init__(self, *args, **kwargs):
                 if not m.commands or m.commands[-1][8] or m.enabled:
                     raise AssertionError("model initialized before acknowledged UART disable")
                 self.thread = type("Thread", (), {"start": lambda self: None})()
                 self.started = time.monotonic()
 
             def evaluate(self, now, obs, image, stopped):
-                reached = now - self.started > 3
+                reached = now - self.started > 3 and (cruise == 8 or post)
                 near = reached and (stopped or not post)
                 if post and near:
                     observed["near_confirmed"] = True
                 return dict(
                     permit=not reached,
                     near=near,
+                    static_verified=stopped,
                     reason="range_ready",
+                    speed_cap=cruise,
                     measurement=dict(
                         valid=True,
                         frame_id=obs["frame_id"],
-                        distance_m=0.2,
-                        lower_m=0.195,
+                        distance_m=0.2 if reached else 1.0,
+                        lower_m=0.195 if reached else 0.995,
+                        capture_time=now,
                         distance_kind="stereo_optical_midpoint_to_bucket_surface",
                     ),
                 )
@@ -205,6 +215,11 @@ class RecoverySessionTests(unittest.TestCase):
                 ),
             )
 
+        def parked_alignment(*args, **kwargs):
+            observed["upper_calls"] = observed.get("upper_calls", 0) + 1
+            observed["upper_command_index"] = len(m.commands)
+            return dict(moved=False, settled_at=time.monotonic(), constrained=False)
+
         class NoTargetObserver(ScriptedObserver):
             def get(self):
                 obs, error = super().get()
@@ -240,7 +255,7 @@ class RecoverySessionTests(unittest.TestCase):
                         time.sleep(0.15)
                         (out / "STOP").touch()
                         return
-                if elapsed > (12 if post else 5 if inject_fault else 7):
+                if elapsed > (12 if post else 5 if inject_fault else 10 if cruise > 20 else 7):
                     out.mkdir(exist_ok=True)
                     (out / "STOP").touch()
                     return
@@ -260,6 +275,7 @@ class RecoverySessionTests(unittest.TestCase):
                     else ScriptedObserver,
                 ),
                 patch.object(runner, "CombinedPort", port),
+                patch("bucket_robot.missions.vertical.ABCombinedPort", port),
                 patch.object(runner.signal, "signal"),
                 patch("bucket_robot.missions.forward_range.ForwardRange", Range),
                 patch(
@@ -267,6 +283,7 @@ class RecoverySessionTests(unittest.TestCase):
                 ),
                 patch("bucket_robot.missions.post_execute.execute_post", post_execute),
                 patch("bucket_robot.missions.approach.run_approach", left_approach),
+                patch("bucket_robot.missions.vertical.align_parked", parked_alignment),
             ):
                 runner.main()
             summary = json.loads((out / "summary.json").read_text())
@@ -296,6 +313,27 @@ class RecoverySessionTests(unittest.TestCase):
         self.assertEqual(summary["final_state"]["servo_software_deg"], 97)
         self.assertFalse(summary["final_state"]["enabled"])
         self.assertTrue(all(f[2] == 0 for f in commands))
+
+    def test80_continuous_main_sends80_holds_B_and_recovers_visual_loss(self):
+        summary, states, commands, _ = self.run_session(
+            distance_first=True, cruise=80, a_start_only=True
+        )
+        self.assertIsNone(summary["error"], summary)
+        self.assertIsNone(summary["stop_error"])
+        self.assertIn(80, [f[1] for f in commands if f[8] & 1])
+        self.assertTrue(all(f[2] == 0 and f[5:8] == bytes([0, 0, 0]) for f in commands))
+        self.assertIn("waiting_target", states)
+        self.assertFalse(summary["final_state"]["enabled"])
+
+    def test80_main_parks_upper_aim_then_uses20_for_final_forward_alignment(self):
+        summary, _, commands, observed = self.run_session(
+            distance_first=True, post=True, cruise=80, a_start_only=True
+        )
+        self.assertIsNone(summary["error"], summary)
+        self.assertEqual(observed.get("upper_calls"), 1)
+        self.assertEqual(observed.get("post_calls"), 1)
+        self.assertTrue(all(f[1] <= 20 for f in commands[observed["upper_command_index"] :]))
+        self.assertEqual(summary["final_state"]["slide_position_mm"], 150)
 
     def test_post_phase_preserves_observer_and_aligns_before_sideways_extension(self):
         summary, states, commands, observed = self.run_session(distance_first=True, post=True)

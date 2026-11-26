@@ -48,7 +48,9 @@ class TrackingContractTests(unittest.TestCase):
         fixture = json.loads((Path(__file__).parent / "fixtures/ab_control_trace.json").read_text())
 
         def policy():
-            return FollowPolicy(Limits(default_reference()), *fixture["intrinsics"])
+            limits = Limits(default_reference())
+            limits.aim_area = None  # Recorded fixture uses the original centre-circle target.
+            return FollowPolicy(limits, *fixture["intrinsics"])
 
         controllers = [TrackingController(policy()), VerticalSupervisor(policy()).controller]
         for row in fixture["rows"]:

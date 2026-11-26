@@ -424,6 +424,9 @@ class Session:
                 else 999,
             }
             track = dict(self.tracking) if self.tracking else None
+            from bucket_robot.tracking.aim import aimed_target
+
+            track = aimed_target(track, getattr(self.limits, "aim_area", None))
             data["tracking"] = {
                 "mode": self.mode,
                 "target": track,
@@ -589,6 +592,9 @@ class Session:
                 annotated = image.copy()
                 cv2.drawMarker(annotated, (640, 360), (240, 245, 242), cv2.MARKER_CROSS, 26, 2)
                 if target:
+                    from bucket_robot.tracking.aim import aimed_target
+
+                    target = aimed_target(target, getattr(self.limits, "aim_area", None))
                     b = target["box"]
                     x, y = target["offset_px"]
                     radius = alignment_radius(target)
@@ -598,6 +604,9 @@ class Session:
                         else (0, 215, 255)
                     )
                     cv2.rectangle(annotated, tuple(b[:2]), tuple(b[2:]), color, 2)
+                    if target.get("aim_region_px"):
+                        l, t, r, bot = map(round, target["aim_region_px"])
+                        cv2.rectangle(annotated, (l, t), (r, bot), (210, 235, 60), 2)
                     cv2.drawMarker(
                         annotated, (round(x + 640), round(y + 360)), color, cv2.MARKER_CROSS, 14, 2
                     )

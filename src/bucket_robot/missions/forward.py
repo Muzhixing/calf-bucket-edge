@@ -331,9 +331,14 @@ def main():
         action="store_true",
         help="Range from lock; stop near 20cm at any A angle",
     )
-    ap.add_argument("--cruise-speed", type=int, default=8, choices=range(1, 21))
+    ap.add_argument("--cruise-speed", type=int, default=8, choices=range(1, 81))
+    ap.add_argument("--a-start-only", action="store_true")
     ap.add_argument("--execute-post-geometry", action="store_true")
     args = ap.parse_args()
+    if args.a_start_only and not args.track_b:
+        ap.error("A-priority departure requires --track-b for parked upper alignment")
+    if args.cruise_speed > 20 and not (args.distance_first or args.observe_only):
+        ap.error("high cruise speed requires distance-first assisted ranging")
     if args.execute_post_geometry and not (args.distance_first and args.post_approach_plan):
         ap.error("post geometry execution requires distance-first and post-approach-plan")
     if not (args.track_b or args.a_only or args.observe_only or args.center_only):
@@ -354,9 +359,19 @@ def main():
     if args.post_approach_plan and not args.approach_model:
         ap.error("post-approach plan requires range approach")
     from bucket_robot.missions.recovery import RecoveryGate, RecoverySettings
+    from bucket_robot.tracking.aim import horizontal_aligned
 
     gate = (
-        RecoveryGate(args.seconds, settings=RecoverySettings(cruise=args.cruise_speed))
+        RecoveryGate(
+            args.seconds,
+            settings=RecoverySettings(
+                cruise=args.cruise_speed,
+                acceleration_per_s=40 if args.cruise_speed > 20 else 8,
+                deceleration_per_s=80 if args.cruise_speed > 20 else 10,
+                initial_confirm_s=0 if args.a_start_only else 0.7,
+                initial_confirm_frames=1 if args.a_start_only else 3,
+            ),
+        )
         if args.recover_loss
         else ForwardGate(args.seconds, until_left=args.until_left)
     )
@@ -500,6 +515,9 @@ def main():
             last_status = None
             last_status_at = 0.0
             last_range_frame = -1
+            upper_aligned_at = None
+            visibility_wait = False
+            visibility_limited = False
             while True:
                 now = time.monotonic()
                 p.tick()
@@ -526,12 +544,20 @@ def main():
                 # Read the clock after UART polling and the observer snapshot:
                 # a newly arrived frame must not look as though it is future-dated.
                 now = time.monotonic()
-                target = obs["target"]
-                policy.set_a_rate_limit(10 if gate.started is None and not post_aligning else 30)
+                target = controller.target(obs["target"])
+                policy.set_a_rate_limit(
+                    30
+                    if args.a_start_only
+                    else 10
+                    if gate.started is None and not post_aligning
+                    else 30
+                )
                 current = pose(p.state)[0]
                 settled = abs(current - (p.target or [current])[0]) <= 1
                 vertical_plan = (
-                    vertical.plan(
+                    dict(ready=True, goal=None)
+                    if vertical and args.a_start_only and not post_aligning
+                    else vertical.plan(
                         now,
                         target,
                         pose(p.state)[1],
@@ -542,6 +568,14 @@ def main():
                     if vertical
                     else None
                 )
+                if args.a_start_only and vertical and not post_aligning:
+                    vertical_plan = dict(ready=True, goal=None)
+                    vertical.reason = "B_held_during_travel"
+                    region = (target or {}).get("aim_region_px")
+                    if region and region[1] >= 64 and region[3] <= 560:
+                        visibility_limited = False
+                    if region and not visibility_limited and (region[1] < 24 or region[3] > 600):
+                        visibility_wait = True
                 range_plan = (
                     ranger.evaluate(
                         now, obs, current_image, p.phase == "idle" and not p.state["enabled"]
@@ -554,7 +588,48 @@ def main():
                     if measurement["frame_id"] != last_range_frame:
                         record("forward_range", range_plan)
                         last_range_frame = measurement["frame_id"]
-                if range_plan and range_plan["near"]:
+                if visibility_wait and not upper_aligned_at:
+                    if p.phase == "idle" and not p.state["enabled"]:
+                        from bucket_robot.missions.vertical import align_parked
+
+                        result["view_recovery"] = align_parked(
+                            observer, p, controller, args.out, record, visibility_only=True
+                        )
+                        if result["view_recovery"]["moved"]:
+                            ranger.invalidate_before(result["view_recovery"]["settled_at"])
+                        visibility_wait = False
+                        visibility_limited = result["view_recovery"]["constrained"]
+                        gate.speed = gate.velocity = 0
+                        continue
+                    if range_plan:
+                        range_plan = dict(range_plan, permit=False, speed_cap=0)
+                if range_plan and visibility_limited:
+                    range_plan = dict(range_plan, speed_cap=min(20, range_plan.get("speed_cap", 0)))
+                if range_plan and (range_plan["near"] or upper_aligned_at is not None):
+                    if args.a_start_only and upper_aligned_at is None:
+                        from bucket_robot.missions.vertical import align_parked
+
+                        result["upper_alignment"] = align_parked(
+                            observer, p, controller, args.out, record
+                        )
+                        upper_aligned_at = result["upper_alignment"]["settled_at"]
+                        if result["upper_alignment"]["moved"]:
+                            ranger.invalidate_before(upper_aligned_at)
+                            continue
+                        upper_aligned_at = range_plan["measurement"]["capture_time"]
+                    if upper_aligned_at is not None:
+                        m = range_plan.get("measurement") or {}
+                        if time.monotonic() - upper_aligned_at > 25:
+                            raise RuntimeError("waiting_range_after_upper_alignment_timeout")
+                        if (
+                            not target
+                            or not m.get("valid")
+                            or m.get("capture_time", 0) < upper_aligned_at
+                            or not range_plan.get("static_verified")
+                            or range_plan.get("reason") == "waiting_valid_same_target_range"
+                        ):
+                            time.sleep(0.005)
+                            continue
                     near_measurement = range_plan["measurement"]
                     if args.execute_post_geometry:
                         from bucket_robot.missions.post_geometry import alignment_extension_plan
@@ -578,7 +653,17 @@ def main():
                             raise RuntimeError("drive_budget_exhausted_before_post_alignment")
                         from bucket_robot.missions.post_alignment import PostAlignmentGate
 
-                        gate = PostAlignmentGate(max(0.6, args.seconds - previous_drive))
+                        gate = PostAlignmentGate(
+                            max(0.6, args.seconds - previous_drive),
+                            settings=RecoverySettings(
+                                cruise=20,
+                                acceleration_per_s=20,
+                                deceleration_per_s=40,
+                                initial_confirm_s=0.1,
+                            )
+                            if args.a_start_only
+                            else None,
+                        )
                         gate.identity = obs["identity"]
                         vertical = None  # Preserve the geometry measurement height.
                         policy.reset()
@@ -594,7 +679,11 @@ def main():
                         current,
                         settled,
                         commanded_a=(p.target or [current])[0],
-                        speed_cap=range_plan.get("speed_cap", 8) if range_plan else 8,
+                        speed_cap=range_plan.get("speed_cap", 8)
+                        if range_plan
+                        else 20
+                        if post_aligning and args.a_start_only
+                        else 8,
                         chassis_stopped=p.phase == "idle" and not p.state["enabled"],
                         motion_permitted=(
                             vertical_plan["ready"] and vertical.stage == "idle"
@@ -668,7 +757,7 @@ def main():
                     and not range_plan["permit"]
                     and velocity == 0
                     and target
-                    and abs(target["offset_px"][0]) <= 20
+                    and horizontal_aligned(target)
                     and settled
                 ):
                     if p.phase != "stopping" and p.state["enabled"]:
@@ -680,7 +769,7 @@ def main():
                     and velocity == 0
                     and target
                     and settled
-                    and abs(target["offset_px"][0]) <= 20
+                    and horizontal_aligned(target)
                     and p.phase == "idle"
                     and not p.state["enabled"]
                 ):
@@ -854,6 +943,7 @@ def main():
                 target_session=getattr(observer, "target_session", None)
                 if args.recover_loss
                 else None,
+                align_upper_after_stop=args.a_start_only,
             )
             result["operator_stopped"] = result["approach"].get("operator_stopped", False)
             if result["approach"]["error"] or result["approach"]["stop_error"]:

@@ -3,7 +3,18 @@
 import sys
 
 
-def command(layout, out, port, budget, *, execute_post_geometry=False, resume_post_plan=None):
+def command(
+    layout,
+    out,
+    port,
+    budget,
+    *,
+    execute_post_geometry=False,
+    resume_post_plan=None,
+    cruise_speed=80,
+):
+    if type(cruise_speed) is not int or not 1 <= cruise_speed <= 80:
+        raise ValueError("invalid_cruise_speed")
     if resume_post_plan:
         return [
             sys.executable,
@@ -25,7 +36,8 @@ def command(layout, out, port, budget, *, execute_post_geometry=False, resume_po
         "--recover-loss",
         "--distance-first",
         "--cruise-speed",
-        "20",
+        str(cruise_speed),
+        "--a-start-only",
         "--track-b",
         "--post-approach-plan",
         *(["--execute-post-geometry"] if execute_post_geometry else []),
