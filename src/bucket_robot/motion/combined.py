@@ -34,7 +34,7 @@ class CombinedPort(ContinuousArmPort):
     def request(self, a, velocity):
         q = [a, 0, 0]
         self.limits.check(q)
-        if type(velocity) is not int or not 0 <= velocity <= 8:
+        if type(velocity) is not int or not 0 <= velocity <= getattr(self, "max_velocity", 8):
             raise RuntimeError("invalid_speed")
         if not self.can_send():
             return False
@@ -126,7 +126,7 @@ class ABCombinedPort(CombinedPort):
 
     def _request(self, q, velocity, b_move):
         self.limits.check(q)
-        if type(velocity) is not int or not 0 <= velocity <= 8:
+        if type(velocity) is not int or not 0 <= velocity <= getattr(self, "max_velocity", 8):
             raise RuntimeError("invalid_speed")
         if not self.can_send():
             return False

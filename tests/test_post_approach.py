@@ -27,8 +27,8 @@ class PostApproachTests(unittest.TestCase):
     def test_plan_keeps_metric_target_and_blocks_both_actions_without_odometry(self):
         p = pending_extension_plan(self.valid())
         self.assertEqual(p["phase"], "waiting_displacement_measurement")
-        self.assertEqual(p["sequence"][0]["absolute_target_mm"], 150)
-        self.assertEqual(p["sequence"][1]["relative_target_mm"], 100)
+        self.assertEqual(p["sequence"][-1]["absolute_target_mm"], 150)
+        self.assertAlmostEqual(p["sequence"][2]["relative_target_mm"], 111.5)
         self.assertFalse(p["C_extension_sent"])
         self.assertFalse(p["chassis_command_sent"])
         self.assertFalse(p["simultaneous"])

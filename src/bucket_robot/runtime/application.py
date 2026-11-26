@@ -550,7 +550,14 @@ class Application:
             return
         # One control process; the UI shell retains the existing vision backend.
         self.task = subprocess.Popen(
-            command(layout, self.args.output, self.args.port + 1, self.args.drive_budget),
+            command(
+                layout,
+                self.args.output,
+                self.args.port + 1,
+                self.args.drive_budget,
+                execute_post_geometry=getattr(self.args, "execute_post_geometry", False),
+                resume_post_plan=getattr(self.args, "resume_post_plan", None),
+            ),
             env=env,
             start_new_session=True,
         )
@@ -724,6 +731,8 @@ def parser():
     ap.add_argument("--out", type=Path)
     ap.add_argument("--drive-budget", type=float, default=120)
     ap.add_argument("--wall-budget", type=float, default=300)
+    ap.add_argument("--execute-post-geometry", action="store_true")
+    ap.add_argument("--resume-post-plan", type=Path)
     return ap
 
 

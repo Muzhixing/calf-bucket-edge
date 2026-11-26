@@ -328,7 +328,11 @@ def main():
         action="store_true",
         help="Range from lock; stop near 20cm at any A angle",
     )
+    ap.add_argument("--cruise-speed", type=int, default=8, choices=range(1, 21))
+    ap.add_argument("--execute-post-geometry", action="store_true")
     args = ap.parse_args()
+    if args.execute_post_geometry and not (args.distance_first and args.post_approach_plan):
+        ap.error("post geometry execution requires distance-first and post-approach-plan")
     if not (args.track_b or args.a_only or args.observe_only or args.center_only):
         ap.error(
             "select --track-b for shared A/B tracking, or explicitly --a-only for a diagnostic"
@@ -346,10 +350,10 @@ def main():
         ap.error("distance-first requires recovering motion and assisted ranging")
     if args.post_approach_plan and not args.approach_model:
         ap.error("post-approach plan requires range approach")
-    from bucket_robot.missions.recovery import RecoveryGate
+    from bucket_robot.missions.recovery import RecoveryGate, RecoverySettings
 
     gate = (
-        RecoveryGate(args.seconds)
+        RecoveryGate(args.seconds, settings=RecoverySettings(cruise=args.cruise_speed))
         if args.recover_loss
         else ForwardGate(args.seconds, until_left=args.until_left)
     )
@@ -379,6 +383,8 @@ def main():
     p = None
     ranger = None
     near_measurement = None
+    post_plan = None
+    post_aligning = False
     handoff = None
     result = {
         "mode": "observe_only"
@@ -417,6 +423,7 @@ def main():
                 if pose(p.state) != [args.expect_a, args.expect_b, 0]:
                     raise RuntimeError("initial_pose_mismatch")
                 result["initial_state"] = dict(p.state)
+                p.max_velocity = args.cruise_speed
                 p.rearm()
             if args.distance_first:
                 from bucket_robot.missions.forward_range import ForwardRange
@@ -426,6 +433,7 @@ def main():
                     args.approach_calibration,
                     args.approach_model,
                     args.approach_surface_band,
+                    **({"cruise": args.cruise_speed} if args.cruise_speed != 8 else {}),
                 )
                 ranger.thread.start()
             started = time.monotonic()
@@ -494,6 +502,7 @@ def main():
                 p.tick()
                 if (args.out / "STOP").exists():
                     result["reason"] = "operator_stop"
+                    result["operator_stopped"] = True
                     break
                 if not args.recover_loss and now - began > (
                     args.seconds + 10 if args.until_left else 20
@@ -533,7 +542,7 @@ def main():
                     ranger.evaluate(
                         now, obs, current_image, p.phase == "idle" and not p.state["enabled"]
                     )
-                    if ranger
+                    if ranger and not post_aligning
                     else None
                 )
                 if range_plan and range_plan.get("measurement"):
@@ -543,6 +552,34 @@ def main():
                         last_range_frame = measurement["frame_id"]
                 if range_plan and range_plan["near"]:
                     near_measurement = range_plan["measurement"]
+                    if args.execute_post_geometry:
+                        from bucket_robot.missions.post_geometry import alignment_extension_plan
+                        from bucket_robot.missions.post_execute import lateral_timing
+
+                        if p.phase != "idle" or p.state["enabled"]:
+                            raise RuntimeError("triangle_requires_stopped_range_confirmation")
+                        post_plan = alignment_extension_plan(
+                            near_measurement["distance_m"], current
+                        )
+                        lateral_timing(post_plan["sequence"][2]["relative_target_mm"])
+                        record("stopped_triangle_plan", post_plan)
+                        (args.out / "post_approach.json").write_text(
+                            json.dumps(post_plan, indent=2)
+                        )
+                        post_aligning = True
+                        # The range gate has already verified a newly captured,
+                        # disabled scene. Keep the exact same Observer/session.
+                        previous_drive = gate.drive_seconds
+                        if previous_drive >= args.seconds:
+                            raise RuntimeError("drive_budget_exhausted_before_post_alignment")
+                        from bucket_robot.missions.post_alignment import PostAlignmentGate
+
+                        gate = PostAlignmentGate(max(0.6, args.seconds - previous_drive))
+                        gate.identity = obs["identity"]
+                        vertical = None  # Preserve the geometry measurement height.
+                        policy.reset()
+                        range_plan = None
+                        continue
                     result["reason"] = "target_distance_reached"
                     break
                 if args.recover_loss:
@@ -572,7 +609,11 @@ def main():
                 ):
                     gate.reason = range_plan["reason"]
                 if reason:
-                    result["reason"] = reason
+                    result["reason"] = (
+                        "post_left_aligned"
+                        if post_aligning and reason == "left_reference_reached"
+                        else reason
+                    )
                     if reason == "left_reference_reached":
                         handoff = (obs, current_image, error)
                     break
@@ -582,6 +623,8 @@ def main():
                 result["drive_observed"] |= p.state["state"] == 3
                 if args.recover_loss:
                     status = gate.status()
+                    if post_aligning:
+                        status["phase"] = "post_forward_align_" + gate.phase
                     if vertical:
                         status["vertical"] = vertical.status()
                     if range_plan:
@@ -643,7 +686,11 @@ def main():
                     continue
                 if gate.started is not None and not announced:
                     print(
-                        "FORWARD_PHASE_STARTED speed=8 max_seconds=" + str(args.seconds), flush=True
+                        "FORWARD_PHASE_STARTED speed="
+                        + str(args.cruise_speed)
+                        + " max_seconds="
+                        + str(args.seconds),
+                        flush=True,
                     )
                     announced = True
                 fresh_frame = obs["frame_id"] != last_frame
@@ -730,7 +777,7 @@ def main():
         if args.post_approach_plan:
             from bucket_robot.missions.post_approach import pending_extension_plan
 
-            result["post_approach"] = pending_extension_plan(result["approach"])
+            result["post_approach"] = post_plan or pending_extension_plan(result["approach"])
             (args.out / "post_approach.json").write_text(
                 json.dumps(result["post_approach"], indent=2)
             )
@@ -842,6 +889,24 @@ def main():
                 result["stop_error"] = p.shutdown() or result["stop_error"]
         (args.out / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result), flush=True)
+    if (
+        args.execute_post_geometry
+        and (result.get("reason") == "post_left_aligned" or result.get("approach"))
+        and not result.get("operator_stopped")
+        and not result["error"]
+        and not result["stop_error"]
+    ):
+        from bucket_robot.missions.post_execute import execute_post
+
+        result["post_execution"] = execute_post(
+            post_plan or result["post_approach"], args.reference, args.out
+        )
+        result["error"] = result["post_execution"]["error"]
+        result["stop_error"] = result["post_execution"]["stop_error"]
+        result["final_state"] = result["post_execution"].get("final_state")
+        result["operator_stopped"] = result["post_execution"].get("operator_stopped", False)
+        (args.out / "summary.json").write_text(json.dumps(result, indent=2))
+        print("POST_EXECUTION " + json.dumps(result["post_execution"]), flush=True)
     if (
         args.recover_loss
         and not args.observe_only
