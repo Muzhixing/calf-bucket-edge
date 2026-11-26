@@ -7,6 +7,33 @@ from bucket_robot.perception.target import TargetLock, EdgeTracker, valid_box, v
 
 
 class EdgeReappearanceTests(unittest.TestCase):
+    def test_initial_edge_acquisition_reuses_existing_verified_edge_path(self):
+        for box in ([0, 120, 310, 700], [30, 460, 404, 718]):
+            _, image, blank, box = self.setup_scene(box)
+            manager = TargetLock()
+            stamp, result = self.acquire(manager, image, box)
+            self.assertEqual(manager.generation, 1)
+            self.assertTrue(result["partial_visible"])
+            self.assertIsInstance(manager.tracker, EdgeTracker)
+            self.assertIsNone(manager.update(blank, dict(arrival=stamp + 0.04, detections=[])))
+
+    def test_initial_edge_rejects_missing_weak_ambiguous_old_and_blank_frames(self):
+        for case in ("missing", "weak", "ambiguous", "duplicate", "blank"):
+            _, image, blank, box = self.setup_scene()
+            manager = TargetLock()
+            for i in range(10):
+                ds = [detection(box, 0.7 if case == "weak" else 0.95)]
+                if case == "missing" and i % 2:
+                    ds = []
+                if case == "ambiguous":
+                    ds.append(detection([800, 250, 1050, 500], 0.95))
+                result = manager.update(
+                    blank if case == "blank" else image,
+                    dict(arrival=1.2 if case == "duplicate" else 1.2 + i * 0.04, detections=ds),
+                )
+                self.assertIsNone(result, case)
+            self.assertEqual(manager.generation, 0)
+
     def setup_scene(self, box=(0, 120, 310, 700)):
         original = test_tracking.TrackingTests.scene()
         m = TargetLock()

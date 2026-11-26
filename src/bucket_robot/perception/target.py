@@ -1063,7 +1063,11 @@ class TargetLock:
                 )
                 if result is not None:
                     return result
-                if self.generation > 0:
+                initial_edge = any(
+                    not valid_box([d[k] for k in ("left", "top", "right", "bottom")], image.shape)
+                    for d in detections
+                )
+                if self.generation > 0 or self.wide_views or initial_edge:
                     result = self.measured_reappearance(image, stamp, detections)
                     if result is not None:
                         return result
