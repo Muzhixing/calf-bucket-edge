@@ -3,12 +3,16 @@
 from http.server import BaseHTTPRequestHandler
 import json, secrets, time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
+from bucket_robot.runtime.video import stream_mjpeg, VideoStreams
 
 
 def handler_for(session):
+    streams = VideoStreams()
+
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        disable_nagle_algorithm = True
 
         def log_message(self, *args):
             pass
@@ -42,6 +46,20 @@ def handler_for(session):
                         html = '<!doctype html><html lang="zh"><meta charset="utf-8"><title>设备状态</title><h1>界面资源不可用</h1><p>请修复界面资源。状态服务仍在运行。</p><pre id="health"></pre><script>setInterval(async()=>{document.getElementById("health").textContent=JSON.stringify(await(await fetch("/health")).json(),null,2)},1000)</script></html>'
                     html = html.replace("__CONTROL_TOKEN__", session.token)
                     self.respond(200, html.encode(), "text/html; charset=utf-8")
+                elif path == "/video_stream.js":
+                    self.respond(
+                        200,
+                        (Path(__file__).parent / "video_stream.js").read_bytes(),
+                        "text/javascript; charset=utf-8",
+                    )
+                elif path == "/video-ack":
+                    query = parse_qs(urlsplit(self.path).query)
+                    seq = query.get("frame", [""])[0]
+                    if not seq.isdecimal() or len(seq) > 20:
+                        self.respond(400, {"error": "invalid_video_frame"})
+                        return
+                    streams.acknowledge(query.get("client", [""])[0], int(seq))
+                    self.respond(204, b"", keep_alive=True)
                 elif path in ("/health", "/ready"):
                     health = session.status().get("health", {})
                     available = (
@@ -86,33 +104,7 @@ def handler_for(session):
                         keep_alive=True,
                     )
                 elif path == "/stream.mjpg":
-                    self.connection.settimeout(2)
-                    self.send_response(200)
-                    self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-                    self.send_header("Cache-Control", "no-store")
-                    self.send_header("Connection", "close")
-                    self.end_headers()
-                    previous = -1
-                    while not session.stop_event.is_set():
-                        with session.condition:
-                            session.condition.wait_for(
-                                lambda: session.stop_event.is_set() or session.video_id != previous,
-                                timeout=0.5,
-                            )
-                            jpeg, seq = session.jpeg, session.video_id
-                        if jpeg is None or seq == previous:
-                            continue
-                        previous = seq
-                        self.wfile.write(
-                            b"--frame\r\nContent-Type: image/jpeg\r\nX-Frame-Id: "
-                            + str(seq).encode()
-                            + b"\r\nContent-Length: "
-                            + str(len(jpeg)).encode()
-                            + b"\r\n\r\n"
-                            + jpeg
-                            + b"\r\n"
-                        )
-                        self.wfile.flush()
+                    stream_mjpeg(self, session, streams)
                 else:
                     self.respond(404, {"error": "not_found"})
             except (BrokenPipeError, ConnectionResetError, TimeoutError):

@@ -13,7 +13,12 @@ class ConsoleViewTests(unittest.TestCase):
             self.skipTest("Node.js required for presentation-only tests")
         root = Path(__file__).resolve().parents[1]
         result = subprocess.run(
-            [node, "--test", str(root / "tests/ui/console_view.test.cjs")],
+            [
+                node,
+                "--test",
+                str(root / "tests/ui/console_view.test.cjs"),
+                str(root / "tests/ui/video_stream.test.cjs"),
+            ],
             cwd=root,
             capture_output=True,
             text=True,
