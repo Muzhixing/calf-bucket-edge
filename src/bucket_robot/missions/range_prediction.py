@@ -6,7 +6,10 @@ import statistics
 
 
 class RangePrediction:
-    def __init__(self):
+    def __init__(self, cruise=8):
+        if type(cruise) is not int or not 1 <= cruise <= 20:
+            raise ValueError("invalid_cruise_speed")
+        self.cruise = cruise
         self.samples = deque(maxlen=5)
         self.identity = None
         self.last_frame = -1
@@ -70,6 +73,14 @@ class RangePrediction:
         # Keep the near command above the unvalidated low-speed stiction range.
         # 6% produced measured approach on the loaded chassis during acceptance.
         cap = 8 if lookahead >= 0.35 else 7 if lookahead >= 0.30 else 6
+        if self.cruise > 8:
+            if lower >= 0.40:
+                cap = self.cruise
+            elif lower >= 0.25:
+                cap = int(math.floor(10 + (self.cruise - 10) * (lower - 0.25) / 0.15 + 1e-8))
+            else:
+                cap = max(0, int(math.floor(10 * (lower - 0.20) / 0.05 + 1e-8)))
+        cap = min(self.cruise, cap)
         return dict(
             permit=True,
             near=False,

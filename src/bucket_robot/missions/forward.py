@@ -328,6 +328,7 @@ def main():
         action="store_true",
         help="Range from lock; stop near 20cm at any A angle",
     )
+    ap.add_argument("--cruise-speed", type=int, default=8, choices=range(1, 21))
     args = ap.parse_args()
     if not (args.track_b or args.a_only or args.observe_only or args.center_only):
         ap.error(
@@ -346,10 +347,10 @@ def main():
         ap.error("distance-first requires recovering motion and assisted ranging")
     if args.post_approach_plan and not args.approach_model:
         ap.error("post-approach plan requires range approach")
-    from bucket_robot.missions.recovery import RecoveryGate
+    from bucket_robot.missions.recovery import RecoveryGate, RecoverySettings
 
     gate = (
-        RecoveryGate(args.seconds)
+        RecoveryGate(args.seconds, settings=RecoverySettings(cruise=args.cruise_speed))
         if args.recover_loss
         else ForwardGate(args.seconds, until_left=args.until_left)
     )
@@ -417,6 +418,7 @@ def main():
                 if pose(p.state) != [args.expect_a, args.expect_b, 0]:
                     raise RuntimeError("initial_pose_mismatch")
                 result["initial_state"] = dict(p.state)
+                p.max_velocity = args.cruise_speed
                 p.rearm()
             if args.distance_first:
                 from bucket_robot.missions.forward_range import ForwardRange
@@ -426,6 +428,7 @@ def main():
                     args.approach_calibration,
                     args.approach_model,
                     args.approach_surface_band,
+                    **({"cruise": args.cruise_speed} if args.cruise_speed != 8 else {}),
                 )
                 ranger.thread.start()
             started = time.monotonic()
@@ -643,7 +646,11 @@ def main():
                     continue
                 if gate.started is not None and not announced:
                     print(
-                        "FORWARD_PHASE_STARTED speed=8 max_seconds=" + str(args.seconds), flush=True
+                        "FORWARD_PHASE_STARTED speed="
+                        + str(args.cruise_speed)
+                        + " max_seconds="
+                        + str(args.seconds),
+                        flush=True,
                     )
                     announced = True
                 fresh_frame = obs["frame_id"] != last_frame

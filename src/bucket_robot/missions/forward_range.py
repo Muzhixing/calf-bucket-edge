@@ -8,7 +8,7 @@ from bucket_robot.missions.range_prediction import RangePrediction
 
 
 class ForwardRange:
-    def __init__(self, observer, calibration, model, surface_band=None):
+    def __init__(self, observer, calibration, model, surface_band=None, cruise=8):
         self.observer = observer
         self.calibration, self.model, self.band = calibration, model, surface_band
         self.lock = threading.Lock()
@@ -19,7 +19,7 @@ class ForwardRange:
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.static_since = None
         self.near = None
-        self.prediction = RangePrediction()
+        self.prediction = RangePrediction(cruise=cruise)
         self.verify_started = None
         self.last_invalid = None
 

@@ -11,6 +11,8 @@ def command(layout, out, port, budget):
         "forward",
         "--recover-loss",
         "--distance-first",
+        "--cruise-speed",
+        "20",
         "--track-b",
         "--post-approach-plan",
         "--reference",
