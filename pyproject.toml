@@ -23,7 +23,7 @@ bucket-telemetry = "bucket_robot.transport.telemetry:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bucket_robot = ["resources/*.json", "runtime/*.html"]
+bucket_robot = ["resources/*.json", "runtime/*.html", "runtime/*.js"]
 
 [tool.ruff]
 target-version = "py310"

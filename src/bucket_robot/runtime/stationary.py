@@ -122,6 +122,7 @@ class Session:
         self.preview_image = None
         self.preview_metadata = {}
         self.remote_jpeg = None
+        self.smooth_jpeg = None
         self.remote_video_id = 0
         self.remote_arrival = 0.0
         self.remote_encoded_at = 0.0
@@ -642,6 +643,11 @@ class Session:
                 if not ok:
                     raise RuntimeError("预览JPEG编码失败")
                 remote = compact.tobytes()
+                ok, smooth = cv2.imencode(
+                    ".jpg", cv2.resize(annotated, (480, 270)), [cv2.IMWRITE_JPEG_QUALITY, 25]
+                )
+                if not ok:
+                    raise RuntimeError("流畅预览JPEG编码失败")
                 now = time.monotonic()
                 times.append(now)
                 if self.startup_diagnostics is not None:
@@ -656,6 +662,7 @@ class Session:
                 with self.condition:
                     # JPEG bytes and their sequence are published atomically.
                     self.remote_jpeg = remote
+                    self.smooth_jpeg = smooth.tobytes()
                     self.remote_video_id = previous
                     self.remote_arrival = metadata["arrival"]
                     self.remote_encoded_at = now
