@@ -215,6 +215,52 @@ class HealthTests(unittest.TestCase):
 
 
 class MissionShellTests(unittest.TestCase):
+    def test_cleanup_rejects_task_exit_without_disabled_ack(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as folder:
+            args, _ = parser().parse_known_args(
+                ["--observe-only", "--port", str(available_pair()), "--output", folder]
+            )
+            args.mission = True
+            app = Application(args, [])
+            app.task = SimpleNamespace(poll=lambda: 0)
+            try:
+                self.assertFalse(app.close_components())
+                self.assertEqual(app.health.snapshot()["motion_latch"]["code"], "STOP_UNCONFIRMED")
+                (Path(folder) / "mission").mkdir()
+                (Path(folder) / "mission/task_status.json").write_text(
+                    json.dumps(dict(phase="stopped", disabled_confirmed=True))
+                )
+                self.assertTrue(app.close_components())
+                self.assertIsNone(app.task)
+            finally:
+                app.server.server_close()
+
+    def test_mission_time_limit_requests_stop_once_and_waits_for_ack(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as folder:
+            args, _ = parser().parse_known_args(
+                ["--observe-only", "--port", str(available_pair()), "--output", folder]
+            )
+            args.mission = True
+            app = Application(args, [])
+            signals = []
+            app.task = SimpleNamespace(poll=lambda: None, send_signal=signals.append)
+            app.task_started = time.monotonic() - args.wall_budget - 1
+            for name in app.health.components:
+                app.health.ready(name)
+            try:
+                for _ in range(3):
+                    app.tick_task()
+                self.assertEqual(len(signals), 1)
+                self.assertIsNotNone(app.task_stop_requested)
+                self.assertEqual(app.health.snapshot()["motion_latch"]["code"], "TASK_TIME_LIMIT")
+            finally:
+                app.task = None
+                app.server.server_close()
+
     def test_mission_handoff_reads_approach_telemetry_and_fault_requests_stop_once(self):
         class Process:
             returncode = None

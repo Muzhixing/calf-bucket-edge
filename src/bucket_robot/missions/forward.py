@@ -348,11 +348,27 @@ def main():
 
         try:
             observer.thread.start()
+            if not args.observe_only:
+                limits = Limits(args.reference)
+                limits.a_min = 73
+                limits.a_max = 132
+                if args.track_b:
+                    from bucket_robot.missions.vertical import ABCombinedPort, VerticalSupervisor
+
+                    p = ABCombinedPort(limits, record)
+                else:
+                    p = CombinedPort(limits, record)
+                if pose(p.state) != [args.expect_a, args.expect_b, 0]:
+                    raise RuntimeError("initial_pose_mismatch")
+                result["initial_state"] = dict(p.state)
+                p.rearm()
             started = time.monotonic()
             last_initial_status = 0.0
             while observer.get()[0] is None or (
                 args.recover_loss and observer.get()[0]["target"] is None
             ):
+                if p is not None:
+                    p.tick()
                 if observer.get()[1]:
                     raise RuntimeError(observer.get()[1])
                 if (args.out / "STOP").exists():
@@ -366,7 +382,7 @@ def main():
                             dict(
                                 phase="waiting_initial_target",
                                 reason=waiting.get("reason", "initial_acquisition"),
-                                serial_opened=False,
+                                serial_opened=p is not None,
                             ),
                             indent=2,
                         )
@@ -389,19 +405,6 @@ def main():
             import cv2
             from bucket_robot.tracking.policy import FollowPolicy
 
-            limits = Limits(args.reference)
-            limits.a_min = 73
-            limits.a_max = 132
-            if args.track_b:
-                from bucket_robot.missions.vertical import ABCombinedPort, VerticalSupervisor
-
-                p = ABCombinedPort(limits, record)
-            else:
-                p = CombinedPort(limits, record)
-            if pose(p.state) != [args.expect_a, args.expect_b, 0]:
-                raise RuntimeError("initial_pose_mismatch")
-            result["initial_state"] = dict(p.state)
-            p.rearm()
             fs = cv2.FileStorage(str(args.calibration), cv2.FILE_STORAGE_READ)
             P = fs.getNode("P1").mat()
             fs.release()

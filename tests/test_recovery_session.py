@@ -55,7 +55,7 @@ class FixedPolicy:
 
 
 class RecoverySessionTests(unittest.TestCase):
-    def run_session(self, inject_fault=False):
+    def run_session(self, inject_fault=False, initial_missing=False):
         m = MCU()
         temp = tempfile.TemporaryDirectory()
         root = Path(temp.name)
@@ -106,6 +106,12 @@ class RecoverySessionTests(unittest.TestCase):
         actual = runner.CombinedPort
         observed = {"paused": False}
 
+        class NoTargetObserver(ScriptedObserver):
+            def get(self):
+                obs, error = super().get()
+                obs["target"] = None
+                return obs, error
+
         def port(limits, log):
             return actual(limits, log, port=m.path, sender_factory=Sender, check_holders=False)
 
@@ -138,7 +144,9 @@ class RecoverySessionTests(unittest.TestCase):
         try:
             with (
                 patch.object(sys, "argv", args),
-                patch.object(runner, "Observer", ScriptedObserver),
+                patch.object(
+                    runner, "Observer", NoTargetObserver if initial_missing else ScriptedObserver
+                ),
                 patch.object(runner, "CombinedPort", port),
                 patch.object(runner.signal, "signal"),
                 patch("bucket_robot.tracking.policy.FollowPolicy", FixedPolicy),
@@ -150,6 +158,10 @@ class RecoverySessionTests(unittest.TestCase):
                 for x in (out / "serial.jsonl").read_text().splitlines()
                 if json.loads(x)["kind"] == "recovery_state"
             ]
+            observed["rx_count"] = sum(
+                json.loads(x)["kind"] == "serial_rx"
+                for x in (out / "serial.jsonl").read_text().splitlines()
+            )
             return summary, states, list(m.commands), observed
         finally:
             end.set()
@@ -170,6 +182,13 @@ class RecoverySessionTests(unittest.TestCase):
         self.assertTrue(any(0 < v < 8 for v in values[first_peak + 1 : stop]))
         self.assertIn(8, values[stop + 1 :])
         self.assertTrue(all(f[2] == 0 and f[5:8] == bytes([0, 0, 0]) for f in commands))
+        self.assertFalse(summary["final_state"]["enabled"])
+
+    def test_initial_target_absence_keeps_telemetry_live_without_enabling_motion(self):
+        summary, _, commands, observed = self.run_session(initial_missing=True)
+        self.assertGreater(observed["rx_count"], 10)
+        self.assertTrue(commands)
+        self.assertTrue(all(f[8] == 0 for f in commands))
         self.assertFalse(summary["final_state"]["enabled"])
 
     def test_hard_fault_confirms_disable_and_leaves_task_alive_paused(self):

@@ -471,7 +471,6 @@ class Application:
                 time.monotonic() - self.task_started >= self.args.wall_budget
                 and self.task.poll() is None
             ):
-                self.task.send_signal(signal.SIGTERM)
                 self.health.fault("TASK_TIME_LIMIT", "任务总时长到限，等待停止确认")
             file = self.args.output / "mission/task_status.json"
             try:
@@ -618,12 +617,12 @@ class Application:
                     self.rechecking = False
         finally:
             self.stop_event.set()
-            self.close_components()
+            closed = self.close_components()
             thermal.join(2)
             self.server.shutdown()
             self.server.server_close()
             web.join(2)
-        return 0
+        return 0 if closed else 2
 
     def close_components(self):
         self.session.stop_event.set()
@@ -649,6 +648,16 @@ class Application:
             except subprocess.TimeoutExpired:
                 self.health.fault("STOP_UNCONFIRMED", "任务未确认停止，禁止自动重启")
                 return False
+        if self.task is not None:
+            try:
+                final = json.loads((self.args.output / "mission/task_status.json").read_text())
+            except (OSError, ValueError):
+                final = {}
+            if not isinstance(final, dict) or final.get("disabled_confirmed") is not True:
+                self.health.fault("STOP_UNCONFIRMED", "任务退出但未取得禁用确认，禁止重新初始化")
+                return False
+            self.task_status = final
+            self.task = None
         self.session.stop_event.set()
         if self.supervisor:
             self.supervisor.close()
