@@ -110,7 +110,10 @@ class RecoveryControlTests(unittest.TestCase):
         self.assertEqual(g.phase, "budget_paused")
         self.assertTrue(g.disable)
         g = RecoveryGate(60)
-        self.assertEqual(g.evaluate(1, target(1), 1, 131, True), (0, "left_reference_reached"))
+        for i in range(8):
+            t = 1 + i * 0.05
+            answer = g.evaluate(t, target(t), 1, 131, True, chassis_stopped=True)
+        self.assertEqual(answer, (0, "left_reference_reached"))
 
     def test_left_clipping_can_only_steer_a_at_zero_speed(self):
         g = RecoveryGate(60)
@@ -135,10 +138,26 @@ class RecoveryControlTests(unittest.TestCase):
     def test_handoff_requires_disable_preserved_command_in_left_pose(self):
         g = RecoveryGate(60)
         self.assertIsNone(g.evaluate(1, target(1), 1, 131, True, commanded_a=130)[1])
-        self.assertEqual(
-            g.evaluate(1.05, target(1.05), 1, 131, True, commanded_a=131),
-            (0, "left_reference_reached"),
-        )
+        for i in range(8):
+            t = 1.05 + i * 0.05
+            answer = g.evaluate(t, target(t), 1, 131, True, commanded_a=131, chassis_stopped=True)
+        self.assertEqual(answer, (0, "left_reference_reached"))
+
+    def test_moving_frame_or_one_degree_A_lag_cannot_handoff(self):
+        for case in ("moving", "A_lag", "drift", "repeated"):
+            g = RecoveryGate(60)
+            for i in range(16):
+                t = 1 + i * 0.04
+                _, reason = g.evaluate(
+                    t,
+                    target(1 if case == "repeated" else t, 60 if case == "drift" and i > 3 else 0),
+                    1,
+                    131,
+                    True,
+                    commanded_a=132 if case == "A_lag" else 131,
+                    chassis_stopped=case != "moving",
+                )
+                self.assertIsNone(reason, case)
 
 
 if __name__ == "__main__":

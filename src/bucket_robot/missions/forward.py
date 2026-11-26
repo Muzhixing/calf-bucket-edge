@@ -69,8 +69,19 @@ class ForwardGate:
 
 
 class Observer:
-    def __init__(self, port, folder, seed_image, box, bearing_tracker=False, recover_loss=False):
+    def __init__(
+        self,
+        port,
+        folder,
+        seed_image,
+        box,
+        bearing_tracker=False,
+        recover_loss=False,
+        range_calibration=None,
+    ):
         self.port = port
+        self.range_calibration = range_calibration
+        self.latest_raw = None
         self.folder = folder
         self.seed_image = seed_image
         self.box = box
@@ -89,19 +100,28 @@ class Observer:
         from bucket_robot.perception.session import new_target_session
 
         cv2.setNumThreads(1)
-        cap = NativeCapture(self.port)
+        geometry = None
+        if self.range_calibration:
+            from bucket_robot.perception.assisted_range.stereo import Geometry
+
+            geometry = Geometry(self.range_calibration)
+        cap = NativeCapture(self.port, **({"stereo": True} if geometry is not None else {}))
         manager = new_target_session(same_target=self.recover_loss, bearing=self.bearing_tracker)
         self.target_session = manager
         first = True
         count = 0
         last_frame = -1
         failures = 0
+        last_saved_loss = None
         automatic = TargetLock("auto") if self.seed_image is None else None
         try:
             with (self.folder / "vision.jsonl").open("x", buffering=1) as log:
                 while not self.end.is_set():
                     try:
                         image, meta = cap.read()
+                        raw = image if geometry is not None else None
+                        if geometry is not None:
+                            image = cv2.remap(raw[:, :1280], *geometry.maps[0], cv2.INTER_LINEAR)
                         last_frame = meta["frame_id"]
                         if first:
                             if automatic is not None:
@@ -165,9 +185,28 @@ class Observer:
                         with self.lock:
                             self.latest = obs
                         log.write(json.dumps(obs) + "\n")
-                        cap = NativeCapture(self.port)
+                        cap = NativeCapture(
+                            self.port, **({"stereo": True} if geometry is not None else {})
+                        )
                         self.end.wait(min(1.0, 0.05 * failures))
                         continue
+                    if (
+                        self.recover_loss
+                        and manager.state == "recovering"
+                        and manager.reacquired != last_saved_loss
+                        and manager.previous_image is not None
+                        and manager.latest is not None
+                    ):
+                        suffix = str(manager.reacquired)
+                        cv2.imwrite(
+                            str(self.folder / ("recovery_reference_" + suffix + ".png")),
+                            manager.previous_image,
+                        )
+                        cv2.imwrite(str(self.folder / ("recovery_frame_" + suffix + ".png")), image)
+                        (self.folder / ("recovery_reference_" + suffix + ".json")).write_text(
+                            json.dumps(dict(reference=manager.latest, current=meta), indent=2)
+                        )
+                        last_saved_loss = manager.reacquired
                     if manager.state != "tracking" or target is None:
                         if not self.recover_loss:
                             cv2.imwrite(str(self.folder / "failure.jpg"), image)
@@ -194,6 +233,7 @@ class Observer:
                     with self.lock:
                         self.latest = obs
                         self.latest_image = image
+                        self.latest_raw = raw
                     log.write(json.dumps(obs, allow_nan=False) + "\n")
                     if count % 15 == 0:
                         cv2.imwrite(str(self.folder / "latest.jpg"), image)
@@ -209,6 +249,10 @@ class Observer:
     def snapshot(self):
         with self.lock:
             return self.latest, self.latest_image, self.error
+
+    def range_snapshot(self):
+        with self.lock:
+            return self.latest, self.latest_image, self.latest_raw, self.error
 
 
 def main():
@@ -279,6 +323,11 @@ def main():
     ap.add_argument(
         "--approach-calibration", type=Path, help="Hash-bound original JSON stereo calibration"
     )
+    ap.add_argument(
+        "--distance-first",
+        action="store_true",
+        help="Range from lock; stop near 20cm at any A angle",
+    )
     args = ap.parse_args()
     if not (args.track_b or args.a_only or args.observe_only or args.center_only):
         ap.error(
@@ -291,6 +340,10 @@ def main():
         ap.error("provide --auto-target or both seed arguments")
     if args.track_b and not args.recover_loss:
         ap.error("--track-b requires --recover-loss")
+    if args.distance_first and (
+        not args.recover_loss or not args.approach_model or args.observe_only
+    ):
+        ap.error("distance-first requires recovering motion and assisted ranging")
     if args.post_approach_plan and not args.approach_model:
         ap.error("post-approach plan requires range approach")
     from bucket_robot.missions.recovery import RecoveryGate
@@ -313,6 +366,7 @@ def main():
         args.seed_box,
         args.bearing_tracker,
         args.recover_loss,
+        **({"range_calibration": args.approach_calibration} if args.distance_first else {}),
     )
 
     def interrupted(signum, frame):
@@ -323,6 +377,8 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
     p = None
+    ranger = None
+    near_measurement = None
     handoff = None
     result = {
         "mode": "observe_only"
@@ -362,6 +418,16 @@ def main():
                     raise RuntimeError("initial_pose_mismatch")
                 result["initial_state"] = dict(p.state)
                 p.rearm()
+            if args.distance_first:
+                from bucket_robot.missions.forward_range import ForwardRange
+
+                ranger = ForwardRange(
+                    observer,
+                    args.approach_calibration,
+                    args.approach_model,
+                    args.approach_surface_band,
+                )
+                ranger.thread.start()
             started = time.monotonic()
             last_initial_status = 0.0
             while observer.get()[0] is None or (
@@ -422,6 +488,7 @@ def main():
             last_recovery = 0
             last_status = None
             last_status_at = 0.0
+            last_range_frame = -1
             while True:
                 now = time.monotonic()
                 p.tick()
@@ -462,6 +529,22 @@ def main():
                     if vertical
                     else None
                 )
+                range_plan = (
+                    ranger.evaluate(
+                        now, obs, current_image, p.phase == "idle" and not p.state["enabled"]
+                    )
+                    if ranger
+                    else None
+                )
+                if range_plan and range_plan.get("measurement"):
+                    measurement = range_plan["measurement"]
+                    if measurement["frame_id"] != last_range_frame:
+                        record("forward_range", range_plan)
+                        last_range_frame = measurement["frame_id"]
+                if range_plan and range_plan["near"]:
+                    near_measurement = range_plan["measurement"]
+                    result["reason"] = "target_distance_reached"
+                    break
                 if args.recover_loss:
                     velocity, reason = gate.evaluate(
                         now,
@@ -470,12 +553,24 @@ def main():
                         current,
                         settled,
                         commanded_a=(p.target or [current])[0],
-                        motion_permitted=vertical_plan["ready"] and vertical.stage == "idle"
-                        if vertical
-                        else True,
+                        speed_cap=range_plan.get("speed_cap", 8) if range_plan else 8,
+                        chassis_stopped=p.phase == "idle" and not p.state["enabled"],
+                        motion_permitted=(
+                            vertical_plan["ready"] and vertical.stage == "idle"
+                            if vertical
+                            else True
+                        )
+                        and (range_plan["permit"] if range_plan else True),
                     )
                 else:
                     velocity, reason = gate.evaluate(now, target, obs["identity"], current, settled)
+                if (
+                    range_plan
+                    and not range_plan["permit"]
+                    and gate.reason == "vertical_adjustment"
+                    and (vertical_plan is None or vertical_plan["ready"])
+                ):
+                    gate.reason = range_plan["reason"]
                 if reason:
                     result["reason"] = reason
                     if reason == "left_reference_reached":
@@ -489,6 +584,10 @@ def main():
                     status = gate.status()
                     if vertical:
                         status["vertical"] = vertical.status()
+                    if range_plan:
+                        status["ranging"] = {
+                            k: v for k, v in range_plan.items() if k != "measurement"
+                        }
                     if gate.phase != last_status or now - last_status_at >= 1:
                         status.update(
                             updated_monotonic=now,
@@ -515,6 +614,31 @@ def main():
                 if vertical and vertical.advance(
                     p, vertical_plan, velocity, target, obs.get("metadata", {}), now
                 ):
+                    time.sleep(0.005)
+                    continue
+                if (
+                    range_plan
+                    and not range_plan["permit"]
+                    and velocity == 0
+                    and target
+                    and abs(target["offset_px"][0]) <= 20
+                    and settled
+                ):
+                    if p.phase != "stopping" and p.state["enabled"]:
+                        p.stop()
+                    time.sleep(0.005)
+                    continue
+                if (
+                    ranger
+                    and velocity == 0
+                    and target
+                    and settled
+                    and abs(target["offset_px"][0]) <= 20
+                    and p.phase == "idle"
+                    and not p.state["enabled"]
+                ):
+                    # Keep the scene physically stopped during range/identity
+                    # confirmation, rather than enabling a zero-speed hold.
                     time.sleep(0.005)
                     continue
                 if gate.started is not None and not announced:
@@ -565,8 +689,18 @@ def main():
             )
             if args.recover_loss:
                 result["recovery"] = gate.status()
+            from bucket_robot.missions.lifecycle import stop_and_drain
+
+            cleanup_error = stop_and_drain(p, [w for w in (ranger, observer) if w is not None])
+            if cleanup_error and not result["error"]:
+                result["error"] = cleanup_error
+            keep_serial = bool(
+                args.distance_first
+                and result.get("reason") == "left_reference_reached"
+                and not result["error"]
+            )
             if p is not None:
-                result["stop_error"] = p.shutdown()
+                result["stop_error"] = p.shutdown(close_port=False) if keep_serial else p.shutdown()
                 result["final_state"] = dict(p.state)
             if args.recover_loss:
                 status = gate.status()
@@ -582,10 +716,37 @@ def main():
                 if status["disabled_confirmed"]:
                     status["velocity"] = 0
                 (args.out / "task_status.json").write_text(json.dumps(status, indent=2))
-            observer.end.set()
-            observer.thread.join(timeout=1)
             (args.out / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
             print(json.dumps(result), flush=True)
+    if near_measurement is not None and not result["error"] and not result["stop_error"]:
+        result["approach"] = dict(
+            mode="distance_first",
+            reason="target_distance_reached",
+            error=None,
+            stop_error=None,
+            final_state=result["final_state"],
+            last_measurement=near_measurement,
+        )
+        if args.post_approach_plan:
+            from bucket_robot.missions.post_approach import pending_extension_plan
+
+            result["post_approach"] = pending_extension_plan(result["approach"])
+            (args.out / "post_approach.json").write_text(
+                json.dumps(result["post_approach"], indent=2)
+            )
+        (args.out / "task_status.json").write_text(
+            json.dumps(
+                dict(
+                    phase="waiting_displacement_measurement"
+                    if args.post_approach_plan
+                    else "complete",
+                    reason="target_distance_reached",
+                    disabled_confirmed=True,
+                ),
+                indent=2,
+            )
+        )
+        (args.out / "summary.json").write_text(json.dumps(result, indent=2))
     if (
         args.approach_model
         and not args.observe_only
@@ -637,6 +798,8 @@ def main():
                 recover_loss=args.recover_loss,
                 seed_timestamp=obs["target"]["timestamp"],
                 verified_surface_band=args.approach_surface_band,
+                continuous=args.distance_first,
+                existing_port=p if args.distance_first else None,
                 target_session=getattr(observer, "target_session", None)
                 if args.recover_loss
                 else None,
@@ -674,6 +837,9 @@ def main():
         except BaseException as exc:
             result["error"] = repr(exc)
             result["operator_stopped"] = isinstance(exc, KeyboardInterrupt)
+        finally:
+            if p is not None and p.fd is not None:
+                result["stop_error"] = p.shutdown() or result["stop_error"]
         (args.out / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result), flush=True)
     if (

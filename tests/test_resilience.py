@@ -263,6 +263,28 @@ class HealthTests(unittest.TestCase):
 
 
 class MissionShellTests(unittest.TestCase):
+    def test_exit_closes_visual_workers_even_when_motion_stop_unconfirmed(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as folder:
+            args, _ = parser().parse_known_args(
+                ["--observe-only", "--port", str(available_pair()), "--output", folder]
+            )
+            args.mission = True
+            app = Application(args, [])
+            closed = []
+            app.supervisor = SimpleNamespace(close=lambda: closed.append(True))
+            app.stop_event.set()
+            with (
+                patch.object(app, "start_worker"),
+                patch.object(app, "close_components", return_value=False),
+            ):
+                result = app.run()
+            self.assertEqual(result, 2)
+            self.assertEqual(closed, [True])
+            self.assertIsNone(app.supervisor)
+
     def test_cleanup_rejects_task_exit_without_disabled_ack(self):
         from types import SimpleNamespace
 

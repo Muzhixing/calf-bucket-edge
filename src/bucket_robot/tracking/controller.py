@@ -88,16 +88,32 @@ class TrackingController:
         requested = self.policy.next_b(target, b, metadata) if allowed and not holding else round(b)
         requested = int(max(limits.b_min, min(limits.b_max, requested)))
         moving = goal is not None and abs(goal[1] - b) > 0.11
+        # A physical B limit makes vertical centering unreachable. Like the
+        # stationary tracker, accept that constraint while retaining a measured
+        # horizontal bearing. B must have stopped before chassis motion resumes.
+        constrained = (
+            self.alignment.blocked[1]
+            and target.get("horizontal_bearing_valid") is True
+            and not target.get("horizontal_clipped", False)
+        )
         ready = (
-            (holding or not allowed and not moving)
-            and not self.alignment.blocked[1]
+            (constrained or holding or not allowed)
+            and not moving
             and abs(b - round(b)) <= 0.05
-            and not target.get("vertical_clipped")
+            and (
+                constrained or not self.alignment.blocked[1] and not target.get("vertical_clipped")
+            )
         )
         if not ready and abs(requested - b) <= 0.05:
             self.vertical_reason = (
                 "B_range_limit" if self.alignment.blocked[1] else "vertical_alignment_pending"
             )
         else:
-            self.vertical_reason = "vertical_aligned" if ready else "B_adjustment"
+            self.vertical_reason = (
+                "B_range_holding"
+                if ready and constrained
+                else "vertical_aligned"
+                if ready
+                else "B_adjustment"
+            )
         return dict(ready=ready, goal=requested if abs(requested - b) > 0.05 else None)

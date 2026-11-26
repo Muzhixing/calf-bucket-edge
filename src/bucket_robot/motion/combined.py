@@ -18,8 +18,8 @@ class CombinedPort(ContinuousArmPort):
         return bytes(
             [
                 0xB3,
-                self.velocity if enable else 0,
-                0,
+                self.velocity if enable and not getattr(self, "lateral", False) else 0,
+                self.velocity if enable and getattr(self, "lateral", False) else 0,
                 self.heading,
                 *map(int, q),
                 0,

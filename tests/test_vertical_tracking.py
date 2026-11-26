@@ -50,6 +50,25 @@ class VerticalTests(unittest.TestCase):
         )
         self.assertEqual(v.reason, "B_range_limit")
 
+    def test_B_limit_allows_measured_horizontal_tracking_only_after_B_stops(self):
+        for clipped in (False, True):
+            v = self.supervisor()
+            target = dict(
+                timestamp=1,
+                offset_px=[0, 120],
+                vertical_clipped=clipped,
+                box=[400, 450, 800, 712],
+                horizontal_bearing_valid=True,
+                horizontal_clipped=False,
+            )
+            plan = v.plan(1, target, 96, {}, [100, 96, 0], [100, 96, 0])
+            self.assertEqual(plan, dict(ready=True, goal=None))
+            self.assertEqual(v.reason, "B_range_holding")
+            self.assertFalse(v.plan(1, target, 96, {}, [100, 96, 0], [100, 95, 0])["ready"])
+            self.assertFalse(v.plan(2, target, 96, {}, [100, 96, 0], [100, 96, 0])["ready"])
+            target["horizontal_clipped"] = True
+            self.assertFalse(v.plan(1, target, 96, {}, [100, 96, 0], [100, 96, 0])["ready"])
+
     def test_fresh_full_target_controls_height_and_stale_target_cannot(self):
         v = self.supervisor()
         t = dict(timestamp=1, offset_px=[0, 24], box=[500, 300, 600, 400])

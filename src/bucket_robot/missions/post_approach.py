@@ -21,7 +21,11 @@ def pending_extension_plan(approach):
     if approach.get("reason") not in ("target_distance_reached", "distance_stop_margin"):
         raise ValueError("near_bucket_phase_not_completed")
     if (
-        not 131 <= state.get("servo_software_deg", -1) <= 133
+        not (
+            73 <= state.get("servo_software_deg", -1) <= 132
+            if approach.get("mode") == "distance_first"
+            else 131 <= state.get("servo_software_deg", -1) <= 133
+        )
         or not 0 <= state.get("lift_position_mm", -1) <= 96
         or state.get("slide_position_mm") != 0
     ):
@@ -38,6 +42,8 @@ def pending_extension_plan(approach):
     return dict(
         phase="waiting_displacement_measurement",
         output_enabled=False,
+        approach_A_deg=state["servo_software_deg"],
+        approach_mode=approach.get("mode", "left_approach"),
         trigger="completed camera-to-bucket-surface approach near 20 cm",
         sequence=[
             dict(action="extend_C", absolute_target_mm=150, require_disabled_chassis=True),

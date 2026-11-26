@@ -34,6 +34,15 @@ class PostApproachTests(unittest.TestCase):
         self.assertFalse(p["simultaneous"])
         self.assertIsNone(p["displacement_source"])
 
+    def test_distance_first_completion_can_handoff_from_left_front_pose(self):
+        approach = self.valid()
+        approach["mode"] = "distance_first"
+        approach["final_state"]["servo_software_deg"] = 97
+        plan = pending_extension_plan(approach)
+        self.assertEqual(plan["approach_A_deg"], 97)
+        self.assertFalse(plan["C_extension_sent"])
+        self.assertFalse(plan["chassis_command_sent"])
+
     def test_fault_nonarrival_invalid_distance_and_already_extended_C_rejected(self):
         for key, value in [
             ("error", "fault"),

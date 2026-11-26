@@ -10,6 +10,7 @@ def command(layout, out, port, budget):
         "bucket_robot",
         "forward",
         "--recover-loss",
+        "--distance-first",
         "--track-b",
         "--post-approach-plan",
         "--reference",

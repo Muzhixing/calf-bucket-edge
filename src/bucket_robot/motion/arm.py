@@ -414,7 +414,7 @@ class ArmPort:
         if self.phase == "moving" and now > self.deadline:
             raise RuntimeError("movement_timeout")
 
-    def shutdown(self):
+    def shutdown(self, close_port=True):
         error = None
         try:
             if self.gateway is not None:
@@ -429,7 +429,7 @@ class ArmPort:
             error = str(exc)
             self.log("stop_unconfirmed", {"reason": error})
         finally:
-            if self.fd is not None:
+            if close_port and self.fd is not None:
                 close_serial(self.fd)
                 self.fd = None
         return error

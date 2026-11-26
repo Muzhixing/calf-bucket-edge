@@ -913,6 +913,7 @@ class TargetLock:
         candidate.method = "detector_edge_relock" if edge else "detector_wide_relock"
         result = candidate.result()
         result.update(
+            raw_box=list(raw),
             relock_delay_s=delay,
             candidate_verify_s=span,
             candidate_detection_votes=votes,
