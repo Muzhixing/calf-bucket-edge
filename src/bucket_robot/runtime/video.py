@@ -17,9 +17,11 @@ class VideoWindow:
 
     def wait(self, stop_event):
         with self.condition:
-            while len(self.pending) >= 10 and not stop_event.is_set():
+            while not stop_event.is_set():
                 if time.monotonic() - self.last_ack > 2:
                     raise TimeoutError("video acknowledgement timeout")
+                if len(self.pending) < 10:
+                    return
                 self.condition.wait(0.1)
 
     def sent(self, seq):

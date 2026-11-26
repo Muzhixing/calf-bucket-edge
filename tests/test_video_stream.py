@@ -12,6 +12,12 @@ from bucket_robot.runtime.video import VideoWindow
 
 
 class VideoStreamTests(unittest.TestCase):
+    def test_idle_disconnected_viewer_expires_even_before_the_first_camera_frame(self):
+        window = VideoWindow()
+        window.last_ack -= 3
+        with self.assertRaises(TimeoutError):
+            window.wait(threading.Event())
+
     def test_ack_window_bounds_proxy_backlog_and_releases_only_consumed_frames(self):
         window = VideoWindow()
         for seq in range(1, 11):
