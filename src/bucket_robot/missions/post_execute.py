@@ -52,6 +52,11 @@ def execute_post(
                     phase=phase,
                     reason="post_geometry_trial",
                     timing=timing,
+                    execution_progress={
+                        key: result[key]
+                        for key in ("initial_state", "lateral_completion", "B_top_confirmed")
+                        if key in result
+                    },
                     disabled_confirmed=port is not None
                     and not port.state["enabled"]
                     and port.phase == "idle",

@@ -126,3 +126,61 @@ test('expected startup preparation is WAIT while a reported controller fault rem
   assert.equal(view.check('arm', item, components, { phase: 'startup_waiting' }).result, 'wait');
   assert.equal(view.check('arm', item, components, { phase: 'startup_waiting', motionLatch: { code: 'CONTROLLER_FAULT' } }).result, 'fail');
 });
+
+test('mission step list uses real phases and stays in the runtime log', () => {
+  const p = { running: true, phase: 'post_extending_C', stages: ['acquire','track','post_align','drain','post_action'],
+    post: { initial_state: { slide_position_mm: 0 }, lateral_completion: 'timed_estimate_no_odometry', B_top_confirmed: true } };
+  const progress = view.missionProgress(p, null);
+  assert.equal(progress.headline, 'C 伸出');
+  assert.equal(progress.rows[6].result, 'run');
+  for (const index of [0,1,2,3,4,5]) assert.equal(progress.rows[index].result, 'ok');
+  assert.equal(progress.rows[7].result, 'wait');
+  const log = html.slice(html.indexOf('<details id="runtimeLog"'),html.indexOf('</aside>'));
+  assert.ok(log.includes('id="missionSteps"'));
+  assert.ok(log.indexOf('id="missionSteps"') < log.indexOf('id="eventLog"'));
+});
+test('occlusion waits for the same bucket without declaring a completed approach', () => {
+  const p = { running:true, phase:'waiting_target', stages:['acquire','track'] };
+  const progress = view.missionProgress(p, null);
+  assert.equal(progress.rows[0].result,'ok');
+  assert.equal(progress.rows[1].result,'wait');
+  assert.match(progress.detail,/同一目标/);
+  assert.equal(progress.rows[2].result,'wait');
+});
+test('mission completion requires disabled confirmation and no motion fault', () => {
+  const p={running:true,phase:'complete',disabled_confirmed:false,stages:['post_action'],post:{phase:'complete'}};
+  assert.notEqual(view.missionProgress(p,null).headline,'本轮完成');
+  p.disabled_confirmed=true;
+  const result=view.missionProgress(p,null);
+  assert.equal(result.headline,'本轮完成');
+  assert.equal(result.rows[7].result,'ok');
+  assert.equal(view.missionProgress(p,{code:'STOP_UNCONFIRMED'}).rows[7].result,'fail');
+});
+test('read-only, paused, plan-only and expired states never claim active execution', () => {
+  assert.equal(view.missionProgress({observe_only:true},null).headline,'只读观察');
+  const p={running:true,phase:'post_left_translate_timed',stages:['post_action'],timing:{seconds:4}};
+  assert.match(view.missionProgress(p,null).detail,/4 秒/);
+  const stale=view.missionProgress(p,null,2.01);
+  assert.equal(stale.headline,'状态待更新');
+  assert.equal(stale.rows.some(r=>r.result==='run'),false);
+  assert.equal(view.missionProgress({...p,phase:'stopped'},null).headline,'已暂停');
+  const plan=view.missionProgress({phase:'awaiting_execution_confirmation',disabled_confirmed:true,profile:{execute_post:false}},null);
+  assert.equal(plan.headline,'等待后续操作');
+  for(const i of [2,4,5,6])assert.equal(plan.rows[i].result,'skip');
+  assert.equal(plan.rows[7].result,'wait');
+});
+test('resumed post-actions do not invent acquisition or repeated lateral travel', () => {
+ const p={phase:'complete',disabled_confirmed:true,post:{phase:'complete',initial_state:{slide_position_mm:150},
+   lateral_completion:'skipped_C_already_extended_no_repeated_motion',B_top_confirmed:true}};
+ const result=view.missionProgress(p,null);
+ for(const i of [0,1,4]) assert.equal(result.rows[i].result,'skip');
+});
+test('unknown phase names cannot fabricate progress through prototype properties', () => {
+ const p={running:true,phase:'constructor',stages:['constructor']};
+ const result=view.missionProgress(p,null);
+ assert.equal(result.rows.some(r=>r.result==='ok'),false);
+ assert.equal(view.missionProgress({running:true,phase:'complete'},null).rows[7].detail,'等待禁用确认');
+});
+test('existing workers without a lifecycle journal still show their real tracking phase', () => {
+ assert.equal(view.missionProgress({running:true,phase:'driving'},null).headline,'追踪并靠近');
+});

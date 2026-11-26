@@ -118,6 +118,9 @@ class Application:
         from bucket_robot.perception.observation import TaskObservationReader
 
         self.observation_reader = TaskObservationReader(args.output / "mission")
+        from bucket_robot.runtime.task_progress import TaskProgressReader
+
+        self.progress_reader = TaskProgressReader(args.output / "mission")
         self.serial_monitor = None
         self.task_telemetry = None
         self.approach_telemetry = None
@@ -201,6 +204,12 @@ class Application:
         data["startup_result"] = self.startup_result
         if self.args.mission:
             data["task"] = self.task_status
+            data["task_progress"] = self.progress_reader.snapshot(
+                self.task_status,
+                running=self.task is not None and self.task.poll() is None,
+                requested=self.task_requested,
+                observe_only=self.args.observe_only,
+            )
             observation = self.task_observation()
             if observation is not None:
                 target = observation.get("target")
