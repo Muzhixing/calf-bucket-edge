@@ -618,6 +618,15 @@ class Application:
         finally:
             self.stop_event.set()
             closed = self.close_components()
+            # The process is exiting even if a motion stop could not be proved.
+            # Retain the failure result, but do not orphan camera/NPU ownership.
+            if self.supervisor is not None:
+                try:
+                    self.supervisor.close()
+                except Exception:
+                    logging.exception("visual worker cleanup failed during exit")
+                    closed = False
+                self.supervisor = None
             thermal.join(2)
             self.server.shutdown()
             self.server.server_close()

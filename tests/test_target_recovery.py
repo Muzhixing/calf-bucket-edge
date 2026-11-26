@@ -27,6 +27,83 @@ class TargetRecoveryTests(unittest.TestCase):
         self.assertEqual(m.state, "recovering")
         return m, im, b
 
+    def test_clipped_automatic_acquisition_handoff_keeps_original_extent(self):
+        from bucket_robot.perception.target import TargetLock
+
+        image, box = self.scene(box=(20, 456, 398, 720))
+        for x in range(40, 380, 45):
+            cv2.circle(image, (x, 530), 14, (10, 30, 220), -1)
+            cv2.rectangle(image, (x, 620), (x + 16, 650), (200, 10, 40), -1)
+        auto = TargetLock("auto")
+        for i in range(12):
+            meta = dict(arrival=1 + i * 0.04, detections=[self.detection(box)])
+            acquired = auto.update(image, meta)
+            if acquired is not None:
+                break
+        self.assertIsNotNone(acquired, auto.reason)
+        self.assertEqual(acquired["raw_box"], box)
+        mission = RecoveringTarget(True)
+        mission.select(image, acquired["raw_box"], meta["arrival"])
+        target = mission.update(image, meta)
+        self.assertIsNotNone(target, mission.reason)
+        self.assertTrue(target["vertical_clipped"])
+        self.assertTrue(target["horizontal_bearing_valid"])
+        self.assertEqual(target["task_target_id"], 1)
+
+    def test_first_update_loss_recovers_selected_identity_without_new_selection(self):
+        for case in ("same", "wrong", "ambiguous", "duplicate"):
+            image, box = self.scene(box=(20, 456, 398, 720))
+            mission = RecoveringTarget(True)
+            mission.select(image, box, 1)
+            self.assertIsNone(mission.update(image, dict(arrival=1.04, detections=[])))
+            self.assertIsNotNone(mission.frozen)
+            if case == "wrong":
+                image, _ = self.scene(seed=111, box=box)
+            targets = []
+            for i in range(20):
+                ds = [self.detection(box)]
+                if case == "ambiguous":
+                    ds.append(self.detection([22, 456, 400, 720]))
+                target = mission.update(
+                    image,
+                    dict(arrival=1.2 if case == "duplicate" else 1.2 + i * 0.04, detections=ds),
+                )
+                if target is not None:
+                    targets.append(target)
+            if case == "same":
+                self.assertTrue(targets, mission.reason)
+                self.assertTrue(all(t["task_target_id"] == 1 for t in targets))
+                self.assertEqual(mission.reacquired, 1)
+            else:
+                self.assertFalse(targets, case)
+
+    def test_camera_rotation_relocation_requires_known_geometry_and_fresh_votes(self):
+        for case in ("same", "wrong", "ambiguous", "duplicate"):
+            seed, box = self.scene(box=(40, 300, 340, 600))
+            mission = RecoveringTarget(True)
+            mission.select(seed, box, 1)
+            mission.update(seed, dict(arrival=1, detections=[self.detection(box)]))
+            mission.missing("camera_rotation_gap")
+            image, moved = self.scene(seed=111 if case == "wrong" else 15, box=(500, 300, 800, 600))
+            targets = []
+            for i in range(16):
+                ds = [self.detection(moved)]
+                if case == "ambiguous":
+                    ds.append(self.detection([502, 300, 802, 600]))
+                target = mission.update(
+                    image,
+                    dict(arrival=1.2 if case == "duplicate" else 1.2 + i * 0.04, detections=ds),
+                )
+                if target is not None:
+                    targets.append(target)
+            if case == "same":
+                self.assertTrue(targets, mission.reason)
+                self.assertEqual(mission.reacquired, 1)
+                self.assertTrue(all(t["task_target_id"] == 1 for t in targets))
+                self.assertIn("relocation_evidence", targets[0])
+            else:
+                self.assertFalse(targets, case)
+
     def test_same_target_reappears_and_task_identity_survives(self):
         for box in ((480, 300, 780, 600), (480, 450, 780, 720)):
             m, im, b = self.lost(box)

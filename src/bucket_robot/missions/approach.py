@@ -33,7 +33,27 @@ def run_approach(
     seed_timestamp=None,
     verified_surface_band=None,
     target_session=None,
+    continuous=False,
+    existing_port=None,
 ):
+    if continuous:
+        from bucket_robot.missions.continuous_approach import run_continuous_approach
+
+        return run_continuous_approach(
+            out=out,
+            reference=reference,
+            calibration=calibration,
+            model=model,
+            seed_image=seed_image,
+            seed_box=seed_box,
+            native_port=native_port,
+            execute=execute,
+            bearing_tracker=bearing_tracker,
+            seed_timestamp=seed_timestamp,
+            verified_surface_band=verified_surface_band,
+            target_session=target_session,
+            existing_port=existing_port,
+        )
     if recover_loss:
         from bucket_robot.missions.recovering_approach import run_recovering_approach
 

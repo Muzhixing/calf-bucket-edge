@@ -21,7 +21,7 @@ class FakeThread:
 
 
 class ScriptedObserver:
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         self.end = threading.Event()
         self.thread = FakeThread(self)
         self.started = None
@@ -55,7 +55,7 @@ class FixedPolicy:
 
 
 class RecoverySessionTests(unittest.TestCase):
-    def run_session(self, inject_fault=False, initial_missing=False):
+    def run_session(self, inject_fault=False, initial_missing=False, distance_first=False):
         m = MCU()
         temp = tempfile.TemporaryDirectory()
         root = Path(temp.name)
@@ -103,6 +103,43 @@ class RecoverySessionTests(unittest.TestCase):
             "10",
             "--recover-loss",
         ]
+        if distance_first:
+            args += [
+                "--distance-first",
+                "--approach-model",
+                "unused",
+                "--approach-calibration",
+                "unused",
+            ]
+
+        class Range:
+            def __init__(self, *args):
+                if not m.commands or m.commands[-1][8] or m.enabled:
+                    raise AssertionError("model initialized before acknowledged UART disable")
+                self.thread = type("Thread", (), {"start": lambda self: None})()
+                self.started = time.monotonic()
+
+            def evaluate(self, now, obs, image, stopped):
+                near = now - self.started > 3
+                return dict(
+                    permit=not near,
+                    near=near,
+                    reason="range_ready",
+                    measurement=dict(
+                        valid=True,
+                        frame_id=obs["frame_id"],
+                        distance_m=0.2,
+                        lower_m=0.195,
+                        distance_kind="stereo_optical_midpoint_to_bucket_surface",
+                    ),
+                )
+
+            def start_pulse(self, now):
+                return True
+
+            def close(self):
+                pass
+
         actual = runner.CombinedPort
         observed = {"paused": False}
 
@@ -149,6 +186,7 @@ class RecoverySessionTests(unittest.TestCase):
                 ),
                 patch.object(runner, "CombinedPort", port),
                 patch.object(runner.signal, "signal"),
+                patch("bucket_robot.missions.forward_range.ForwardRange", Range),
                 patch("bucket_robot.tracking.policy.FollowPolicy", FixedPolicy),
             ):
                 runner.main()
@@ -168,6 +206,17 @@ class RecoverySessionTests(unittest.TestCase):
             thread.join(timeout=1)
             m.close()
             temp.cleanup()
+
+    def test_distance_first_stops_before_left_angle_without_lateral_stage(self):
+        summary, states, commands, _ = self.run_session(distance_first=True)
+        self.assertIsNone(summary["error"])
+        self.assertIsNone(summary["stop_error"])
+        self.assertTrue(summary["drive_observed"])
+        self.assertEqual(summary["reason"], "target_distance_reached")
+        self.assertEqual(summary["approach"]["mode"], "distance_first")
+        self.assertEqual(summary["final_state"]["servo_software_deg"], 97)
+        self.assertFalse(summary["final_state"]["enabled"])
+        self.assertTrue(all(f[2] == 0 for f in commands))
 
     def test_visual_loss_decelerates_parks_and_resumes_without_restart(self):
         summary, states, commands, _ = self.run_session()

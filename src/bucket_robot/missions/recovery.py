@@ -45,6 +45,9 @@ class RecoveryGate:
         self.loss_count = 0
         self.recovery_count = 0
         self.in_loss = False
+        self.align_since = None
+        self.align_stamp = None
+        self.align_frames = 0
 
     def trip(self, reason):
         self.latched = reason
@@ -91,7 +94,18 @@ class RecoveryGate:
             return inward, False, "horizontal_extent_not_visible"
         return True, True, None
 
-    def evaluate(self, now, target, identity, a, settled, commanded_a=None, motion_permitted=True):
+    def evaluate(
+        self,
+        now,
+        target,
+        identity,
+        a,
+        settled,
+        commanded_a=None,
+        motion_permitted=True,
+        chassis_stopped=False,
+        speed_cap=8,
+    ):
         if not math.isfinite(now):
             self.trip("invalid_control_clock")
             return 0, None
@@ -123,19 +137,40 @@ class RecoveryGate:
             and command_aligned
             and abs(target["offset_px"][0]) <= 20
             and settled
+            and (commanded_a is None or abs(a - commanded_a) < 0.1)
         ):
             self.speed = 0.0
             self.velocity = 0
             self.disable = True
-            self.phase = "aligned"
-            self.reason = "left_reference_reached"
-            return 0, "left_reference_reached"
+            # Confirm fresh alignment after disable ACK and physical settling.
+            # The old moving-frame observation cannot authorize a stage handoff.
+            if chassis_stopped:
+                stamp = target["timestamp"]
+                if self.align_since is None:
+                    self.align_since = stamp
+                if stamp != self.align_stamp:
+                    self.align_stamp = stamp
+                    self.align_frames += 1
+                if self.align_frames >= 3 and stamp - self.align_since >= 0.3:
+                    self.phase = "aligned"
+                    self.reason = "left_reference_reached"
+                    return 0, "left_reference_reached"
+            else:
+                self.align_since = None
+                self.align_stamp = None
+                self.align_frames = 0
+            self.phase = "verifying_left_alignment"
+            self.reason = "waiting_stopped_alignment"
+            return 0, None
+        self.align_since = None
+        self.align_stamp = None
+        self.align_frames = 0
         centered = (
             motion_permitted
             and self.allow_a
             and horizontal
-            and abs(target["offset_px"][0]) <= 20
-            and settled
+            and abs(target["offset_px"][0]) <= (40 if self.started is not None else 20)
+            and (settled or self.started is not None)
         )
         confirmed = False
         if centered:
@@ -157,8 +192,11 @@ class RecoveryGate:
             if self.in_loss:
                 self.recovery_count += 1
             self.in_loss = False
-            self.speed = min(
-                float(self.settings.cruise), self.speed + self.settings.acceleration_per_s * dt
+            cap = min(float(self.settings.cruise), float(speed_cap))
+            self.speed = (
+                max(cap, self.speed - self.settings.deceleration_per_s * dt)
+                if self.speed > cap
+                else min(cap, self.speed + self.settings.acceleration_per_s * dt)
             )
             self.phase = "driving" if self.speed >= self.settings.cruise else "resuming"
             self.reason = None

@@ -32,3 +32,40 @@ def park_fault(folder, result):
             continue
         except KeyboardInterrupt:
             break
+
+
+def stop_and_drain(port, workers, timeout=8.0):
+    """Disable first; keep UART telemetry live while model/vision workers finish."""
+    error = None
+    try:
+        if port is not None:
+            port.stop()
+            until = time.monotonic() + 1.7
+            while port.phase == "stopping" and time.monotonic() < until:
+                port.tick()
+                time.sleep(0.005)
+            if port.phase == "stopping" or port.state["enabled"]:
+                raise RuntimeError("STOP_UNCONFIRMED_before_worker_drain")
+        for worker in workers:
+            event = getattr(worker, "end", None)
+            if event is not None:
+                event.set()
+            elif hasattr(worker, "close"):
+                worker.close()
+        threads = [w.thread for w in workers if hasattr(w.thread, "is_alive")]
+        until = time.monotonic() + timeout
+        while any(t.is_alive() for t in threads):
+            if port is not None:
+                frames = port.poll()
+                if any(f["enabled"] for f in frames):
+                    raise RuntimeError("unexpected_enable_during_cleanup")
+                if any(f["system_fault"] or f["motor_fault"] for f in frames):
+                    raise RuntimeError("firmware_fault_during_cleanup")
+            if time.monotonic() > until:
+                raise RuntimeError("worker_cleanup_timeout")
+            for thread in threads:
+                thread.join(timeout=0.01)
+            time.sleep(0.005)
+    except BaseException as exc:
+        error = repr(exc)
+    return error
