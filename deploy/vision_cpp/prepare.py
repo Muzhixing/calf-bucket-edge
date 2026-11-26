@@ -1,9 +1,7 @@
 """One-time board asset preparation; no Python interpreter remains in live use."""
-import hashlib,json,shutil,sys
+import hashlib,json,shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
-v2=Path(sys.argv[1] if len(sys.argv)>1 else '/home/elf/deploy/vision_v2').resolve()
-sys.path[:0]=[str(v2/'tools'),str(v2)]
 import cv2
 import numpy as np
 from PIL import Image,ImageDraw,ImageFont
@@ -46,7 +44,7 @@ for xy,text in [((16,2),'桶身距离'),((248,2),'检测 / 对齐'),((524,2),'�
 base.save(assets/'hdmi_base.png')
 for i,text in enumerate(['未检出桶','待对齐','两轴已对齐','新测','沿用','无有效值']):
     im=Image.new('RGB',(175,38),(17,24,24));ImageDraw.Draw(im).text((0,3),text,font=font,fill=(229,239,235));im.save(assets/f'label{i}.png')
-shutil.copyfile(v2/'tools/preview.html',assets/'preview.html')
+shutil.copyfile(ROOT/'preview.html',assets/'preview.html')
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 (ROOT/'calibration.sha256').write_text(sha(assets/'calibration.yml')+'\n')
 (assets/'manifest.json').write_text(json.dumps({p.name:sha(p) for p in assets.iterdir() if p.is_file() and p.name!='manifest.json'},indent=2)+'\n')

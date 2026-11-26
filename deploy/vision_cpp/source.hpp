@@ -65,12 +65,13 @@ struct Source {
         std::string backend = setting ? setting : "auto";
         check(backend == "auto" || backend == "cpu" || backend == "opencl", "rectify backend");
         cv::ocl::setUseOpenCL(backend != "cpu");
-        bool gpu = backend != "cpu" && cv::ocl::useOpenCL();
-        check(backend != "opencl" || gpu, "requested OpenCL unavailable");
+        bool raw_view=g.lm1.empty();
+        bool gpu = !raw_view && backend != "cpu" && cv::ocl::useOpenCL();
+        check(raw_view || backend != "opencl" || gpu, "requested OpenCL unavailable");
         cv::UMat map1, map2, upload, rectified;
         if (gpu) { g.lm1.copyTo(map1); g.lm2.copyTo(map2); }
         std::unique_ptr<RemapTail> tail;
-        if (!gpu) tail = std::make_unique<RemapTail>(g);
+        if (!gpu && !raw_view) tail = std::make_unique<RemapTail>(g);
         std::cerr << "RECTIFY=" << (gpu ? "OpenCL" : "CPU") << '\n';
         long seq = 0;
         while (!stop) {
@@ -91,6 +92,7 @@ struct Source {
           auto left = item.raw(cv::Rect(0, 0, 1280, 720));
           item.left.create(720, 1280, CV_8UC3);
           double t = now();
+          if(raw_view) left.copyTo(item.left);
           if (gpu) {
             try {
               left.copyTo(upload);
@@ -103,7 +105,7 @@ struct Source {
               tail = std::make_unique<RemapTail>(g);
             }
           }
-          if (!gpu) {
+          if (!gpu && !raw_view) {
             tail->submit(left, item.left.rowRange(480, 720));
             cv::Mat upper = item.left.rowRange(0, 480);
             cv::remap(left, upper, g.lm1.rowRange(0, 480), g.lm2.rowRange(0, 480), cv::INTER_LINEAR);

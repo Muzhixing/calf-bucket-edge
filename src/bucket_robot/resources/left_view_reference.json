@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-25",
+  "forward_A_command": 73,
+  "left_A_command": 132,
+  "method": "operator_overhead_observation",
+  "precision": "approximately_left_not_surveyed",
+  "A_increases_toward_left": true,
+  "observations": {
+    "163": "left_rear",
+    "140": "left_rear",
+    "135": "requested_minus_3",
+    "132": "user_confirmed_approximately_left"
+  },
+  "software_command_is_not_measured_physical_angle": true,
+  "scope": "current_camera_mount_and_vehicle; initial forward-alignment trials",
+  "bucket_inner_diameter_mm_user_report": 100,
+  "bucket_mouth_3d_calibrated": false,
+  "production_range_changed": false,
+  "forward_alignment_trial": {
+    "accepted": true,
+    "stop_A_command": 131,
+    "left_reference_tolerance_command": 1,
+    "user_confirmation": "bucket approximately vehicle left, same target, vehicle stopped",
+    "evidence": "outputs/forward_tracking_20261125/acceptance_summary.json"
+  }
+}
