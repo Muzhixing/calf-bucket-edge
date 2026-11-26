@@ -38,6 +38,7 @@ def run_continuous_approach(
     target_session=None,
     existing_port=None,
     align_upper_after_stop=False,
+    cruise_speed=8,
 ):
     from bucket_robot.perception.assisted_range.stereo import Geometry
 
@@ -53,7 +54,9 @@ def run_continuous_approach(
         pulses=0,
     )
     p = observer = ranger = None
-    speed = 20 if align_upper_after_stop else 8
+    if type(cruise_speed) is not int or cruise_speed not in (8, 20):
+        raise ValueError("invalid_lateral_approach_speed")
+    speed = 20 if align_upper_after_stop else cruise_speed
     gate = RecoveryGate(20, left=999, settings=RecoverySettings(cruise=speed))
     alignment = ApproachGate()
     with (out / "events.jsonl").open("x", buffering=1) as stream:
@@ -92,8 +95,7 @@ def run_continuous_approach(
                     Limits(reference) if align_upper_after_stop else HeldArmLimits(reference), log
                 )
                 p.rearm()
-            if align_upper_after_stop:
-                p.max_velocity = 20
+            p.max_velocity = speed
             p.log = log
             result["initial_state"] = dict(p.state)
             observer = StereoObserver(

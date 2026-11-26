@@ -547,7 +547,7 @@ def main():
                 target = controller.target(obs["target"])
                 policy.set_a_rate_limit(
                     30
-                    if args.a_start_only
+                    if args.a_start_only or args.cruise_speed > 20
                     else 10
                     if gate.started is None and not post_aligning
                     else 30
@@ -661,7 +661,7 @@ def main():
                                 deceleration_per_s=40,
                                 initial_confirm_s=0.1,
                             )
-                            if args.a_start_only
+                            if args.a_start_only or args.cruise_speed > 20
                             else None,
                         )
                         gate.identity = obs["identity"]
@@ -682,7 +682,7 @@ def main():
                         speed_cap=range_plan.get("speed_cap", 8)
                         if range_plan
                         else 20
-                        if post_aligning and args.a_start_only
+                        if post_aligning and (args.a_start_only or args.cruise_speed > 20)
                         else 8,
                         chassis_stopped=p.phase == "idle" and not p.state["enabled"],
                         motion_permitted=(
@@ -944,6 +944,7 @@ def main():
                 if args.recover_loss
                 else None,
                 align_upper_after_stop=args.a_start_only,
+                continuous_speed=20 if args.cruise_speed > 20 else 8,
             )
             result["operator_stopped"] = result["approach"].get("operator_stopped", False)
             if result["approach"]["error"] or result["approach"]["stop_error"]:

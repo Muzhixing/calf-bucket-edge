@@ -37,7 +37,6 @@ def command(
         "--distance-first",
         "--cruise-speed",
         str(cruise_speed),
-        "--a-start-only",
         "--track-b",
         "--post-approach-plan",
         *(["--execute-post-geometry"] if execute_post_geometry else []),

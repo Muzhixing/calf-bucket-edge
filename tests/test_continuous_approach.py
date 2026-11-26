@@ -22,7 +22,10 @@ class ContinuousApproachTests(unittest.TestCase):
     def test_upper_alignment_waits_for_fresh_static_range_even_when_old_plan_is_near(self):
         self.run_task(upper=True)
 
-    def run_task(self, reuse=False, upper=False):
+    def test_fast_approach_does_not_require_upper_aim_mode(self):
+        self.run_task(fast=True)
+
+    def run_task(self, reuse=False, upper=False, fast=False):
         class SideMCU(MCU):
             def packet(self):
                 f = bytearray(super().packet())
@@ -64,7 +67,7 @@ class ContinuousApproachTests(unittest.TestCase):
                     permit=elapsed < 5.5,
                     near=elapsed >= 5.5 and (not upper or args[-1]),
                     static_verified=bool(args[-1]),
-                    speed_cap=(20 if upper else 8) if elapsed < 4 else 4,
+                    speed_cap=(20 if upper or fast else 8) if elapsed < 4 else 4,
                     reason="continuous_range",
                     measurement=dict(
                         frame_id=int(now * 30),
@@ -136,13 +139,14 @@ class ContinuousApproachTests(unittest.TestCase):
                         execute=True,
                         existing_port=existing,
                         align_upper_after_stop=upper,
+                        cruise_speed=20 if fast else 8,
                     )
                 self.assertIsNone(result["error"])
                 self.assertIsNone(result["stop_error"])
                 self.assertTrue(result["disabled_confirmed"])
                 speeds = [f[2] if f[8] else 0 for f in m.commands]
                 peak = speeds.index(max(speeds))
-                self.assertEqual(max(speeds), 20 if upper else 8)
+                self.assertEqual(max(speeds), 20 if upper or fast else 8)
                 last_positive = max(i for i, v in enumerate(speeds) if v > 0)
                 self.assertTrue(all(v > 0 for v in speeds[peak : last_positive + 1]), speeds)
                 self.assertTrue(all(v == 0 for v in speeds[last_positive + 1 :]), speeds)
@@ -153,5 +157,7 @@ class ContinuousApproachTests(unittest.TestCase):
                 if upper:
                     self.assertGreaterEqual(time.monotonic() - aligned[0], 0.25)
                     self.assertGreaterEqual(result["last_measurement"]["capture_time"], aligned[0])
+                else:
+                    self.assertIsNone(aligned[0])
         finally:
             m.close()

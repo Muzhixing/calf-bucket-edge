@@ -49,7 +49,7 @@ class TrackingContractTests(unittest.TestCase):
 
         def policy():
             limits = Limits(default_reference())
-            limits.aim_area = None  # Recorded fixture uses the original centre-circle target.
+            self.assertIsNone(limits.aim_area)  # Production restores the recorded centre aim.
             return FollowPolicy(limits, *fixture["intrinsics"])
 
         controllers = [TrackingController(policy()), VerticalSupervisor(policy()).controller]

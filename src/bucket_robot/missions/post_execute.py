@@ -17,10 +17,11 @@ from bucket_robot.motion.chassis import ChassisPort, HeldArmLimits
 def lateral_timing(target_mm):
     if type(target_mm) not in (int, float) or not math.isfinite(target_mm):
         raise ValueError("invalid_lateral_target")
-    # Restrict this first execution to the neighborhood of the observed 3s run.
-    seconds = target_mm / 32.5
-    if not 0.6 <= seconds <= 4.0:
+    # Keep the geometric target as a diagnostic. The operator now requests a
+    # fixed four-second translation, overriding the former b/2-derived duration.
+    if not 19.5 <= target_mm <= 130:
         raise ValueError("lateral_target_outside_timing_trial_range")
+    seconds = 4.0
     return dict(
         target_mm=target_mm,
         speed_percent=20,
@@ -28,6 +29,7 @@ def lateral_timing(target_mm):
         estimated_travel_mm_interval=[seconds * 95 / 3, seconds * 100 / 3],
         source="operator_20percent_left_3s_95_to_100mm_20261126",
         metric_feedback=False,
+        timing_policy="operator_fixed_4s_20261126",
     )
 
 

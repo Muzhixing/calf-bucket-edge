@@ -34,8 +34,9 @@ class PostMCU(MCU):
 class PostExecuteTests(unittest.TestCase):
     def test_calibration_is_timed_estimate_and_bounded(self):
         t = lateral_timing(97.5)
-        self.assertEqual(t["seconds"], 3)
-        self.assertEqual(t["estimated_travel_mm_interval"], [95, 100])
+        self.assertEqual(t["seconds"], 4)
+        self.assertEqual(t["estimated_travel_mm_interval"], [4 * 95 / 3, 4 * 100 / 3])
+        self.assertEqual(t["timing_policy"], "operator_fixed_4s_20261126")
         self.assertFalse(t["metric_feedback"])
         for target in [0, -1, 10, 131, float("nan"), True]:
             with self.assertRaises(ValueError):
@@ -66,6 +67,7 @@ class PostExecuteTests(unittest.TestCase):
                 )
                 self.assertIsNone(result["error"], result)
                 self.assertIsNone(result["stop_error"])
+                self.assertEqual(result["timing"]["seconds"], 4)
                 self.assertEqual(result["final_state"]["slide_position_mm"], 150)
                 self.assertFalse(result["final_state"]["enabled"])
                 commands = list(m.commands)

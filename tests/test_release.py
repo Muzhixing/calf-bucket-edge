@@ -64,6 +64,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn("python/bucket_robot/__main__.py", paths)
             args = command(layout, Path("/tmp/output"), 8899, 120)
             self.assertIn("--track-b", args)
+            self.assertNotIn("--a-start-only", args)
+            self.assertEqual(args[args.index("--cruise-speed") + 1], "80")
             self.assertIn("--recover-loss", args)
             self.assertNotIn("sh", args)
 

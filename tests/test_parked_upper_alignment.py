@@ -21,6 +21,7 @@ class ParkedUpperAlignmentTests(unittest.TestCase):
             mcu.a, mcu.b, mcu.target, mcu.c = 100, 0, 0, 0
             mcu.zero_flags, mcu.fault, mcu.speed = True, 0, 5
             limits = Limits(default_reference())
+            limits.aim_area = dict(placement="top_center", area_fraction=0.1)
             port = ABCombinedPort(
                 limits, lambda *e: None, port=mcu.path, sender_factory=Sender, check_holders=False
             )
