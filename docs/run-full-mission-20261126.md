@@ -1,6 +1,6 @@
 # 完整靠桶流程的运行方式
 
-现场已验收候选版：`/home/elf/bucket/releases/0.3.3-postgeometry-rc3-20261126`。一次主程序自动完成识别、A/B追踪、20%巡航、近处减速、约20cm停车、必要的左视对齐、b/2时间估算侧移、暂停追踪、B回0、C伸150mm并禁用停车。正常控制为115200串口。
+完整任务的机构与底盘流程已在`0.3.3-postgeometry-rc3-20261126`实车验收；当前整合版本目录为`/home/elf/bucket/releases/0.3.3`，加入已验证的视频传输优化和启动零点准备。一次主程序自动完成识别、A/B追踪、20%巡航、近处减速、约20cm停车、必要的左视对齐、b/2时间估算侧移、暂停追踪、B回0、C伸150mm并禁用停车。正常控制为115200串口。
 
 Mac终端直接运行：
 
@@ -14,9 +14,11 @@ ssh -t rk3588 /home/elf/bucket/start_full_mission.sh
 /home/elf/bucket/start_full_mission.sh
 ```
 
-运行前车辆放回起点，机构回到A73°、B0、C0，且B/C零点已登记。入口只读取状态检查；不会自动登记零点或改变机构来通过检查。检查不通过会退出并显示原因。
+运行前车辆放回起点，A回到73°。按用户2026-11-26的明确要求，启动时默认B在顶部、C完全收回，不再重复询问。这是用户指定的物理前提，不是独立传感器证据；版本内`field/startup_policy.json`明确记录该条件。
 
-入口会正常结束上一轮已完成且禁用已确认的控制台，使用新的`/home/elf/bucket/runs/manual_日期时间_PID/automatic/`保存任务数据。正在运行、停止未确认或无法识别的进程不会被强制结束。每次启动都会新建目录，不直接复用旧任务的“恢复自动运行”。
+启动入口读取新鲜串口回传：已有有效B/C零点时直接沿用；检测到稳定的STM32重启特征（A73/B0/C0、零点均未登记、命令计数0、输出禁用）后，按原8秒等待配置与正常航向/故障检查，发送禁用命令再登记B/C零点。新登记只发送禁用帧，不移动机构或底盘。持久化账本保证同一次未确认的登记不会盲目重发；重启之外的异常状态不会被默认条件覆盖。
+
+入口会正常结束上一轮已完成且禁用已确认的控制台，或同项目未执行运动的只读预览，使用新的`/home/elf/bucket/runs/manual_日期时间_PID/automatic/`保存任务数据。正在运行、停止未确认或无法识别的进程不会被强制结束。每次启动都会新建目录，不直接复用旧任务的“恢复自动运行”。
 
 右侧控制台刷新当前`http://127.0.0.1:18788/`；该地址使用当前Mac上的SSH转发。重新建立转发可在另一个Mac终端运行：
 
@@ -32,10 +34,16 @@ RK3588本机控制台为`http://127.0.0.1:8788/`。终端Ctrl+C会要求主程�
 /home/elf/bucket/start_full_mission.sh --check
 ```
 
+仅恢复STM32启动零点、随后保留只读预览（不启动整套运动任务）：
+
+```sh
+/home/elf/bucket/start_full_mission.sh --initialize-only
+```
+
 原始等效任务命令如下；同一端口已有控制台时应使用上面的启动入口，由它处理已结束的旧实例：
 
 ```sh
-/home/elf/bucket/releases/0.3.3-postgeometry-rc3-20261126/run_mission.sh \
+/home/elf/bucket/releases/0.3.3/run_mission.sh \
   --out "/home/elf/bucket/runs/manual_$(date +%Y%m%d_%H%M%S)/automatic" \
   --execute-post-geometry --wall-budget 420 --seconds 1800
 ```

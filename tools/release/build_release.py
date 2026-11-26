@@ -39,6 +39,10 @@ def build(args):
             copy(p, Path("assets") / p.name)
     copy(args.detector, "assets/detector.rknn")
     copy(args.range_model, "assets/fast_acv.rknn")
+    field_tools = getattr(args, "field_tools_dir", None)
+    if field_tools is not None:
+        for name in ("start_full_mission.py", "initialize_origins.py", "startup_policy.json"):
+            copy(field_tools / name, Path("field") / name)
     copy(args.calibration, "assets/calibration.json")
     for name in ("libfastacv.so", "librknnrt.so"):
         copy(args.range_runtime / name, Path("assisted_runtime") / name)
@@ -121,6 +125,7 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--version", required=True)
     parser.add_argument("--native-source-dir", type=Path)
+    parser.add_argument("--field-tools-dir", type=Path)
     parser.add_argument(
         "--native-source-relation",
         choices=("built_from_supplied_source", "binary_only"),

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Start the accepted field profile in a fresh run directory on RK3588.
+"""Start a fresh mission, initializing a newly booted STM32 under the user policy.
 
---check is read-only. Starting a new run closes only a completed, acknowledged
-disabled instance of this project's mission console. It never re-registers zeros.
+--check is read-only. Existing valid origins are reused; new registration uses
+disabled-only commands and a persistent at-most-once ledger.
 """
 
 import argparse
@@ -13,12 +13,13 @@ import os
 from pathlib import Path
 import signal
 import socket
+import subprocess
 import sys
 import time
 from urllib.request import urlopen
 
 
-DEFAULT_RELEASE = Path("/home/elf/bucket/releases/0.3.3-postgeometry-rc3-20261126")
+DEFAULT_RELEASE = Path("/home/elf/bucket/releases/0.3.3")
 RUN_ROOT = Path("/home/elf/bucket/runs")
 
 
@@ -51,6 +52,17 @@ def check_previous(pids):
         state = json.load(response)
     task = state.get("task") or {}
     latch = state.get("health", {}).get("motion_latch") or {}
+    if latch.get("code") == "STOP_UNCONFIRMED":
+        raise RuntimeError("上一任务停止状态未确认，禁止自动接管。")
+    readonly = b"--observe-only" in (Path("/proc") / str(pids[0]) / "cmdline").read_bytes().split(
+        b"\0"
+    )
+    if (
+        readonly
+        and state.get("health", {}).get("motion_enabled") is False
+        and not state.get("tracking", {}).get("active")
+    ):
+        return "只读预览"
     if (
         state.get("tracking", {}).get("active")
         or task.get("phase") not in ("complete", "stopped", "fault_paused")
@@ -59,6 +71,29 @@ def check_previous(pids):
     ):
         raise RuntimeError("上一任务未确认停止。请先在控制台停止，并等待禁用确认。")
     return task["phase"]
+
+
+def restore_preview(release, out):
+    command = [
+        str(release / "run_mission.sh"),
+        "--out",
+        str(out / "preview"),
+        "--observe-only",
+        "--seconds",
+        "1800",
+    ]
+    with (out / "preview.log").open("xb") as stream:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    (out / "preview_launch.json").write_text(
+        json.dumps(dict(pid=process.pid, command=command), indent=2)
+    )
+    return process.pid
 
 
 def process_alive(pid):
@@ -71,12 +106,18 @@ def process_alive(pid):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="只读检查入口与旧任务，不启动运动")
+    ap.add_argument(
+        "--initialize-only", action="store_true", help="仅恢复STM32零点，随后保持只读预览"
+    )
     args = ap.parse_args()
     release = DEFAULT_RELEASE
     sys.path.insert(0, str(release / "python"))
     from bucket_robot.runtime.release import ReleaseLayout
 
     manifest = ReleaseLayout(release).verify()
+    from initialize_origins import initialize, read_policy
+
+    read_policy(Path(__file__).with_name("startup_policy.json"))
     pids = mission_processes()
     previous = check_previous(pids)
     print("验收版本：" + manifest["version"], flush=True)
@@ -102,23 +143,33 @@ def main():
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             probe.bind(("127.0.0.1", 8788))
 
-        from bucket_robot.motion.arm import ArmPort, Limits, pose
+        from bucket_robot.motion.arm import Limits
         from bucket_robot.resources import default_reference
-
-        # Read-only preflight; a disabled, uncommanded ArmPort closes without TX.
-        port = ArmPort(Limits(default_reference()), lambda *event: None)
-        try:
-            initial = dict(port.state)
-            if pose(initial) != [73, 0, 0]:
-                raise RuntimeError("机构尚未复位到A73/B0/C0，当前为" + str(pose(initial)))
-        finally:
-            error = port.shutdown()
-            if error:
-                raise RuntimeError(error)
 
         stamp = datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d_%H%M%S")
         out = RUN_ROOT / ("manual_" + stamp + "_" + str(os.getpid()))
         out.mkdir(exist_ok=False)
+        with (out / "initialization.jsonl").open("x", buffering=1) as stream:
+
+            def log(kind, data):
+                stream.write(
+                    json.dumps(dict(monotonic=time.monotonic(), kind=kind, data=data)) + "\n"
+                )
+
+            try:
+                initialized = initialize(
+                    Limits(default_reference()),
+                    Path.home() / ".local/state/bucket-arm/launcher-startup.json",
+                    log,
+                )
+            except Exception as exc:
+                (out / "initialization_result.json").write_text(
+                    json.dumps(dict(error=str(exc)), indent=2)
+                )
+                restore_preview(release, out)
+                raise
+        (out / "initialization_result.json").write_text(json.dumps(initialized, indent=2))
+        initial = initialized["final_state"]
         command = [
             str(release / "run_mission.sh"),
             "--out",
@@ -129,6 +180,10 @@ def main():
             "--seconds",
             "1800",
         ]
+        if args.initialize_only:
+            restore_preview(release, out)
+            print("初始化完成，输出禁用；已恢复只读预览，不启动底盘或机构运动。", flush=True)
+            return 0
         (out / "launch.json").write_text(
             json.dumps(
                 dict(pid=os.getpid(), release=str(release), command=command, initial_state=initial),

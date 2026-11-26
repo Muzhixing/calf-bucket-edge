@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "B_at_top_by_default": true,
+  "C_fully_retracted_by_default": true,
+  "require_repeated_position_confirmation": false,
+  "source": "User standing instruction on 2026-11-26: assume B at top and C fully retracted at startup.",
+  "new_registration_requires_fresh_firmware_boot_signature": true,
+  "reuse_valid_registered_origins": true
+}
