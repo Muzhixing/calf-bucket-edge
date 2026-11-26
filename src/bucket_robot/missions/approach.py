@@ -107,6 +107,9 @@ def run_approach(
             observer = StereoObserver(
                 native_port, estimator.geometry, seed_image, seed_box, bearing_tracker
             )
+            from bucket_robot.perception.observation import TaskObservationPublisher
+
+            observer.publisher = TaskObservationPublisher(out, task_root=out.parent)
             observer.thread.start()
             if execute:
                 p = SidePort(HeldArmLimits(reference), log)

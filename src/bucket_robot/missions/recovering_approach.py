@@ -124,6 +124,9 @@ def run_recovering_approach(
                 seed_timestamp,
                 **({"target_session": target_session} if target_session is not None else {}),
             )
+            from bucket_robot.perception.observation import TaskObservationPublisher
+
+            observer.publisher = TaskObservationPublisher(out, task_root=out.parent)
             observer.thread.start()
             if execute:
                 p = LateralPort(HeldArmLimits(reference), log)

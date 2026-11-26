@@ -84,6 +84,8 @@ def restore_preview(release, out):
         "--out",
         str(out / "preview"),
         "--observe-only",
+        "--startup-result",
+        str(out / "initialization_result.json"),
         "--seconds",
         "1800",
     ]
@@ -125,7 +127,8 @@ def main():
     from bucket_robot.runtime.release import ReleaseLayout
 
     manifest = ReleaseLayout(release).verify()
-    from initialize_origins import initialize, read_policy
+    from bucket_robot.runtime.preparation import initialize, read_policy, StartupResult
+    from bucket_robot.runtime.startup import default_startup_state
 
     read_policy(Path(__file__).with_name("startup_policy.json"))
     pids = mission_processes()
@@ -179,13 +182,18 @@ def main():
             try:
                 initialized = initialize(
                     Limits(default_reference()),
-                    Path.home() / ".local/state/bucket-arm/launcher-startup.json",
+                    default_startup_state(),
                     log,
                     return_home=not args.initialize_only,
                 )
             except Exception as exc:
                 (out / "initialization_result.json").write_text(
-                    json.dumps(dict(error=str(exc)), indent=2)
+                    json.dumps(
+                        getattr(
+                            exc, "result", StartupResult(False, False, error=str(exc))
+                        ).as_dict(),
+                        indent=2,
+                    )
                 )
                 restore_preview(release, out)
                 raise

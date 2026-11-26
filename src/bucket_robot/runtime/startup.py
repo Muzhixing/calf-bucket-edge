@@ -143,6 +143,11 @@ def boot_identity():
     return path.read_text().strip() if path.is_file() else "unavailable"
 
 
+def default_startup_state():
+    """All production entry points share one controller startup ledger."""
+    return Path.home() / ".local/state/bucket-arm/power-cycle.json"
+
+
 class PowerCycleStore:
     """Durable at-most-once zero attempt per operator-confirmed cycle.
 
@@ -237,6 +242,61 @@ class PowerCycleStore:
                     "reason": str(exc),
                 }
 
+        self.legacy_fd = None
+        if self.path.name == "power-cycle.json" and not self.error:
+            try:
+                self._import_legacy(self.path.with_name("launcher-startup.json"))
+            except BaseException:
+                self.close()
+                raise
+
+    def _import_legacy(self, legacy):
+        self.legacy_fd = os.open(str(legacy) + ".lock", os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(self.legacy_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise RuntimeError("startup_state_owned_by_another_process") from exc
+        if not legacy.exists():
+            return
+        try:
+            old = json.loads(legacy.read_text())
+            if (
+                old.get("version") != 1
+                or not isinstance(old.get("zero_attempted"), bool)
+                or not isinstance(old.get("seen_requests"), list)
+                or not all(isinstance(v, str) for v in old["seen_requests"])
+            ):
+                raise ValueError("invalid_legacy_state")
+        except (OSError, ValueError, TypeError):
+            self.error = "legacy_startup_state_unreadable"
+            return
+        # Keep the original file as evidence. Import once per complete content,
+        # so a later write by an old launcher cannot bypass the shared guard.
+        if self.data.get("legacy_startup_imported") == old:
+            return
+        self.data["legacy_startup_imported"] = old
+        observed = old.get("ready_telemetry") or old.get("registered_telemetry") or {}
+        registered = isinstance(observed, dict) and all(
+            observed.get(key) is True for key in ("lift_zero_confirmed", "slide_zero_confirmed")
+        )
+        ambiguous = old.get("zero_attempted") and not registered
+        if ambiguous:
+            self.data.update(
+                phase="uncertain",
+                zero_attempted=True,
+                origins_observed=False,
+                reason="legacy_zero_write_unconfirmed",
+            )
+            self.data.pop("ready_telemetry", None)
+        if old.get("operator_paused"):
+            self.data["operator_paused"] = True
+        if old.get("stop_error"):
+            self.data.update(phase="uncertain", stop_error=old["stop_error"])
+        self.data["seen_requests"] = list(
+            dict.fromkeys(self.data["seen_requests"] + old.get("seen_requests", []))
+        )
+        self._save()
+
     def _save(self):
         # File + directory fsync before returning, especially before flags=6.
         if self.error:
@@ -304,10 +364,12 @@ class PowerCycleStore:
             if self.data["phase"] not in ("unconfirmed", "uncertain", "ready"):
                 raise ValueError("power_cycle_already_in_progress")
             seen = self.data["seen_requests"] + [request_id]
+            legacy_imported = self.data.get("legacy_startup_imported")
             self.data = {
                 "version": 1,
                 "phase": "waiting",
                 "seen_requests": seen,
+                "legacy_startup_imported": legacy_imported,
                 "cycle_id": request_id,
                 "boot_id": self.boot_id,
                 "confirmed_at": time.time(),
@@ -342,6 +404,7 @@ class PowerCycleStore:
             if not registered_home(telemetry, home):
                 raise ValueError("registered_home_not_ready")
             previous_reason = self.data.get("reason")
+            legacy_imported = self.data.get("legacy_startup_imported")
             self.data = {
                 "version": 1,
                 "phase": "waiting",
@@ -357,6 +420,7 @@ class PowerCycleStore:
                 "wait_seconds_used": 0,
                 "origin_evidence": "fresh_stable_registered_home",
                 "previous_reason": previous_reason,
+                "legacy_startup_imported": legacy_imported,
             }
             self._save()
 
@@ -377,6 +441,9 @@ class PowerCycleStore:
 
     def close(self):
         with self.lock:
+            if getattr(self, "legacy_fd", None) is not None:
+                os.close(self.legacy_fd)
+                self.legacy_fd = None
             if self.fd is not None:
                 os.close(self.fd)
                 self.fd = None
@@ -504,6 +571,7 @@ def can_auto_prepare(store):
     return (
         not store.error
         and not d.get("operator_paused", False)
+        and not d.get("stop_error")
         and (
             not d.get("zero_attempted", False)
             or d.get("origins_observed", False)

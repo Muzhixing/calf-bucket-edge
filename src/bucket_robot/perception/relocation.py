@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import threading
+from bucket_robot.domain.lifecycle import CleanupResult
 from bucket_robot.perception.target import (
     TargetTracker,
     iou,
@@ -64,9 +65,17 @@ class FeatureRelocationJob:
         finally:
             self.done.set()
 
-    def close(self):
+    def request_stop(self):
         self.cancel.set()
-        self.thread.join(timeout=2)
+
+    def await_stopped(self, timeout=2):
+        self.thread.join(timeout=timeout)
+        alive = self.thread.is_alive()
+        return CleanupResult(not alive, (self.thread.name,) if alive else ())
+
+    def close(self):
+        self.request_stop()
+        return self.await_stopped()
 
 
 def known_feature_relocation(reference, old_box, current, box):

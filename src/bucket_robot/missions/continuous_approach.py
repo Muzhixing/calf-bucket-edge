@@ -13,15 +13,6 @@ from bucket_robot.motion.combined import LateralPort
 from bucket_robot.perception.observer import StereoObserver
 
 
-class StereoRangeSource:
-    def __init__(self, observer):
-        self.observer = observer
-
-    def range_snapshot(self):
-        obs = self.observer.get()
-        return (obs, obs.get("left"), obs.get("raw"), None) if obs else (None, None, None, None)
-
-
 def run_continuous_approach(
     *,
     out,
@@ -108,10 +99,11 @@ def run_continuous_approach(
                 seed_timestamp,
                 target_session=target_session,
             )
+            from bucket_robot.perception.observation import TaskObservationPublisher
+
+            observer.publisher = TaskObservationPublisher(out, task_root=out.parent)
             observer.thread.start()
-            ranger = ForwardRange(
-                StereoRangeSource(observer), calibration, model, verified_surface_band, cruise=speed
-            )
+            ranger = ForwardRange(observer, calibration, model, verified_surface_band, cruise=speed)
             ranger.thread.start()
             last_status = 0.0
             last_range = -1

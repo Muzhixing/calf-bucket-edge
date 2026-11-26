@@ -1,6 +1,7 @@
 """Shared operator pause and latched-fault presentation."""
 
 import time, json
+from bucket_robot.domain.lifecycle import worker_threads
 
 
 class TaskPause(Exception):
@@ -58,14 +59,21 @@ def stop_and_drain(port, workers, timeout=8.0):
             if port.phase == "stopping" or port.state["enabled"]:
                 raise RuntimeError("STOP_UNCONFIRMED_before_worker_drain")
         for worker in workers:
+            if hasattr(worker, "request_stop"):
+                worker.request_stop()
             event = getattr(worker, "end", None)
             if event is not None:
                 event.set()
             elif hasattr(worker, "close"):
                 worker.close()
-        threads = [w.thread for w in workers if hasattr(w.thread, "is_alive")]
+        threads = [t for w in workers for t in worker_threads(w)]
         until = time.monotonic() + timeout
         while any(t.is_alive() for t in threads):
+            # A worker can publish its nested job while stop is being requested.
+            for worker in workers:
+                if hasattr(worker, "request_stop"):
+                    worker.request_stop()
+            threads = [t for w in workers for t in worker_threads(w)]
             if port is not None:
                 frames = port.poll()
                 if any(f["enabled"] for f in frames):

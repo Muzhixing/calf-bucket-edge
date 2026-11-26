@@ -49,6 +49,7 @@ class CloseTargetContinuityTests(unittest.TestCase):
 
     def test_edge_install_does_not_run_segmentation_inside_frame_deadline(self):
         manager = RecoveringTarget(True)
+        self.addCleanup(manager.close)
         with patch("cv2.grabCut", side_effect=AssertionError("blocking segmentation")):
             manager.select(self.image, [60, 70, 1220, 716], 1)
             target = manager.update(

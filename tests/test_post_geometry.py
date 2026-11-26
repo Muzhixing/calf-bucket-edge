@@ -21,12 +21,12 @@ class PostGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(left["b_left_mm"], 200)
         p = alignment_extension_plan(0.2, 124)
         self.assertAlmostEqual(
-            p["sequence"][2]["relative_target_mm"], p["geometry"]["b_left_mm"] / 2
+            p["sequence"][2]["diagnostic_half_left_mm"], p["geometry"]["b_left_mm"] / 2
         )
         self.assertEqual(p["sequence"][-1]["absolute_target_mm"], 150)
         self.assertFalse(p["chassis_command_sent"])
         self.assertFalse(p["C_extension_sent"])
-        self.assertEqual(p["phase"], "waiting_displacement_measurement")
+        self.assertEqual(p["phase"], "planned")
         self.assertEqual(alignment_extension_plan(0.2, 132)["sequence"][0]["relative_target_mm"], 0)
 
     def test_invalid_and_nonfinite_data_cannot_produce_actions(self):

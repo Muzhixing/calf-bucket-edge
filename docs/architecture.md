@@ -81,3 +81,11 @@ flowchart LR
 `HealthRegistry`是组件与能力状态的共同来源，执行循环和API在服务端门控运动。设备恢复不会自动解除运动故障锁存；停止未确认不能通过恢复按钮解除。探测只读回传，不通过试运动证明设备存在。原有追踪控制和零点账本继续复用。
 
 详细接口、故障矩阵、阈值和维护入口见[故障隔离说明](resilience/README.md)。
+
+## 启动与任务状态的共同所有权
+
+启动准备由 `runtime.preparation.StartupService` 负责，现场脚本和正式应用共同使用 `runtime.startup.default_startup_state()`。停止错误以结构化结果传入只读预览和 HealthRegistry，跨入口保留锁存。旧 launcher 账本仅作兼容迁移，不能绕过原有一次性登记记录。
+
+活动任务的目标显示来自 `perception.observation` 的任务快照，普通预览的选桶不覆盖被控目标。`TargetObserver` 与 `StereoObserver` 共用观察实现及 FrameBundle。任务阶段、配置和后处理分别由 `missions.stages`、`missions.profile` 与 `missions.completion` 维护；控制公式继续属于 tracking，事务继续属于 motion。
+
+八项修改、验收与人工维护入口见[第二轮架构收敛](architecture-consolidation-20261126.md)。

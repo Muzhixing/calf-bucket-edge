@@ -24,6 +24,7 @@ class RecoveryDeadlineTests(unittest.TestCase):
         )
         detection = dict(zip(("left", "top", "right", "bottom", "score"), [*box, 0.95]))
         manager = RecoveringTarget(True)
+        self.addCleanup(manager.close)
         manager.select(image, box, 1)
         manager.update(image, dict(arrival=1, detections=[detection]))
         manager.missing("camera_gap")

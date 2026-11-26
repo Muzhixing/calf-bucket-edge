@@ -19,6 +19,7 @@ import time
 from types import SimpleNamespace
 
 from bucket_robot.resources import default_reference
+from bucket_robot.runtime.startup import default_startup_state
 from bucket_robot.runtime.health import HealthRegistry
 from bucket_robot.runtime.http import handler_for
 from bucket_robot.runtime.supervision import VisualSupervisor
@@ -72,6 +73,34 @@ class Application:
     def __init__(self, args, native_args, *, session_factory=None, process_factory=None):
         self.args, self.native_args = args, list(native_args)
         self.health = HealthRegistry(motion_enabled=not args.observe_only)
+        ledger_path = Path(args.startup_state)
+        try:
+            if ledger_path.is_file():
+                ledger = json.loads(ledger_path.read_text())
+                if not isinstance(ledger, dict):
+                    raise ValueError("invalid_startup_ledger")
+                if ledger.get("stop_error"):
+                    self.health.fault("STOP_UNCONFIRMED", "上次启动停止未确认，禁止恢复运动")
+        except (OSError, ValueError, TypeError):
+            self.health.fault("STOP_UNCONFIRMED", "启动账本不可读取，停止状态待确认")
+        self.startup_result = None
+        result_file = getattr(args, "startup_result", None)
+        if result_file:
+            try:
+                self.startup_result = json.loads(Path(result_file).read_text())
+                if not isinstance(self.startup_result, dict) or any(
+                    type(self.startup_result.get(key)) is not bool
+                    for key in ("ready", "stop_confirmed")
+                ):
+                    raise ValueError("invalid_startup_result")
+                if self.startup_result.get("stop_confirmed") is not True:
+                    self.health.fault("STOP_UNCONFIRMED", "启动清理未确认停止，请检查控制器")
+                elif self.startup_result.get("ready") is not True:
+                    self.health.fault(
+                        "INITIALIZATION_FAILED", self.startup_result.get("error") or "启动失败"
+                    )
+            except (OSError, ValueError, TypeError):
+                self.health.fault("STOP_UNCONFIRMED", "启动结果不可读取，停止状态待确认")
         self.thermal = ThermalMonitor()
         self.session = WaitingView(self.health)
         self.token = self.session.token
@@ -86,6 +115,9 @@ class Application:
         self.task_requested = args.mission and not args.observe_only
         self.task_attempted = False
         self.task_status = None
+        from bucket_robot.perception.observation import TaskObservationReader
+
+        self.observation_reader = TaskObservationReader(args.output / "mission")
         self.serial_monitor = None
         self.task_telemetry = None
         self.approach_telemetry = None
@@ -157,12 +189,40 @@ class Application:
             self.serial_monitor.close()
         return self.session.command(action, body)
 
+    def task_observation(self):
+        if not self.args.mission or not (self.task is not None or self.task_attempted):
+            return None
+        return self.observation_reader.read()
+
     def status(self):
         data = self.session.status()
         data["health"] = self.health.snapshot()
         data["thermal"] = self.thermal.snapshot()
+        data["startup_result"] = self.startup_result
         if self.args.mission:
             data["task"] = self.task_status
+            observation = self.task_observation()
+            if observation is not None:
+                target = observation.get("target")
+                # Native auto-selection depth has no task identity guarantee.
+                # Only a source-bound measurement can be shown for this target.
+                data.update(
+                    distance_m=None,
+                    detected=False,
+                    distance_source_frame=None,
+                    measurement_status="unavailable",
+                )
+                if observation.get("depth"):
+                    data.update(observation["depth"])
+                data["tracking"].update(
+                    target=target,
+                    target_id=observation.get("target_id"),
+                    task_id=observation["task_id"],
+                    frame_id=observation.get("frame_id"),
+                    reason=observation.get("reason"),
+                    vision_state=observation.get("tracking_state"),
+                    target_age_s=max(0, time.monotonic() - target["timestamp"]) if target else None,
+                )
             data["tracking"]["motion_available"] = data["health"]["capabilities"]["mission"][
                 "available"
             ]
@@ -306,6 +366,8 @@ class Application:
                     store = PowerCycleStore(
                         self.args.startup_state, wait["wait_seconds"], wait["wait_basis"]
                     )
+                    if store.data.get("stop_error"):
+                        self.health.fault("STOP_UNCONFIRMED", "上次启动未确认停止，禁止恢复运动")
                 except Exception:
                     motion = False
                     self.health.report(
@@ -353,6 +415,7 @@ class Application:
                 session.motion_allowed = session.auto_follow = False
                 session.auto_prepare = False
                 motion = False
+            session.task_observation = self.task_observation
             self.session = session
             env = os.environ.copy()
             if self.args.release_root:
@@ -719,15 +782,14 @@ def parser():
         type=Path,
         default=Path.home() / ".local/state/bucket/runs" / time.strftime("%Y%m%d_%H%M%S"),
     )
-    ap.add_argument(
-        "--startup-state", default=str(Path.home() / ".local/state/bucket-arm/power-cycle.json")
-    )
+    ap.add_argument("--startup-state", default=str(default_startup_state()))
     ap.add_argument(
         "--serial-port",
         default=os.environ.get(
             "BUCKET_SERIAL_PORT", "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
         ),
     )
+    ap.add_argument("--startup-result", type=Path)
     ap.add_argument("--release-root", type=Path)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--drive-budget", type=float, default=120)

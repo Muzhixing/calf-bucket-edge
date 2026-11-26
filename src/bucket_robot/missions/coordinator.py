@@ -33,6 +33,8 @@ def command(
         "-m",
         "bucket_robot",
         "forward",
+        "--profile",
+        "production-center",
         "--recover-loss",
         "--distance-first",
         "--cruise-speed",

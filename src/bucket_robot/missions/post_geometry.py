@@ -1,6 +1,7 @@
 """First-order overhead plan. No UART and no inferred metric motion completion."""
 
 import math
+from bucket_robot.missions.timed_translate import TimedTranslate
 
 
 def camera_triangle(distance_m, a_command, *, forward_command=73, left_command=131):
@@ -38,7 +39,7 @@ def alignment_extension_plan(distance_m, a_command, *, c_max_mm=150):
     advance = 0.0 if a_command >= 131 else geometry["a_forward_mm"]
     sideways = geometry["b_left_mm"] / 2
     return dict(
-        phase="waiting_displacement_measurement",
+        phase="planned",
         output_enabled=False,
         geometry=geometry,
         sequence=[
@@ -51,9 +52,11 @@ def alignment_extension_plan(distance_m, a_command, *, c_max_mm=150):
             dict(action="confirm_disabled"),
             dict(
                 action="left_translate",
-                relative_target_mm=sideways,
+                diagnostic_half_left_mm=sideways,
+                execution=TimedTranslate().as_dict(),
                 require_C_retracted=True,
-                require_metric_displacement_feedback=True,
+                require_metric_displacement_feedback=False,
+                admission_guard="diagnostic_half_left_mm_between_19.5_and_130",
             ),
             dict(action="confirm_disabled"),
             dict(
@@ -74,8 +77,9 @@ def alignment_extension_plan(distance_m, a_command, *, c_max_mm=150):
         residual_camera_to_same_surface_point_mm=sideways,
         simultaneous=False,
         firmware_interlock_preserved=True,
-        blocked_by="validated metric displacement feedback not connected",
-        displacement_source=None,
+        blocked_by=None,
+        displacement_source="operator_timing_no_odometry",
+        execution_requires_explicit_opt_in=True,
         elapsed_time_is_not_displacement=True,
         C_extension_sent=False,
         chassis_command_sent=False,

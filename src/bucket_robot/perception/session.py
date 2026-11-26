@@ -215,6 +215,20 @@ class RecoveringTarget:
     def _decorate(self, target):
         return dict(target, task_target_id=1, recovery_count=self.reacquired)
 
-    def close(self):
+    def cleanup_children(self):
+        return (self.feature_job,) if self.feature_job is not None else ()
+
+    def request_stop(self):
+        for child in self.cleanup_children():
+            child.request_stop()
+
+    def await_stopped(self, timeout=2):
+        from bucket_robot.domain.lifecycle import CleanupResult
+
         if self.feature_job is not None:
-            self.feature_job.close()
+            return self.feature_job.await_stopped(timeout)
+        return CleanupResult(True)
+
+    def close(self):
+        self.request_stop()
+        return self.await_stopped()

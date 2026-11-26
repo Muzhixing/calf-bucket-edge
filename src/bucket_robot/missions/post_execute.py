@@ -5,31 +5,28 @@ Every mechanism/chassis handoff requires an acknowledged disabled state.
 """
 
 import json
-import math
 from pathlib import Path
 import time
 
 from bucket_robot.motion.arm import Limits, pose
+from bucket_robot.missions.timed_translate import TimedTranslate, check_geometry_admission
 from bucket_robot.motion.extension import ExtensionPort as ExtensionPort
 from bucket_robot.motion.chassis import ChassisPort, HeldArmLimits
 
 
 def lateral_timing(target_mm):
-    if type(target_mm) not in (int, float) or not math.isfinite(target_mm):
-        raise ValueError("invalid_lateral_target")
-    # Keep the geometric target as a diagnostic. The operator now requests a
-    # fixed four-second translation, overriding the former b/2-derived duration.
-    if not 19.5 <= target_mm <= 130:
-        raise ValueError("lateral_target_outside_timing_trial_range")
-    seconds = 4.0
+    check_geometry_admission(target_mm)
+    action = TimedTranslate()
+    seconds = action.duration_s
     return dict(
-        target_mm=target_mm,
-        speed_percent=20,
+        diagnostic_half_left_mm=target_mm,
+        speed_percent=action.speed_percent,
         seconds=seconds,
         estimated_travel_mm_interval=[seconds * 95 / 3, seconds * 100 / 3],
         source="operator_20percent_left_3s_95_to_100mm_20261126",
         metric_feedback=False,
-        timing_policy="operator_fixed_4s_20261126",
+        timing_policy=action.policy,
+        execution=action.as_dict(),
     )
 
 
@@ -37,7 +34,7 @@ def execute_post(
     plan, reference, folder, *, chassis_factory=ChassisPort, extension_factory=ExtensionPort
 ):
     """Forward same-target alignment was completed by the original mission loop."""
-    timing = lateral_timing(plan["sequence"][2]["relative_target_mm"])
+    timing = lateral_timing(plan["sequence"][2]["diagnostic_half_left_mm"])
     result = dict(
         error=None,
         stop_error=None,
@@ -92,7 +89,9 @@ def execute_post(
             already_extended = pose(port.state)[2] == 150
             if not already_extended:
                 status("post_left_translate_timed")
-                port.start_pulse("left", 20, timing["seconds"])
+                port.start_pulse(
+                    timing["execution"]["direction"], timing["speed_percent"], timing["seconds"]
+                )
                 result["chassis_command_sent"] = True
                 wait()
                 if not port.drive_observed:

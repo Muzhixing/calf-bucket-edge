@@ -583,6 +583,13 @@ class Session:
                         self.vision_state,
                     )
                     control = dict(self.arm.get("control", {}))
+                provider = getattr(self, "task_observation", None)
+                task_observation = provider() if provider else None
+                if task_observation is not None:
+                    target = task_observation.get("target")
+                    state = task_observation.get("tracking_state", "waiting")
+                    mode = "mission"
+                    control = {}  # independent preview alignment is not task evidence
                 # Fresh video must not display an old lock as a current observation.
                 if (
                     target is not None

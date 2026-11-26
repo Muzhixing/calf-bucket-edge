@@ -28,8 +28,7 @@ def align_parked(observer, port, controller, folder, record, *, visibility_only=
             if (folder / "STOP").exists() or (folder.parent / "STOP").exists():
                 raise KeyboardInterrupt("operator_stop")
             port.tick()
-            value = observer.get()
-            obs = value[0] if isinstance(value, tuple) else value
+            obs = observer.get()
             now = time.monotonic()
             target = controller.target(obs.get("target")) if obs else None
             fresh = (
