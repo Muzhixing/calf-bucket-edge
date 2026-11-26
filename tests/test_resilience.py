@@ -26,6 +26,54 @@ from bucket_robot.transport.telemetry import decode
 
 
 class HealthTests(unittest.TestCase):
+    def test_prepared_start_preserves_intent_during_first_vision_warmup_only(self):
+        from bucket_robot.runtime.stationary import Session
+        from tests.test_tracking import Reference
+
+        for cancel in (False, True):
+            with self.subTest(cancel=cancel):
+                reference = Reference()
+                health = HealthRegistry()
+                health.report(
+                    "camera", "unavailable", "CAMERA_UNAVAILABLE", "backend not yet listening"
+                )
+                opened = threading.Event()
+
+                def port(*args):
+                    opened.set()
+                    session.stop_event.set()
+                    raise RuntimeError("end_test_before_hardware")
+
+                session = Session(
+                    reference.directory.name,
+                    reference.limits,
+                    smooth=True,
+                    automatic=True,
+                    health=health,
+                    port_factory=port,
+                    intrinsics=dict(fx=700, fy=700, cx=640, cy=360),
+                )
+                thread = threading.Thread(target=session.continuous_arm_loop)
+                thread.start()
+                try:
+                    time.sleep(0.08)
+                    self.assertFalse(opened.is_set())
+                    self.assertTrue(session.auto_follow)
+                    if cancel:
+                        session.command("stop", {})
+                    for name in health.components:
+                        health.ready(name)
+                    session.metadata = dict(arrival=time.monotonic())
+                    if cancel:
+                        self.assertFalse(opened.wait(0.15))
+                        self.assertFalse(session.auto_follow)
+                    else:
+                        self.assertTrue(opened.wait(1))
+                finally:
+                    session.stop_event.set()
+                    thread.join(2)
+                    reference.directory.cleanup()
+
     def test_open_idle_uart_without_controller_reports_offline_and_recovers_on_real_bytes(self):
         from bucket_robot.runtime.stationary import Session
         from bucket_robot.runtime.startup import PowerCycleStore, RestartWatchPort

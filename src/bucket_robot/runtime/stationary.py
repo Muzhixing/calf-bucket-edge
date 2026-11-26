@@ -85,6 +85,8 @@ class Session:
         )
         if self.operator_paused:
             self.auto_follow = False
+        self.initial_vision_pending = self.auto_follow
+        self.initial_vision_deadline = time.monotonic() + 10
         self.intrinsics = intrinsics
         self.motion_compensation = motion_compensation
         self.response_profile = response_profile
@@ -1346,6 +1348,29 @@ class Session:
                 try:
                     if self.health is not None:
                         health = self.health.snapshot()
+                        if self.initial_vision_pending:
+                            if health["motion_latch"] or self.operator_paused:
+                                self.initial_vision_pending = False
+                            elif health["capabilities"]["detection"]["available"]:
+                                self.initial_vision_pending = False
+                            elif all(
+                                health["components"][name]["state"]
+                                in ("unknown", "starting", "ready")
+                                or (
+                                    name == "camera"
+                                    and health["components"][name]["code"] == "CAMERA_UNAVAILABLE"
+                                    and self.preview_image is None
+                                    and time.monotonic() < self.initial_vision_deadline
+                                )
+                                for name in self.health.dependencies["detection"]
+                            ):
+                                # A prepared MCU can precede camera/model warmup.
+                                # Preserve initial intent without opening the UART
+                                # or enabling motion. This is not fault recovery.
+                                self.stop_event.wait(0.02)
+                                continue
+                            else:
+                                self.initial_vision_pending = False
                         if (
                             health["motion_latch"]
                             or not health["capabilities"]["detection"]["available"]
