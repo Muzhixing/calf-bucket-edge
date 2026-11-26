@@ -39,21 +39,12 @@ def pending_extension_plan(approach):
         or measurement.get("distance_kind") != "stereo_optical_midpoint_to_bucket_surface"
     ):
         raise ValueError("no_valid_approach_measurement")
-    return dict(
-        phase="waiting_displacement_measurement",
-        output_enabled=False,
+    from bucket_robot.missions.post_geometry import alignment_extension_plan
+
+    plan = alignment_extension_plan(distance, state["servo_software_deg"])
+    plan.update(
         approach_A_deg=state["servo_software_deg"],
         approach_mode=approach.get("mode", "left_approach"),
         trigger="completed camera-to-bucket-surface approach near 20 cm",
-        sequence=[
-            dict(action="extend_C", absolute_target_mm=150, require_disabled_chassis=True),
-            dict(action="left_translate", relative_target_mm=100, require_C_settled=True),
-        ],
-        simultaneous=False,
-        firmware_interlock_preserved=True,
-        blocked_by="validated lateral displacement feedback not connected",
-        displacement_source=None,
-        elapsed_time_is_not_displacement=True,
-        C_extension_sent=False,
-        chassis_command_sent=False,
     )
+    return plan
