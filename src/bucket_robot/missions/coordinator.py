@@ -3,7 +3,20 @@
 import sys
 
 
-def command(layout, out, port, budget):
+def command(layout, out, port, budget, *, execute_post_geometry=False, resume_post_plan=None):
+    if resume_post_plan:
+        return [
+            sys.executable,
+            "-m",
+            "bucket_robot",
+            "post",
+            "--plan",
+            str(resume_post_plan),
+            "--reference",
+            str(layout.config / "arm_reference.json"),
+            "--out",
+            str(out / "mission"),
+        ]
     return [
         sys.executable,
         "-m",
@@ -15,6 +28,7 @@ def command(layout, out, port, budget):
         "20",
         "--track-b",
         "--post-approach-plan",
+        *(["--execute-post-geometry"] if execute_post_geometry else []),
         "--reference",
         str(layout.config / "arm_reference.json"),
         "--left-reference",

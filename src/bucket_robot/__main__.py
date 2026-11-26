@@ -8,7 +8,9 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(prog="python -m bucket_robot")
-    parser.add_argument("command", choices=("track", "mission", "forward", "telemetry", "verify"))
+    parser.add_argument(
+        "command", choices=("track", "mission", "forward", "post", "telemetry", "verify")
+    )
     if len(sys.argv) == 1 or sys.argv[1] in ("-h", "--help"):
         parser.print_help()
         return 0
@@ -31,6 +33,7 @@ def main():
         "track": "bucket_robot.runtime.application",
         "mission": "bucket_robot.runtime.application",
         "forward": "bucket_robot.missions.forward",
+        "post": "bucket_robot.missions.post_execute",
         "telemetry": "bucket_robot.transport.telemetry",
     }
     sys.argv = [sys.argv[0] + " " + args.command, *rest]

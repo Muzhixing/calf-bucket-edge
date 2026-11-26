@@ -57,6 +57,13 @@ def alignment_extension_plan(distance_m, a_command, *, c_max_mm=150):
             ),
             dict(action="confirm_disabled"),
             dict(
+                action="raise_B",
+                absolute_target_mm=0,
+                require_disabled_chassis=True,
+                tracking_paused=True,
+                target_loss_blocks_action=False,
+            ),
+            dict(
                 action="extend_C",
                 absolute_target_mm=c_max_mm,
                 require_disabled_chassis=True,

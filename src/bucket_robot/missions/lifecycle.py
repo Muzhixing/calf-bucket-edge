@@ -9,10 +9,21 @@ class TaskPause(Exception):
 
 def park_fault(folder, result):
     """Leave the task observable after a hard fault; never auto-enable/restart."""
+    post = result.get("post_execution") or {}
     final = (
-        result["approach"].get("final_state") if "approach" in result else result.get("final_state")
-    ) or {}
-    stop_error = result.get("stop_error") or result.get("approach", {}).get("stop_error")
+        post.get("final_state")
+        or (
+            result["approach"].get("final_state")
+            if "approach" in result
+            else result.get("final_state")
+        )
+        or {}
+    )
+    stop_error = (
+        post.get("stop_error")
+        or result.get("stop_error")
+        or result.get("approach", {}).get("stop_error")
+    )
     status = dict(
         phase="fault_paused",
         reason=result.get("error"),
