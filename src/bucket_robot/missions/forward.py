@@ -241,6 +241,9 @@ class Observer:
         except BaseException as e:
             with self.lock:
                 self.error = repr(e)
+        finally:
+            if hasattr(manager, "close"):
+                manager.close()
 
     def get(self):
         with self.lock:

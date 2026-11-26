@@ -108,6 +108,9 @@ class StereoObserver:
         except BaseException as exc:
             with self.lock:
                 self.error = repr(exc)
+        finally:
+            if hasattr(manager, "close"):
+                manager.close()
 
     def get(self):
         with self.lock:

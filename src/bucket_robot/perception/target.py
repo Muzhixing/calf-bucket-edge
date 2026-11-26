@@ -1049,7 +1049,12 @@ class TargetLock:
         if len(matches) == 1:
             d, b, known = matches[0]
             try:
-                candidate = TargetTracker(image, b.astype(int).tolist(), stamp)
+                candidate = TargetTracker(
+                    image,
+                    b.astype(int).tolist(),
+                    stamp,
+                    segment_foreground=not d.get("visible_only", False),
+                )
                 if candidate.points is not None and len(candidate.points) >= 6:
                     self.provisional = {
                         "tracker": candidate,

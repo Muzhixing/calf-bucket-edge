@@ -2,7 +2,71 @@
 
 import cv2
 import numpy as np
-from bucket_robot.perception.target import iou, weighted_ncc
+import threading
+from bucket_robot.perception.target import (
+    TargetTracker,
+    iou,
+    valid_box,
+    visible_detection_box,
+    weighted_ncc,
+)
+
+
+class FeatureRelocationJob:
+    """Compute identity evidence off the fresh-frame observation path.
+
+    The result is an appearance reference, never a motion observation. The
+    caller must verify new current frames before exposing any recovered target.
+    """
+
+    def __init__(self, epoch, references, image, metadata):
+        self.epoch = epoch
+        self.done = threading.Event()
+        self.cancel = threading.Event()
+        self.result = None
+        self.error = None
+        references = [(im.copy(), list(box)) for im, box in references if im is not None]
+        image = image.copy()
+        detections = [dict(d) for d in metadata.get("detections", [])]
+        self.thread = threading.Thread(
+            target=self.run,
+            args=(references, image, detections, metadata["arrival"]),
+            daemon=False,
+            name="bucket-identity-proof",
+        )
+        self.thread.start()
+
+    def run(self, references, image, detections, stamp):
+        try:
+            matches = []
+            for d in detections:
+                if self.cancel.is_set():
+                    return
+                raw = [d[k] for k in ("left", "top", "right", "bottom")]
+                box = visible_detection_box(raw, image.shape)
+                if d["score"] < 0.8 or box is None:
+                    continue
+                for reference, old in references:
+                    if self.cancel.is_set():
+                        return
+                    evidence = known_feature_relocation(reference, old, image, box)
+                    if evidence is not None:
+                        matches.append((raw, box, evidence))
+                        break
+            if len(matches) == 1 and not self.cancel.is_set():
+                raw, box, evidence = matches[0]
+                tracker = TargetTracker(
+                    image, box, stamp, segment_foreground=valid_box(raw, image.shape)
+                )
+                self.result = (tracker, evidence)
+        except Exception as exc:
+            self.error = repr(exc)
+        finally:
+            self.done.set()
+
+    def close(self):
+        self.cancel.set()
+        self.thread.join(timeout=2)
 
 
 def known_feature_relocation(reference, old_box, current, box):

@@ -171,6 +171,10 @@ def main():
                 stream.write(
                     json.dumps(dict(monotonic=time.monotonic(), kind=kind, data=data)) + "\n"
                 )
+                if kind == "registered_home_return_started":
+                    print("正在自动归位：收回C、B回顶、A回73°；底盘保持停车。", flush=True)
+                elif kind == "registered_home_return_completed":
+                    print("机构归位完成，已确认输出禁用。", flush=True)
 
             try:
                 initialized = initialize(
