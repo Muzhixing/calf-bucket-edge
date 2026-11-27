@@ -105,6 +105,15 @@ class ChassisTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pulse_frame(state(), "forward", speed)
 
+    def test_explicit_post_action_limit_allows40_without_changing_diagnostic_default(self):
+        self.assertEqual(pulse_frame(state(), "left", 40, max_speed=40)[2], 40)
+        for speed in (0, 41, True):
+            with self.assertRaises(ValueError):
+                pulse_frame(state(), "left", speed, max_speed=40)
+        for limit in (0, 41, True):
+            with self.assertRaises(ValueError):
+                pulse_frame(state(), "left", 40, max_speed=limit)
+
     def port(self, frame=None):
         p = object.__new__(ChassisPort)
         p.phase = "driving"

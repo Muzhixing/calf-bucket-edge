@@ -50,6 +50,7 @@ class RecoveryGate:
         self.align_since = None
         self.align_stamp = None
         self.align_frames = 0
+        self.left_latched = False
 
     def trip(self, reason):
         self.latched = reason
@@ -131,22 +132,24 @@ class RecoveryGate:
         # Disable preserves the last absolute A command. A one-degree feedback
         # tolerance must not permit handoff while that command is still 130.
         command_aligned = commanded_a is None or commanded_a >= self.left - 1
-        if (
-            motion_permitted
-            and self.allow_a
-            and horizontal
-            and a >= self.left - 1
+        pose_aligned = (
+            a >= self.left - 1
             and command_aligned
-            and horizontal_aligned(target)
             and settled
             and (commanded_a is None or abs(a - commanded_a) < 0.1)
-        ):
+        )
+        if pose_aligned:
+            self.left_latched = True
+        if self.left_latched:
+            # The left pose is the stage boundary, not an image-centering goal.
+            # Latch the stop even across a lost frame or a delayed range result;
+            # forward motion must never restart after reaching this boundary.
             self.speed = 0.0
             self.velocity = 0
             self.disable = True
             # Confirm fresh alignment after disable ACK and physical settling.
             # The old moving-frame observation cannot authorize a stage handoff.
-            if chassis_stopped:
+            if chassis_stopped and pose_aligned and self.allow_a and horizontal:
                 stamp = target["timestamp"]
                 if self.align_since is None:
                     self.align_since = stamp
@@ -162,7 +165,7 @@ class RecoveryGate:
                 self.align_stamp = None
                 self.align_frames = 0
             self.phase = "verifying_left_alignment"
-            self.reason = "waiting_stopped_alignment"
+            self.reason = problem or "waiting_stopped_same_target_not_image_center"
             return 0, None
         self.align_since = None
         self.align_stamp = None
@@ -238,3 +241,13 @@ class RecoveryGate:
             recovery_count=self.recovery_count,
             hard_pause=self.latched,
         )
+
+    def hold_for_heading(self, now):
+        """Account for the last travel interval without resetting mission limits."""
+        if self.velocity > 0 and self.last_now is not None:
+            self.drive_seconds += max(0, now - self.last_now)
+        self.speed = self.velocity = 0
+        self.last_now = now
+        self._unstable()
+        self.align_since = self.align_stamp = None
+        self.align_frames = 0

@@ -32,11 +32,13 @@ class PostMCU(MCU):
 
 
 class PostExecuteTests(unittest.TestCase):
-    def test_calibration_is_timed_estimate_and_bounded(self):
+    def test_new_timed_profile_does_not_reuse_old_speed_calibration(self):
         t = lateral_timing(97.5)
-        self.assertEqual(t["seconds"], 4)
-        self.assertEqual(t["estimated_travel_mm_interval"], [4 * 95 / 3, 4 * 100 / 3])
-        self.assertEqual(t["timing_policy"], "operator_fixed_4s_20261126")
+        self.assertEqual(t["seconds"], 2)
+        self.assertEqual(t["speed_percent"], 40)
+        self.assertIsNone(t["estimated_travel_mm_interval"])
+        self.assertEqual(t["calibration_status"], "unmeasured_speed_profile")
+        self.assertEqual(t["timing_policy"], "operator_40percent_left_2s_20261127")
         self.assertFalse(t["metric_feedback"])
         for target in [0, -1, 10, 131, float("nan"), True]:
             with self.assertRaises(ValueError):
@@ -67,16 +69,23 @@ class PostExecuteTests(unittest.TestCase):
                 )
                 self.assertIsNone(result["error"], result)
                 self.assertIsNone(result["stop_error"])
-                self.assertEqual(result["timing"]["seconds"], 4)
+                self.assertEqual(result["timing"]["seconds"], 2)
                 self.assertEqual(result["final_state"]["slide_position_mm"], 150)
                 self.assertFalse(result["final_state"]["enabled"])
                 commands = list(m.commands)
                 extend = next(i for i, c in enumerate(commands) if c[8] and c[6] == 150)
-                self.assertTrue(any(c[8] and c[2] == 20 for c in commands[:extend]))
+                self.assertTrue(any(c[8] and c[2] == 40 for c in commands[:extend]))
                 self.assertEqual(commands[extend - 1][8], 0)
                 self.assertTrue(all(c[1] == 0 for c in commands))
                 self.assertTrue(all(c[2] == 0 for c in commands[extend:]))
                 self.assertEqual(commands[-1][8], 0)
+                records = [
+                    json.loads(line)
+                    for line in (Path(root) / "serial.jsonl").read_text().splitlines()
+                ]
+                pulse = next(r["data"] for r in records if r["kind"] == "pulse")
+                self.assertEqual(pulse["duration_s"], 2)
+                self.assertEqual(pulse["speed_percent"], 40)
                 self.assertEqual(
                     json.loads((Path(root) / "task_status.json").read_text())["phase"], "complete"
                 )

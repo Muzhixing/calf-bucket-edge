@@ -36,6 +36,11 @@ class MissionProfile:
     def as_dict(self):
         return dict(asdict(self), post_translate=TimedTranslate().as_dict())
 
+    def a_rate_limit(self, *, departed, post_aligning=False):
+        # Cruise percentage describes chassis travel, not camera slew. Initial
+        # acquisition must retain sharp adjacent views before raising this rate.
+        return 30 if departed or post_aligning else 10
+
     def recovery_settings(self):
         return RecoverySettings(
             cruise=self.cruise_speed,

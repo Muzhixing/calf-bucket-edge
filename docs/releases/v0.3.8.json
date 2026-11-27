@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "version": "0.3.8",
+  "git_tag": "v0.3.8",
+  "tested_source_commit": "490110769425f7c2a4c82a51a6ba37b1da54c71e",
+  "accepted_revision": "3c9d43fe8ce746d6edf10b4bf438f05226511c03",
+  "accepted_release": "/home/elf/bucket/releases/0.3.8-heading-recovery-rc1-20261127",
+  "release_root": "/home/elf/bucket/releases/0.3.8",
+  "default_launcher": "/home/elf/bucket/start_full_mission.sh",
+  "accepted_manifest_sha256": "cf612eecfd31e529a3c7a50de73e18e91cd279005c5df735add77a8c23b94c9d",
+  "manifest_sha256": "3f0005b8f8b3b695c36c2680f05dfc1dcb4755b8680aa0091e0ac47bdc41e8a2",
+  "payload_files": 123,
+  "freeze_method": "identical accepted payload; manifest version metadata only",
+  "field_acceptance": {
+    "run": "manual_20261127_200553_11818",
+    "release": "0.3.8-heading-recovery-rc1",
+    "complete": true,
+    "disabled_confirmed": true,
+    "camera_stop_distance_m": 0.20614640018388936,
+    "heading_reference_deg": 1.1,
+    "sampled_yaw_delta_deg": [
+      0.0,
+      0.6999999999999886
+    ],
+    "active_heading_corrections": 0,
+    "real_active_heading_correction_verified": false,
+    "operator_confirmation": "全程正常，已停稳，无人工干预",
+    "full_mission_field_accepted": true
+  }
+}

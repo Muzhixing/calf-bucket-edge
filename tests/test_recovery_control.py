@@ -144,13 +144,13 @@ class RecoveryControlTests(unittest.TestCase):
         self.assertEqual(answer, (0, "left_reference_reached"))
 
     def test_moving_frame_or_one_degree_A_lag_cannot_handoff(self):
-        for case in ("moving", "A_lag", "drift", "repeated"):
+        for case in ("moving", "A_lag", "repeated"):
             g = RecoveryGate(60)
             for i in range(16):
                 t = 1 + i * 0.04
                 _, reason = g.evaluate(
                     t,
-                    target(1 if case == "repeated" else t, 60 if case == "drift" and i > 3 else 0),
+                    target(1 if case == "repeated" else t),
                     1,
                     131,
                     True,
@@ -158,6 +158,91 @@ class RecoveryControlTests(unittest.TestCase):
                     chassis_stopped=case != "moving",
                 )
                 self.assertIsNone(reason, case)
+
+    def test_left_boundary_handoff_ignores_pixel_offset_after_disable_ack(self):
+        g = RecoveryGate(60)
+        for i in range(8):
+            now = 1 + i * 0.05
+            v, reason = g.evaluate(
+                now,
+                target(now, -59),
+                1,
+                132,
+                True,
+                commanded_a=132,
+                chassis_stopped=False,
+            )
+            self.assertEqual(v, 0)
+            self.assertTrue(g.disable)
+            self.assertIsNone(reason)
+        for i in range(8):
+            now = 1.5 + i * 0.05
+            answer = g.evaluate(
+                now,
+                target(now, -59),
+                1,
+                132,
+                True,
+                commanded_a=132,
+                chassis_stopped=True,
+            )
+        self.assertEqual(answer, (0, "left_reference_reached"))
+
+    def test_left_boundary_never_resumes_forward_on_loss_identity_or_stale_frame(self):
+        for case in ("lost", "identity", "horizontal_clipped", "stale"):
+            g = RecoveryGate(60)
+            g.evaluate(1, target(1, -59), 1, 132, True, commanded_a=132)
+            for i in range(8):
+                now = 1.05 + i * 0.05
+                seen = target(now, 0)
+                if case == "lost":
+                    seen = None
+                elif case == "horizontal_clipped":
+                    seen.update(partial_visible=True, horizontal_clipped=True)
+                elif case == "stale":
+                    seen["timestamp"] = 0
+                v, reason = g.evaluate(
+                    now,
+                    seen,
+                    2 if case == "identity" else 1,
+                    132,
+                    True,
+                    commanded_a=132,
+                    chassis_stopped=True,
+                )
+                self.assertEqual(v, 0, case)
+                self.assertTrue(g.disable, case)
+                self.assertIsNone(reason, case)
+            for i in range(8):
+                now = 1.5 + i * 0.05
+                answer = g.evaluate(
+                    now,
+                    target(now, -59),
+                    1,
+                    132,
+                    True,
+                    commanded_a=132,
+                    chassis_stopped=True,
+                )
+            self.assertEqual(answer, (0, "left_reference_reached"), case)
+
+    def test_forward_motion_gate_does_not_block_stopped_left_handoff(self):
+        # B/range may veto forward travel; the next lateral stage obtains its
+        # own range permission. Handoff requires the actual disabled ACK.
+        g = RecoveryGate(60)
+        for i in range(8):
+            now = 1 + i * 0.05
+            answer = g.evaluate(
+                now,
+                target(now, -59),
+                1,
+                132,
+                True,
+                commanded_a=132,
+                chassis_stopped=True,
+                motion_permitted=False,
+            )
+        self.assertEqual(answer, (0, "left_reference_reached"))
 
 
 if __name__ == "__main__":

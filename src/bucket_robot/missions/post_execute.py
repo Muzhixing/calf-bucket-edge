@@ -1,6 +1,6 @@
 """Opt-in field execution after stopped same-bucket geometry planning.
 
-Lateral travel uses the operator's single-run timing reference, not odometry.
+Lateral travel uses the operator's speed/duration request, not odometry.
 Every mechanism/chassis handoff requires an acknowledged disabled state.
 """
 
@@ -22,8 +22,9 @@ def lateral_timing(target_mm):
         diagnostic_half_left_mm=target_mm,
         speed_percent=action.speed_percent,
         seconds=seconds,
-        estimated_travel_mm_interval=[seconds * 95 / 3, seconds * 100 / 3],
-        source="operator_20percent_left_3s_95_to_100mm_20261126",
+        estimated_travel_mm_interval=None,
+        source=action.policy,
+        calibration_status="unmeasured_speed_profile",
         metric_feedback=False,
         timing_policy=action.policy,
         execution=action.as_dict(),
@@ -94,6 +95,7 @@ def execute_post(
             already_extended = pose(port.state)[2] == 150
             if not already_extended:
                 status("post_left_translate_timed")
+                port.max_velocity = timing["speed_percent"]
                 port.start_pulse(
                     timing["execution"]["direction"], timing["speed_percent"], timing["seconds"]
                 )

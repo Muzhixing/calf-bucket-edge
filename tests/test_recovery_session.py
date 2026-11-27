@@ -65,12 +65,15 @@ class RecoverySessionTests(unittest.TestCase):
         distance_first=False,
         post=False,
         left_first=False,
+        left_offset=0,
+        left_a=131,
         cruise=8,
         a_start_only=False,
+        recover_heading=False,
     ):
         m = MCU()
         if left_first:
-            m.a = 131
+            m.a = left_a
         temp = tempfile.TemporaryDirectory()
         root = Path(temp.name)
         out = root / "run"
@@ -112,7 +115,7 @@ class RecoverySessionTests(unittest.TestCase):
             "800",
             "600",
             "--expect-a",
-            "131" if left_first else "97",
+            str(left_a) if left_first else "97",
             "--seconds",
             "10",
             "--recover-loss",
@@ -177,7 +180,7 @@ class RecoverySessionTests(unittest.TestCase):
         def post_execute(plan, reference, folder):
             observed["post_calls"] = observed.get("post_calls", 0) + 1
             observed["post_plan"] = plan
-            if m.enabled or m.a != 131:
+            if m.enabled or not 131 <= m.a <= 132:
                 raise AssertionError("Post execution before disabled same-target left alignment")
             return dict(
                 error=None,
@@ -231,6 +234,7 @@ class RecoverySessionTests(unittest.TestCase):
                 obs, error = self.get()
                 if obs["target"]:
                     obs["target"]["box"] = [10, 10, 50, 50]
+                    obs["target"]["offset_px"] = [left_offset, 0]
                 return obs, np.zeros((80, 80, 3), np.uint8), error
 
         def port(limits, log):
@@ -243,7 +247,19 @@ class RecoverySessionTests(unittest.TestCase):
             while not end.wait(0.02):
                 elapsed = time.monotonic() - start
                 if inject_fault and elapsed > 2.7:
-                    m.yaw = 40
+                    m.yaw = 90
+                if recover_heading and elapsed > 2.7:
+                    if "heading_injected" not in observed:
+                        observed["heading_injected"] = len(m.commands)
+                        m.yaw = 33
+                    corrective = [
+                        f
+                        for f in m.commands[observed["heading_injected"] :]
+                        if f[8] == 1 and f[1:3] == bytes([0, 0])
+                    ]
+                    if corrective:
+                        observed["heading_command"] = list(corrective[0])
+                        m.yaw = max(0, m.yaw - 1)
                 state = out / "task_status.json"
                 if inject_fault and state.exists():
                     try:
@@ -352,6 +368,22 @@ class RecoverySessionTests(unittest.TestCase):
         self.assertEqual(observed.get("post_calls"), 1)
         self.assertEqual(observed["post_plan"]["geometry"]["A_command"], 131)
 
+    def test_main_left_boundary_offcenter_far_bucket_enters_lateral_then_extension(self):
+        summary, _, commands, observed = self.run_session(
+            distance_first=True,
+            post=True,
+            left_first=True,
+            left_a=132,
+            left_offset=-59,
+        )
+        self.assertIsNone(summary["error"], summary)
+        self.assertIsNone(summary["stop_error"])
+        self.assertEqual(summary["reason"], "left_reference_reached")
+        self.assertTrue(observed.get("left_approach_called"))
+        self.assertEqual(observed.get("post_calls"), 1)
+        self.assertEqual(summary["final_state"]["slide_position_mm"], 150)
+        self.assertTrue(all(f[1] == 0 for f in commands))
+
     def test_visual_loss_decelerates_parks_and_resumes_without_restart(self):
         summary, states, commands, _ = self.run_session()
         self.assertIsNone(summary["error"])
@@ -382,6 +414,23 @@ class RecoverySessionTests(unittest.TestCase):
         self.assertFalse(summary["final_state"]["enabled"])
         self.assertEqual(commands[-1][1:3], bytes([0, 0]))
         self.assertEqual(commands[-1][8], 0)
+
+    def test_small_heading_drift_uses_zero_translation_then_resumes_same_task(self):
+        summary, states, commands, observed = self.run_session(recover_heading=True)
+        self.assertIsNone(summary["error"], summary)
+        self.assertIsNone(summary["stop_error"])
+        self.assertIn("heading_correcting", states)
+        self.assertEqual(summary["heading_recovery"]["completed"], 1)
+        command = observed["heading_command"]
+        self.assertEqual(command[1:4], [0, 0, 0])
+        self.assertEqual(command[5:8], [0, 0, 0])
+        index = next(
+            i
+            for i in range(observed["heading_injected"], len(commands))
+            if list(commands[i]) == command
+        )
+        self.assertTrue(any(f[1] > 0 and f[8] for f in commands[index + 1 :]))
+        self.assertFalse(summary["final_state"]["enabled"])
 
 
 if __name__ == "__main__":

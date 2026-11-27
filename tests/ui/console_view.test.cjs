@@ -158,8 +158,8 @@ test('mission completion requires disabled confirmation and no motion fault', ()
 });
 test('read-only, paused, plan-only and expired states never claim active execution', () => {
   assert.equal(view.missionProgress({observe_only:true},null).headline,'只读观察');
-  const p={running:true,phase:'post_left_translate_timed',stages:['post_action'],timing:{seconds:4}};
-  assert.match(view.missionProgress(p,null).detail,/4 秒/);
+  const p={running:true,phase:'post_left_translate_timed',stages:['post_action'],timing:{seconds:2}};
+  assert.match(view.missionProgress(p,null).detail,/2 秒/);
   const stale=view.missionProgress(p,null,2.01);
   assert.equal(stale.headline,'状态待更新');
   assert.equal(stale.rows.some(r=>r.result==='run'),false);

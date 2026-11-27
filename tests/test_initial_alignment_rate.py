@@ -3,9 +3,16 @@ import unittest
 from bucket_robot.motion.arm import Limits
 from bucket_robot.resources import default_reference
 from bucket_robot.tracking.policy import FollowPolicy
+from bucket_robot.missions.profile import MissionProfile
 
 
 class InitialAlignmentRateTests(unittest.TestCase):
+    def test_initial_camera_rate_is_independent_of_high_chassis_cruise(self):
+        profile = MissionProfile("production-center", 80, True, False, True, True, True)
+        self.assertEqual(profile.a_rate_limit(departed=False), 10)
+        self.assertEqual(profile.a_rate_limit(departed=True), 30)
+        self.assertEqual(profile.a_rate_limit(departed=False, post_aligning=True), 30)
+
     def trace(self, rate):
         p = FollowPolicy(Limits(default_reference()), 700, 700, 640, 360)
         p.set_a_rate_limit(rate)
