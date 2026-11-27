@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "default": "production-center",
+  "profiles": {
+    "production-center": {
+      "cruise_speed": 80, "track_b": true, "recover_loss": true,
+      "distance_first": true, "auto_target": true, "until_left": true,
+      "bearing_tracker": true, "post_approach_plan": true
+    },
+    "experimental-a-priority": {
+      "cruise_speed": 80, "track_b": true, "recover_loss": true,
+      "distance_first": true, "auto_target": true, "until_left": true,
+      "bearing_tracker": true, "post_approach_plan": true, "a_start_only": true
+    },
+    "diagnostic": {"cruise_speed": 8}
+  }
+}

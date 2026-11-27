@@ -35,6 +35,8 @@ def run_approach(
     target_session=None,
     continuous=False,
     existing_port=None,
+    align_upper_after_stop=False,
+    continuous_speed=8,
 ):
     if continuous:
         from bucket_robot.missions.continuous_approach import run_continuous_approach
@@ -53,6 +55,8 @@ def run_approach(
             verified_surface_band=verified_surface_band,
             target_session=target_session,
             existing_port=existing_port,
+            align_upper_after_stop=align_upper_after_stop,
+            cruise_speed=continuous_speed,
         )
     if recover_loss:
         from bucket_robot.missions.recovering_approach import run_recovering_approach
@@ -103,6 +107,9 @@ def run_approach(
             observer = StereoObserver(
                 native_port, estimator.geometry, seed_image, seed_box, bearing_tracker
             )
+            from bucket_robot.perception.observation import TaskObservationPublisher
+
+            observer.publisher = TaskObservationPublisher(out, task_root=out.parent)
             observer.thread.start()
             if execute:
                 p = SidePort(HeldArmLimits(reference), log)

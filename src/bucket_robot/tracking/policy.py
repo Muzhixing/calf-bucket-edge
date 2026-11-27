@@ -59,6 +59,7 @@ class AlignmentGate:
         self.outside_since = None
         self.blocked = (False, False)
         self.constrained = False
+        self.region = None
 
     def update(self, target, position=None, limits=None, goal=None):
         stamp = target["timestamp"]
@@ -83,8 +84,16 @@ class AlignmentGate:
             self.outside_since = None
         self.blocked = blocked
         distance = math.hypot(0 if blocked[0] else dx, 0 if blocked[1] else dy)
+        if "aim_region_px" in target:
+            x1, y1, x2, y2 = target["aim_region_px"]
+            half_w, half_h = (x2 - x1) / 2, (y2 - y1) / 2
+            distance = max(
+                0 if blocked[0] else abs(dx) / half_w,
+                0 if blocked[1] else abs(dy) / half_h,
+            )
+        self.region = target.get("aim_region_px")
         if not self.holding:
-            self.radius = alignment_radius(target)
+            self.radius = 1.0 if self.region else alignment_radius(target)
             if distance <= self.radius:
                 self.holding = True
                 self.outside_since = None
@@ -96,13 +105,15 @@ class AlignmentGate:
                 self.outside_since = None
         else:
             self.outside_since = None
-        self.constrained = self.holding and any(blocked) and math.hypot(dx, dy) > self.radius
+        total_error = max(abs(dx) / half_w, abs(dy) / half_h) if self.region else math.hypot(dx, dy)
+        self.constrained = self.holding and any(blocked) and total_error > self.radius
         return self.holding
 
     def status(self):
         return {
             "alignment_hold": self.holding,
             "alignment_radius_px": self.radius,
+            "alignment_region_px": self.region,
             "alignment_resume_radius_px": 1.5 * self.radius,
             "alignment_blocked_axes": [
                 axis for axis, blocked in zip(("A", "B"), self.blocked) if blocked
@@ -126,6 +137,7 @@ class FollowPolicy:
         # This empirical scale includes the arm's offset camera and servo ratio.
         # Do not assume the camera rotates about its own optical center.
         self.profile = response_profile
+        self.a_rate_limit = 30.0
         self.active_response = response_profile
         self._response_parameters()
         self.reset()
@@ -178,6 +190,12 @@ class FollowPolicy:
         self.previous_image_x = None
         self.horizontal_ready_since = None
         self.last_b_slot = None
+
+    def set_a_rate_limit(self, value):
+        if type(value) not in (int, float) or not math.isfinite(value) or not 1 <= value <= 30:
+            raise ValueError("invalid_A_rate_limit")
+        self.a_rate_limit = float(value)
+        self.rate = clamp(self.rate, -self.a_rate_limit, self.a_rate_limit)
 
     def observe(self, target, frame_a):
         stamp = target["timestamp"]
@@ -291,7 +309,7 @@ class FollowPolicy:
             desired = float(current)
         remaining = desired - self.command
         # Braking distance bounds the ramp before reaching a moving setpoint.
-        rate_limit = min(30.0, math.sqrt(2 * 180 * abs(remaining)))
+        rate_limit = min(self.a_rate_limit, math.sqrt(2 * 180 * abs(remaining)))
         wanted_rate = clamp(remaining / dt, -rate_limit, rate_limit)
         acceleration = (
             360 if self.rate * wanted_rate <= 0 or abs(wanted_rate) < abs(self.rate) else 180
@@ -316,6 +334,7 @@ class FollowPolicy:
                 "desired_A": desired,
                 "command_A": result,
                 "rate_A_dps": self.rate,
+                "rate_limit_A_dps": self.a_rate_limit,
             }
         )
         return result

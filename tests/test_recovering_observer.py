@@ -33,11 +33,11 @@ class RecoveringObserverTests(unittest.TestCase):
             out = Path(folder)
             observer = Observer(8899, out, None, None, True, True)
             try:
-                with patch("bucket_robot.perception.target.NativeCapture", Capture):
+                with patch("bucket_robot.perception.capture.NativeCapture", Capture):
                     observer.thread.start()
                     until = time.monotonic() + 4
                     while time.monotonic() < until:
-                        obs, error = observer.get()
+                        obs, _, error = observer.snapshot()
                         if error or obs and obs["target"] is not None:
                             break
                         time.sleep(0.01)
@@ -84,11 +84,11 @@ class RecoveringObserverTests(unittest.TestCase):
                 cv2.imwrite(str(seed), image)
                 observer = Observer(8899, out, str(seed), box, True, True)
                 try:
-                    with patch("bucket_robot.perception.target.NativeCapture", Capture):
+                    with patch("bucket_robot.perception.capture.NativeCapture", Capture):
                         observer.thread.start()
                         until = time.monotonic() + 4
                         while time.monotonic() < until:
-                            obs, error = observer.get()
+                            obs, _, error = observer.snapshot()
                             if (
                                 error
                                 or obs

@@ -104,8 +104,17 @@ exec python3 -m bucket_robot track --release-root "$ROOT" --native "$ROOT/native
                     sha256=hashlib.sha256(data).hexdigest(),
                 )
             )
+    resources = output / "python/bucket_robot/resources"
+    metadata = {}
+    for name in ("mission_profiles", "production_entries"):
+        source = resources / (name + ".json")
+        if source.is_file():
+            metadata[name] = json.loads(source.read_text())
     (output / "manifest.json").write_text(
-        json.dumps(dict(schema_version=1, version=args.version, files=entries), indent=2) + "\n"
+        json.dumps(
+            dict(schema_version=1, version=args.version, files=entries, **metadata), indent=2
+        )
+        + "\n"
     )
     print(json.dumps(dict(output=str(output), files=len(entries), version=args.version)))
 

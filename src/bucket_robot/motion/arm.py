@@ -46,6 +46,13 @@ class Limits:
             raise RuntimeError("invalid_firmware_boot_pose")
         self.c_bounds = config["operating_envelope"].get("C_command_mm", [0, 30])
         motion = config.get("tracking_motion", {})
+        self.aim_area = motion.get("aim_area")
+        if self.aim_area is not None and not (
+            self.aim_area.get("placement") == "top_center"
+            and type(self.aim_area.get("area_fraction")) in (int, float)
+            and 0 < self.aim_area["area_fraction"] < 1
+        ):
+            raise RuntimeError("invalid_aim_area")
         self.parallel_bc = config["control_policy"].get("parallel_bc", False) is True
         self.b_max_speed = motion.get("b_firmware_max_mm_s", 5.0)
         self.c_max_speed = motion.get("c_firmware_max_mm_s", 400 * 81 / 2060)

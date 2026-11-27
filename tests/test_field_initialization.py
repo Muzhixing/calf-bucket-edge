@@ -34,7 +34,7 @@ class FieldInitializationTests(unittest.TestCase):
             limits, log, port=self.mcu.path, sender_factory=Sender, check_holders=False
         )
 
-    def initialize(self):
+    def initialize(self, **kwargs):
         return field.initialize(
             self.limits,
             self.ledger,
@@ -42,6 +42,7 @@ class FieldInitializationTests(unittest.TestCase):
             port_factory=self.factory,
             wait_seconds=0,
             timeout=4,
+            **kwargs,
         )
 
     def test_cold_boot_registers_once_disabled_and_process_restart_reuses(self):
@@ -77,3 +78,55 @@ class FieldInitializationTests(unittest.TestCase):
     def test_standing_policy_is_explicit_and_validated(self):
         policy = field.read_policy(Path(__file__).parents[1] / "tools/field/startup_policy.json")
         self.assertFalse(policy["require_repeated_position_confirmation"])
+
+    def test_registered_interrupted_pose_returns_without_zero_registration_or_chassis(self):
+        self.mcu.zero_flags = True
+        self.mcu.fault = 0
+        self.mcu.a = 89
+        self.mcu.b = self.mcu.target = 6.6
+        result = self.initialize(return_home=True)
+        self.assertTrue(result["returned_home"])
+        self.assertFalse(result["zero_registered_now"])
+        self.assertEqual(result["final_state"]["servo_software_deg"], 73)
+        self.assertEqual(result["final_state"]["lift_position_mm"], 0)
+        self.assertFalse(result["final_state"]["enabled"])
+        self.assertTrue(all(c[1:3] == bytes([0, 0]) and not c[8] & 6 for c in self.mcu.commands))
+        moves = [list(c[4:7]) for c in self.mcu.commands if c[8] & 1]
+        self.assertEqual(moves[0], [89, 0, 0])
+        self.assertEqual(moves[-1], [73, 0, 0])
+        self.mcu.commands.clear()
+        self.mcu.processed = 0
+        self.assertFalse(self.initialize(return_home=True)["returned_home"])
+        self.assertEqual(self.mcu.commands, [])
+
+    def test_disabled_only_initialization_does_not_move_registered_nonhome(self):
+        self.mcu.zero_flags = True
+        self.mcu.fault = 0
+        self.mcu.a = 89
+        self.mcu.b = self.mcu.target = 6.6
+        with self.assertRaisesRegex(RuntimeError, "registered_home_not_ready"):
+            self.initialize()
+        self.assertEqual(self.mcu.commands, [])
+
+    def test_return_retracts_C_before_B_then_A(self):
+        self.mcu.zero_flags = True
+        self.mcu.fault = 0
+        self.mcu.a = 81
+        self.mcu.c = 150
+        self.mcu.b = self.mcu.target = 21
+        result = self.initialize(return_home=True)
+        moves = [list(c[4:7]) for c in self.mcu.commands if c[8] & 1]
+        self.assertEqual(moves[0], [81, 21, 0])
+        self.assertEqual(moves[1], [81, 1, 0])
+        self.assertEqual(moves[2], [81, 0, 0])
+        self.assertEqual(moves[-1], [73, 0, 0])
+        self.assertEqual(result["final_state"]["slide_position_mm"], 0)
+        self.assertTrue(all(c[1:3] == bytes([0, 0]) and not c[8] & 6 for c in self.mcu.commands))
+
+    def test_registered_fault_prevents_return_before_any_write(self):
+        self.mcu.zero_flags = True
+        self.mcu.fault = 3
+        self.mcu.a = 89
+        with self.assertRaisesRegex(RuntimeError, "firmware_fault"):
+            self.initialize(return_home=True)
+        self.assertEqual(self.mcu.commands, [])

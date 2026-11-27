@@ -47,9 +47,19 @@ def visible_detection_box(box, shape=(720, 1280)):
     h, w = shape[:2]
     if not (0 <= x1 < x2 <= w and 0 <= y1 < y2 <= h):
         return None
-    if min(x2 - x1, y2 - y1) < 64 or (x2 - x1) * (y2 - y1) > 0.7 * w * h:
+    if min(x2 - x1, y2 - y1) < 64:
         return None
+    if (x2 - x1) * (y2 - y1) > 0.7 * w * h and not (8 <= x1 < x2 <= w - 8):
+        return None  # An almost full-frame box has no measured lateral bearing.
     inset = [max(8, x1), max(8, y1), min(w - 8, x2), min(h - 8, y2)]
+    # A near bucket may occupy most of the frame. Keep a measured inner ROI
+    # within the ordinary tracker's pixel budget rather than reject the bucket.
+    # Preserve its full visible horizontal extent; BearingLock retains the raw
+    # detection separately, so this crop never invents a hidden center.
+    max_height = math.floor((0.7 * w * h - 1) / (inset[2] - inset[0]))
+    if inset[3] - inset[1] > max_height:
+        middle = (inset[1] + inset[3]) / 2
+        inset[1], inset[3] = math.ceil(middle - max_height / 2), math.floor(middle + max_height / 2)
     return inset if valid_box(inset, shape) else None
 
 
@@ -129,7 +139,7 @@ def coarse_ncc(a, b, weights):
     return weighted_ncc(coarse(a), coarse(b), cv2.resize(weights, (48, 48)))
 
 
-def object_weights(image, box):
+def object_weights(image, box, *, segment=True):
     """Foreground learned from this ROI, not a new detection model.
 
     GrabCut excludes the changing background around the rim/corners. A central
@@ -137,11 +147,14 @@ def object_weights(image, box):
     """
     x1, y1, x2, y2 = map(int, box)
     h, w = y2 - y1, x2 - x1
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    ys, xs = np.ogrid[0:h, 0:w]
+    ys, xs = ys.astype(np.float32), xs.astype(np.float32)
     prior = np.exp(-(((xs / w - 0.5) / 0.34) ** 4 + ((ys / h - 0.57) / 0.40) ** 4)).astype(
         np.float32
     )
     prior[: max(2, int(h * 0.12))] *= 0.15
+    if not segment:
+        return np.maximum(prior, 0.001)
     patch = image[y1:y2, x1:x2]
     # This is a coarse foreground weight, not a pixel-accurate segmentation.
     # Bound initialization work so the next frame can still use optical flow.
@@ -172,7 +185,7 @@ from bucket_robot.perception.matching import weighted_response, SpectrumCache
 class TargetTracker:
     """Foreground-weighted identity plus flow/local search across detector gaps."""
 
-    def __init__(self, image, box, stamp):
+    def __init__(self, image, box, stamp, *, segment_foreground=True):
         if not valid_box(box, image.shape):
             raise RuntimeError("invalid_target_box")
         self.gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -186,7 +199,7 @@ class TargetTracker:
         self.supported = []
         self.reference_at = stamp
         self.initial_quality = 1.0
-        self.weights = object_weights(image, box)
+        self.weights = object_weights(image, box, segment=segment_foreground)
         if float(self.anchor.std()) < 4:
             raise RuntimeError("target_has_too_little_texture")
         self.transform = np.eye(3)
@@ -728,7 +741,10 @@ class EdgeTracker(TargetTracker):
     """
 
     def __init__(self, image, box, stamp):
-        super().__init__(image, box, stamp)
+        # Current detection bounds the visible ROI on every edge frame. Avoid
+        # GrabCut during this temporary representation: its initialization can
+        # consume the next frame's entire continuity deadline on a large bucket.
+        super().__init__(image, box, stamp, segment_foreground=False)
         self.full_votes = []
         self.ready_for_full = False
 
@@ -923,12 +939,18 @@ class TargetLock:
         )
         return result
 
-    def verified_reappearance(self, image, stamp, detections, reference=None):
+    def verified_reappearance(
+        self, image, stamp, detections, reference=None, *, require_known=False
+    ):
         """A known appearance seeds a candidate; fresh geometric frames verify it.
 
         No provisional box is exposed to motion. This can bridge detector misses
         without reusing an old coordinate or accepting a lone unverified hit.
         """
+        if require_known and reference is None:
+            return None
+        if self.provisional is not None and require_known and not self.provisional["known"]:
+            self.provisional = None
         if self.provisional is not None:
             pending = self.provisional
             candidate = pending["tracker"]
@@ -955,6 +977,7 @@ class TargetLock:
                     pending["frames"] >= 3
                     and stamp - pending["started"] >= required_span
                     and (pending["known"] or detector_confirmed)
+                    and (not require_known or detector_confirmed and associated is not None)
                 ):
                     delay = stamp - self.loss_since if self.loss_since is not None else None
                     initial = self.generation == 0
@@ -970,6 +993,7 @@ class TargetLock:
                     result["candidate_verify_s"] = stamp - pending["started"]
                     result["candidate_seed_score"] = pending["score"]
                     result["candidate_detection_votes"] = len(pending["votes"])
+                    result["known_appearance_verified"] = bool(pending["known"])
                     if delay is not None:
                         result["relock_delay_s"] = delay
                     return result
@@ -1020,12 +1044,17 @@ class TargetLock:
                 continue
         # Changed views need independent detector votes plus fresh geometry.
         # This is a new automatic acquisition, not proof of old visual identity.
-        if not matches and len(nearby) == 1:
+        if not require_known and not matches and len(nearby) == 1:
             matches = nearby
         if len(matches) == 1:
             d, b, known = matches[0]
             try:
-                candidate = TargetTracker(image, b.astype(int).tolist(), stamp)
+                candidate = TargetTracker(
+                    image,
+                    b.astype(int).tolist(),
+                    stamp,
+                    segment_foreground=not d.get("visible_only", False),
+                )
                 if candidate.points is not None and len(candidate.points) >= 6:
                     self.provisional = {
                         "tracker": candidate,

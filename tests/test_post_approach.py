@@ -24,15 +24,20 @@ class PostApproachTests(unittest.TestCase):
             ),
         )
 
-    def test_plan_keeps_metric_target_and_blocks_both_actions_without_odometry(self):
+    def test_plan_keeps_geometry_as_diagnostic_and_requires_explicit_timed_execution(self):
         p = pending_extension_plan(self.valid())
-        self.assertEqual(p["phase"], "waiting_displacement_measurement")
+        self.assertEqual(p["phase"], "planned")
         self.assertEqual(p["sequence"][-1]["absolute_target_mm"], 150)
-        self.assertAlmostEqual(p["sequence"][2]["relative_target_mm"], 111.5)
+        self.assertAlmostEqual(p["sequence"][2]["diagnostic_half_left_mm"], 111.5)
         self.assertFalse(p["C_extension_sent"])
         self.assertFalse(p["chassis_command_sent"])
         self.assertFalse(p["simultaneous"])
-        self.assertIsNone(p["displacement_source"])
+        self.assertEqual(p["displacement_source"], "operator_timing_no_odometry")
+        self.assertTrue(p["execution_requires_explicit_opt_in"])
+        action = p["sequence"][2]
+        self.assertEqual(action["execution"]["duration_s"], 4)
+        self.assertEqual(action["execution"]["speed_percent"], 20)
+        self.assertFalse(action["require_metric_displacement_feedback"])
 
     def test_distance_first_completion_can_handoff_from_left_front_pose(self):
         approach = self.valid()

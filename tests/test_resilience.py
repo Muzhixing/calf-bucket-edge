@@ -457,6 +457,8 @@ def available_pair():
         with socket.socket() as first:
             first.bind(("127.0.0.1", 0))
             port = first.getsockname()[1]
+            if port >= 65535:
+                continue
             try:
                 with socket.socket() as second:
                     second.bind(("127.0.0.1", port + 1))

@@ -1,12 +1,21 @@
-import os, sys
-from pathlib import Path
 import unittest
+from unittest.mock import patch
 import cv2
 import numpy as np
 from bucket_robot.perception.session import RecoveringTarget
 
 
 class TargetRecoveryTests(unittest.TestCase):
+    def target_session(self):
+        manager = RecoveringTarget(True)
+
+        def close():
+            result = manager.close()
+            self.assertTrue(result.stopped, result.pending)
+
+        self.addCleanup(close)
+        return manager
+
     def scene(self, seed=15, box=(480, 300, 780, 600)):
         rng = np.random.default_rng(seed)
         im = np.full((720, 1280, 3), 25, np.uint8)
@@ -20,7 +29,7 @@ class TargetRecoveryTests(unittest.TestCase):
 
     def lost(self, box=(480, 300, 780, 600)):
         im, b = self.scene(box=box)
-        m = RecoveringTarget(True)
+        m = self.target_session()
         m.select(im, b, 1.0)
         self.assertIsNotNone(m.update(im, dict(arrival=1.0, detections=[self.detection(b)])))
         self.assertIsNone(m.update(np.zeros_like(im) + 25, dict(arrival=1.04, detections=[])))
@@ -42,7 +51,7 @@ class TargetRecoveryTests(unittest.TestCase):
                 break
         self.assertIsNotNone(acquired, auto.reason)
         self.assertEqual(acquired["raw_box"], box)
-        mission = RecoveringTarget(True)
+        mission = self.target_session()
         mission.select(image, acquired["raw_box"], meta["arrival"])
         target = mission.update(image, meta)
         self.assertIsNotNone(target, mission.reason)
@@ -53,7 +62,7 @@ class TargetRecoveryTests(unittest.TestCase):
     def test_first_update_loss_recovers_selected_identity_without_new_selection(self):
         for case in ("same", "wrong", "ambiguous", "duplicate"):
             image, box = self.scene(box=(20, 456, 398, 720))
-            mission = RecoveringTarget(True)
+            mission = self.target_session()
             mission.select(image, box, 1)
             self.assertIsNone(mission.update(image, dict(arrival=1.04, detections=[])))
             self.assertIsNotNone(mission.frozen)
@@ -80,7 +89,7 @@ class TargetRecoveryTests(unittest.TestCase):
     def test_camera_rotation_relocation_requires_known_geometry_and_fresh_votes(self):
         for case in ("same", "wrong", "ambiguous", "duplicate"):
             seed, box = self.scene(box=(40, 300, 340, 600))
-            mission = RecoveringTarget(True)
+            mission = self.target_session()
             mission.select(seed, box, 1)
             mission.update(seed, dict(arrival=1, detections=[self.detection(box)]))
             mission.missing("camera_rotation_gap")
@@ -100,7 +109,10 @@ class TargetRecoveryTests(unittest.TestCase):
                 self.assertTrue(targets, mission.reason)
                 self.assertEqual(mission.reacquired, 1)
                 self.assertTrue(all(t["task_target_id"] == 1 for t in targets))
-                self.assertIn("relocation_evidence", targets[0])
+                self.assertTrue(
+                    targets[0].get("relocation_evidence")
+                    or targets[0].get("appearance_recovery_evidence")
+                )
             else:
                 self.assertFalse(targets, case)
 
@@ -133,7 +145,7 @@ class TargetRecoveryTests(unittest.TestCase):
 
     def test_camera_exception_preserves_reference_for_recovery(self):
         im, b = self.scene()
-        m = RecoveringTarget(True)
+        m = self.target_session()
         m.select(im, b, 1.0)
         m.update(im, dict(arrival=1.0, detections=[self.detection(b)]))
         m.missing("camera_timeout")
@@ -145,9 +157,56 @@ class TargetRecoveryTests(unittest.TestCase):
                 break
         self.assertIsNotNone(t)
 
+    def test_known_appearance_recovers_far_from_old_box_without_ORB_or_new_identity(self):
+        previous, old = self.scene(box=(40, 300, 340, 600))
+        manager = self.target_session()
+        manager.select(previous, old, 1)
+        manager.update(previous, dict(arrival=1, detections=[self.detection(old)]))
+        trusted = manager.manager.tracker
+        manager.missing("initial_camera_turn")
+        self.assertIs(manager.frozen, trusted)
+        current = np.full_like(previous, 25)
+        box = [600, 320, 840, 560]
+        current[320:560, 600:840] = cv2.resize(previous[300:600, 40:340], (240, 240))
+        answer = None
+        with patch(
+            "bucket_robot.perception.relocation.known_feature_relocation", return_value=None
+        ) as slow_search:
+            for i in range(12):
+                answer = manager.update(
+                    current, dict(arrival=1.2 + i * 0.04, detections=[self.detection(box)])
+                )
+                if answer is not None:
+                    break
+            slow_search.assert_not_called()
+        self.assertIsNotNone(answer, manager.reason)
+        self.assertEqual(answer["task_target_id"], 1)
+        proof = answer["appearance_recovery_evidence"]
+        self.assertTrue(proof["known_appearance_verified"])
+        self.assertGreaterEqual(proof["candidate_detection_votes"], 2)
+        self.assertLessEqual(proof["candidate_verify_s"], 0.4)
+
+    def test_known_only_verifier_never_seeds_unknown_nearby_bucket(self):
+        from bucket_robot.perception.target import TargetLock, TargetTracker
+
+        old, box = self.scene()
+        other, _ = self.scene(seed=921)
+        verifier = TargetLock("manual")
+        reference = TargetTracker(old, box, 1)
+        for i in range(10):
+            result = verifier.verified_reappearance(
+                other,
+                1.2 + i * 0.04,
+                [self.detection(box)],
+                reference=reference,
+                require_known=True,
+            )
+            self.assertIsNone(result)
+            self.assertIsNone(verifier.provisional)
+
     def test_stage_handoff_reverifies_shifted_same_bucket(self):
         seed, b = self.scene()
-        m = RecoveringTarget(True)
+        m = self.target_session()
         m.load_verified_reference(seed, b, 1.0)
         image, moved = self.scene(box=(500, 300, 800, 600))
         answer = None

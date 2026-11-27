@@ -1,7 +1,7 @@
-"""Requested sequential post-approach actions; no time-based displacement claim.
+"""Build a stopped post-approach plan; execution requires explicit opt-in.
 
-No physical displacement adapter has been validated. This module deliberately
-emits a pending plan, not UART commands, until that prerequisite is implemented.
+Geometry supplies diagnostics and admission checks. The approved lateral
+execution is timed and does not claim measured metric displacement.
 """
 
 import math

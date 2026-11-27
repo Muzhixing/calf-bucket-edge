@@ -19,7 +19,12 @@ import time
 from urllib.request import urlopen
 
 
-DEFAULT_RELEASE = Path("/home/elf/bucket/releases/0.3.3")
+_BUNDLED_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_RELEASE = (
+    _BUNDLED_ROOT
+    if (Path(__file__).parent.name == "field" and (_BUNDLED_ROOT / "manifest.json").is_file())
+    else Path("/home/elf/bucket/releases/0.3.3")
+)
 RUN_ROOT = Path("/home/elf/bucket/runs")
 
 
@@ -79,6 +84,8 @@ def restore_preview(release, out):
         "--out",
         str(out / "preview"),
         "--observe-only",
+        "--startup-result",
+        str(out / "initialization_result.json"),
         "--seconds",
         "1800",
     ]
@@ -109,13 +116,19 @@ def main():
     ap.add_argument(
         "--initialize-only", action="store_true", help="仅恢复STM32零点，随后保持只读预览"
     )
+    ap.add_argument(
+        "--prepare-only", action="store_true", help="登记或复用零点并收回机构，不启动底盘任务"
+    )
     args = ap.parse_args()
+    if args.initialize_only and args.prepare_only:
+        ap.error("--initialize-only与--prepare-only不能同时使用")
     release = DEFAULT_RELEASE
     sys.path.insert(0, str(release / "python"))
     from bucket_robot.runtime.release import ReleaseLayout
 
     manifest = ReleaseLayout(release).verify()
-    from initialize_origins import initialize, read_policy
+    from bucket_robot.runtime.preparation import initialize, read_policy, StartupResult
+    from bucket_robot.runtime.startup import default_startup_state
 
     read_policy(Path(__file__).with_name("startup_policy.json"))
     pids = mission_processes()
@@ -125,6 +138,12 @@ def main():
     if args.check:
         print("只读检查通过，未停止进程、未打开控制串口、未启动运动。", flush=True)
         return 0
+
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt("signal_" + str(signum))
+
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, interrupted)
 
     RUN_ROOT.mkdir(parents=True, exist_ok=True)
     with (RUN_ROOT / ".manual-launch.lock").open("a") as lock:
@@ -155,16 +174,26 @@ def main():
                 stream.write(
                     json.dumps(dict(monotonic=time.monotonic(), kind=kind, data=data)) + "\n"
                 )
+                if kind == "registered_home_return_started":
+                    print("正在自动归位：收回C、B回顶、A回73°；底盘保持停车。", flush=True)
+                elif kind == "registered_home_return_completed":
+                    print("机构归位完成，已确认输出禁用。", flush=True)
 
             try:
                 initialized = initialize(
                     Limits(default_reference()),
-                    Path.home() / ".local/state/bucket-arm/launcher-startup.json",
+                    default_startup_state(),
                     log,
+                    return_home=not args.initialize_only,
                 )
             except Exception as exc:
                 (out / "initialization_result.json").write_text(
-                    json.dumps(dict(error=str(exc)), indent=2)
+                    json.dumps(
+                        getattr(
+                            exc, "result", StartupResult(False, False, error=str(exc))
+                        ).as_dict(),
+                        indent=2,
+                    )
                 )
                 restore_preview(release, out)
                 raise
@@ -180,9 +209,9 @@ def main():
             "--seconds",
             "1800",
         ]
-        if args.initialize_only:
+        if args.initialize_only or args.prepare_only:
             restore_preview(release, out)
-            print("初始化完成，输出禁用；已恢复只读预览，不启动底盘或机构运动。", flush=True)
+            print("准备完成，输出禁用；已恢复只读预览，不启动底盘任务。", flush=True)
             return 0
         (out / "launch.json").write_text(
             json.dumps(

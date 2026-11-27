@@ -1,14 +1,15 @@
 """Preserve a task's target across visual loss using the existing recoverer."""
 
-import numpy as np
 from bucket_robot.perception.target import (
     TargetLock,
     TargetTracker,
+    EdgeTracker,
     visible_detection_box,
+    valid_box,
     iou,
-    weighted_ncc,
 )
 from bucket_robot.perception.bearing import BearingLock
+from bucket_robot.perception.relocation import FeatureRelocationJob
 
 
 def new_target_session(mode="manual", *, same_target=False, bearing=False, manager_factory=None):
@@ -37,12 +38,17 @@ class RecoveringTarget:
         self.previous_image = None
         self.frozen = None
         self.recovery_stamp = -float("inf")
-        self.relocation_votes = []
         self.selection_image = None
         self.selection_box = None
-        self.relocation_probe = None
+        self.known_recovery = None
+        self.feature_job = None
+        self.feature_reference = None
+        self.relocation_epoch = 0
+        self.feature_attempt_at = -float("inf")
 
     def select(self, image, box, stamp):
+        self.relocation_epoch += 1
+        self.feature_reference = None
         self.manager.select(image, box, stamp)
         self.selection_image, self.selection_box = image, list(box)
         self.state = "tracking"
@@ -53,6 +59,7 @@ class RecoveringTarget:
         self.latest = dict(box=list(box), timestamp=stamp)
         self.previous_image = image
         self.frozen = None
+        self.known_recovery = None
 
     def load_verified_reference(self, image, box, stamp):
         """Carry a previously verified frame across a stopped stage handoff."""
@@ -65,18 +72,37 @@ class RecoveringTarget:
     def missing(self, reason):
         if self.state == "tracking":
             self.state = "recovering"
+            self.relocation_epoch += 1
+            self.feature_reference = None
+            self.feature_attempt_at = -float("inf")
             self.recovery_stamp = -float("inf")
-            self.relocation_votes = []
-            self.relocation_probe = None
+            self.known_recovery = TargetLock("manual")
+            self.known_recovery.loss_since = self.latest["timestamp"] if self.latest else None
             if self.latest is not None and self.previous_image is not None:
                 box = visible_detection_box(self.latest["box"], self.previous_image.shape)
                 try:
-                    self.frozen = TargetTracker(self.previous_image, box, self.latest["timestamp"])
+                    trusted = getattr(self.manager, "tracker", None)
+                    self.frozen = (
+                        trusted
+                        if isinstance(trusted, TargetTracker)
+                        and not isinstance(trusted, EdgeTracker)
+                        and trusted.stamp == self.latest["timestamp"]
+                        else TargetTracker(
+                            self.previous_image,
+                            box,
+                            self.latest["timestamp"],
+                            segment_foreground=not isinstance(trusted, EdgeTracker),
+                        )
+                    )
                 except (RuntimeError, TypeError, ValueError):
                     self.frozen = None
         self.reason = reason
 
     def update(self, image, metadata):
+        if self.feature_job is not None and self.feature_job.done.is_set():
+            if self.feature_job.epoch == self.relocation_epoch:
+                self.feature_reference = self.feature_job.result
+            self.feature_job = None
         if self.state == "tracking":
             target = self.manager.update(image, metadata)
             if target is not None and self.manager.state == "tracking":
@@ -90,88 +116,119 @@ class RecoveringTarget:
         if metadata["arrival"] <= self.recovery_stamp:
             return None
         self.recovery_stamp = metadata["arrival"]
-        # Recovery belongs to the old target, never to the highest-scoring box.
-        candidates = []
-        old = self.latest["box"]
-        old_center = (np.asarray(old[:2]) + old[2:]) / 2
-        for d in metadata.get("detections", []):
-            if d["score"] < 0.65:
-                continue
-            raw = [d[k] for k in ("left", "top", "right", "bottom")]
-            box = visible_detection_box(raw, image.shape)
-            if box is None:
-                continue
-            center = (np.asarray(box[:2]) + box[2:]) / 2
-            nearby = iou(box, old) >= 0.15 and np.linalg.norm(center - old_center) <= 160
-            evidence = None
-            if d["score"] >= 0.8 and self.previous_image is not None:
-                from bucket_robot.perception.relocation import known_feature_relocation
-
-                probe = self.relocation_probe
-                if (
-                    probe is not None
-                    and 0 < metadata["arrival"] - probe[2] <= 0.5
-                    and iou(box, probe[1]) >= 0.55
-                ):
-                    view = TargetTracker.measured_view(image, box)
-                    prior = TargetTracker.measured_view(probe[0], probe[1])
-                    if weighted_ncc(view, prior, np.ones(view.shape, np.float32)) >= 0.9:
-                        evidence = probe[3]
-                if evidence is None:
-                    evidence = known_feature_relocation(self.previous_image, old, image, box)
-                    if evidence is None and self.selection_image is not None:
-                        evidence = known_feature_relocation(
-                            self.selection_image, self.selection_box, image, box
+        # Reuse the mature known-appearance + fresh-flow verifier. A camera
+        # turn may move this exact bucket outside the old position gate.
+        # require_known excludes its automatic new-identity fallback entirely.
+        if self.known_recovery is not None:
+            # The whole-object verifier rejects raw edge boxes. Match and verify
+            # their measured visible pixels, then install the original raw box
+            # below so BearingLock retains the clipping/bearing restrictions.
+            visible_detections = []
+            for detection in metadata.get("detections", []):
+                raw = [detection[k] for k in ("left", "top", "right", "bottom")]
+                visible = visible_detection_box(raw, image.shape) if self.bearing else raw
+                if visible is not None:
+                    visible_detections.append(
+                        dict(
+                            detection,
+                            **dict(zip(("left", "top", "right", "bottom"), visible)),
+                            visible_only=not valid_box(raw, image.shape),
                         )
-                    if evidence is not None:
-                        self.relocation_probe = (image, box, metadata["arrival"], evidence)
-            if nearby or evidence is not None:
-                candidates.append((d, raw, box, evidence))
-        if len(candidates) != 1:
-            self.frozen.recovery_count = 0
-            self.frozen.recovery_candidate = None
-            self.relocation_votes = []
-            self.reason = "recovery_missing_or_ambiguous"
-            return None
-        d, raw, box, evidence = candidates[0]
-        normalized = dict(d, **dict(zip(("left", "top", "right", "bottom"), box)))
-        result = (
-            None
-            if evidence is not None
-            else self.frozen.recover(image, metadata["arrival"], [normalized])
-        )
-        if result is None and evidence is not None:
-            stamp = metadata["arrival"]
-            if self.relocation_votes and iou(self.relocation_votes[-1][1], box) < 0.55:
-                self.relocation_votes = []
-            self.relocation_votes = [(t, b) for t, b in self.relocation_votes if stamp - t <= 0.5]
-            self.relocation_votes.append((stamp, box))
-            if len(self.relocation_votes) >= 3 and stamp - self.relocation_votes[0][0] >= 0.18:
-                result = dict(box=box, relocation_evidence=evidence)
-        elif evidence is None:
-            self.relocation_votes = []
-        if result is None:
-            self.reason = "verifying_previous_appearance"
-            return None
-        if iou(result["box"], box) < 0.55:
-            self.reason = "recovery_geometry_disagree"
-            return None
+                    )
+            known = self.known_recovery.verified_reappearance(
+                image,
+                metadata["arrival"],
+                visible_detections,
+                reference=self.feature_reference[0] if self.feature_reference else self.frozen,
+                require_known=True,
+            )
+            if known is not None:
+                evidence = {
+                    k: known[k]
+                    for k in (
+                        "known_appearance_verified",
+                        "candidate_verify_s",
+                        "candidate_seed_score",
+                        "candidate_detection_votes",
+                    )
+                }
+                if self.feature_reference:
+                    evidence["relocation_evidence"] = self.feature_reference[1]
+                matches = [
+                    d
+                    for d in metadata.get("detections", [])
+                    if d["score"] >= 0.536
+                    and iou(known["box"], [d[k] for k in ("left", "top", "right", "bottom")])
+                    >= 0.55
+                ]
+                if len(matches) == 1:
+                    raw = [matches[0][k] for k in ("left", "top", "right", "bottom")]
+                    return self._install_recovered(
+                        image,
+                        metadata,
+                        raw if self.bearing else known["box"],
+                        appearance_recovery_evidence=evidence,
+                    )
+            if self.known_recovery.provisional is not None:
+                # Keep this fresh-frame path responsive. Running slow global
+                # feature relocation here can itself exceed the verifier's
+                # frame-gap bound and restart confirmation indefinitely.
+                self.reason = "verifying_known_appearance"
+                return None
+        # A slow proof may take longer than a frame-continuity deadline. Run
+        # at most one job; its verified template still needs the current-frame
+        # verifier above. Old coordinates never become a recovered observation.
+        if self.feature_job is None and metadata["arrival"] - self.feature_attempt_at >= 0.3:
+            self.feature_attempt_at = metadata["arrival"]
+            self.feature_job = FeatureRelocationJob(
+                self.relocation_epoch,
+                [
+                    (self.previous_image, self.latest["box"]),
+                    (self.selection_image, self.selection_box),
+                ],
+                image,
+                metadata,
+            )
+        self.reason = "waiting_known_feature_proof"
+        return None
+
+    def _install_recovered(self, image, metadata, box, **evidence):
         manager = BearingLock() if self.bearing else TargetLock("manual")
-        manager.select(image, raw if self.bearing else box, metadata["arrival"])
+        manager.select(image, box, metadata["arrival"])
         target = manager.update(image, metadata)
         if target is None:
             self.reason = "recovery_install_not_verified"
             return None
-        if result.get("relocation_evidence"):
-            target["relocation_evidence"] = result["relocation_evidence"]
+        target.update(evidence)
         self.manager = manager
+        self.relocation_epoch += 1
+        self.feature_reference = None
         self.reacquired += 1
         self.state = "tracking"
         self.reason = ""
         self.latest = target
         self.previous_image = image
         self.frozen = None
+        self.known_recovery = None
         return self._decorate(target)
 
     def _decorate(self, target):
         return dict(target, task_target_id=1, recovery_count=self.reacquired)
+
+    def cleanup_children(self):
+        return (self.feature_job,) if self.feature_job is not None else ()
+
+    def request_stop(self):
+        for child in self.cleanup_children():
+            child.request_stop()
+
+    def await_stopped(self, timeout=2):
+        from bucket_robot.domain.lifecycle import CleanupResult
+
+        if self.feature_job is not None:
+            return self.feature_job.await_stopped(timeout)
+        return CleanupResult(True)
+
+    def close(self):
+        self.request_stop()
+        return self.await_stopped()

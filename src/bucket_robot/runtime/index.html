@@ -36,7 +36,8 @@ button:disabled { cursor: default; color: var(--muted); background: #f4f5f7; bor
 .video-label { margin-bottom: 10px; }
 .quiet, .muted { color: var(--muted); font-size: 12px; }
 #stage { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #20252c; color: #f3f4f6; }
-#feed, #selection { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+#feed, #selection, #aimRegion { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+#aimRegion { z-index: 1; pointer-events: none; }
 #feed { z-index: 1; }
 #selection { z-index: 2; display: none; cursor: crosshair; touch-action: none; }
 .placeholder { padding: 18px; text-align: center; }
@@ -55,6 +56,10 @@ figcaption { min-height: 42px; flex-wrap: wrap; padding: 7px 0; border-bottom: 1
 .rail > section + section, .rail > details { margin-top: 23px; }
 .section-head { min-height: 25px; margin-bottom: 8px; align-items: baseline; }
 #startupProgress { color: var(--muted); text-align: right; font-size: 12px; }
+.mission-scroll { max-height: 270px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; }
+#missionSummary { margin: 7px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.check[data-result="run"] code { color: var(--primary); }
+.check[aria-current="step"] { font-weight: 600; }
 .checks { list-style: none; margin: 0; padding: 5px 9px; border: 1px solid var(--line); background: #f7f8fa; }
 .check { display: grid; grid-template-columns: 6ch minmax(0, 1fr) auto; align-items: baseline; gap: 8px; min-height: 33px; padding: 6px 0; font-size: 12px; }
 .check + .check { border-top: 1px solid var(--line); }
@@ -122,6 +127,7 @@ summary { cursor: pointer; color: var(--muted); padding: 9px 0; }
           <div class="placeholder" id="placeholder"><strong>等待新画面</strong><span>组件状态仍可查看</span></div>
           <img id="feed" alt="实时追踪画面" width="1280" height="720" hidden>
           <canvas id="selection" width="1280" height="720"></canvas>
+          <canvas id="aimRegion" width="1280" height="720" aria-label="桶顶部10%面积瞄准区"></canvas>
         </div>
         <figcaption><span id="videoDelivery">正在获取最新画面</span><select id="previewQuality" class="video-mode" aria-label="预览质量"><option value="smooth">流畅优先</option><option value="clear">清晰优先</option></select><span id="frameMeta">—</span></figcaption>
       </figure>
@@ -165,7 +171,15 @@ summary { cursor: pointer; color: var(--muted); padding: 9px 0; }
         </details>
       </section>
       <details><summary>目标工具</summary><div class="options"><button id="auto">自动识别</button><button id="select">框选目标</button><button id="cancel" hidden>取消</button></div></details>
-      <details><summary>运行日志</summary><div id="eventLog" role="log" aria-live="polite"><p class="muted">正在等待设备状态…</p></div></details>
+      <details id="runtimeLog"><summary>运行日志</summary>
+      <section id="missionSection" aria-labelledby="mission-title" hidden>
+        <div class="section-head"><h2 id="mission-title">执行流程</h2><span class="quiet" id="missionCurrent">未启动</span></div>
+        <div class="mission-scroll" tabindex="0" role="region" aria-label="可滚动的任务执行步骤">
+          <ol class="checks" id="missionSteps" aria-label="实际任务执行步骤"></ol>
+        </div>
+        <p id="missionSummary" role="status" aria-live="polite">等待任务启动</p>
+      </section>
+        <div id="eventLog" role="log" aria-live="polite"><p class="muted">正在等待设备状态…</p></div></details>
     </aside>
   </div>
 </main>
@@ -234,7 +248,71 @@ const consoleView = (() => {
       value: fresh && finite(sensor.celsius) ? sensor.celsius.toFixed(1) : '—',
     }));
   }
-  return { readings, check, frameRate, temperatures };
+  function missionProgress(p, latch, elapsed = 0) {
+    if (!p) return null;
+    const rows = ['锁定目标', '追踪并靠近', '前移对齐', '确认停车', '侧移定位', 'B 回顶', 'C 伸出', '最终停止确认']
+      .map((label, index) => ({ id: index, label, result: 'wait', detail: '待执行' }));
+    const stages = p.stages || [], phase = p.phase || '', summary = p.summary || {}, post = p.post || {};
+    const profile = p.profile || {}, has = stage => stages.includes(stage);
+    const done = index => Object.assign(rows[index], { result: 'ok', detail: '已完成' });
+    const skip = (index, detail) => Object.assign(rows[index], { result: 'skip', detail });
+    const postPhase = { post_left_translate_timed: 4, post_raising_B_tracking_paused: 5, post_extending_C: 6 };
+    const stage = [...stages].reverse().find(v => !['complete', 'fault'].includes(v));
+    const stageIndex = { acquire: 0, track: 1, post_align: 2, drain: 3, approach: 1, post_action: 4 };
+    const postStep = Object.hasOwn(postPhase, phase) ? postPhase[phase] : undefined;
+    let index = postStep ?? (Object.hasOwn(stageIndex, stage) ? stageIndex[stage] : 0);
+    if (phase === 'complete') index = 7;
+    if (['centering','driving','resuming','decelerating','recentering','waiting_target','budget_paused','left_approach','parked_upper_alignment','restoring_upper_view'].includes(phase)) index = 1;
+    if (phase === 'waiting_initial_target') index = 0;
+    if (phase.startsWith('post_forward_align_')) index = 2;
+    if (phase === 'awaiting_execution_confirmation') index = 3;
+    const started = stages.length > 0 || Boolean(phase) || p.running;
+    if (has('track')) done(0);
+    if (has('post_align') || ['target_distance_reached', 'post_left_aligned', 'left_reference_reached'].includes(summary.reason)) done(1);
+    if (summary.reason === 'post_left_aligned' || postStep !== undefined || post.initial_state) { done(2); done(3); }
+    if (p.disabled_confirmed && phase === 'awaiting_execution_confirmation') done(3);
+    if (post.lateral_completion === 'timed_estimate_no_odometry' && !post.stop_error) done(4);
+    if (post.lateral_completion?.startsWith('skipped_')) skip(4, '此前已完成');
+    if (post.initial_state && !has('track')) { skip(0, '续接后处理'); skip(1, '续接后处理'); }
+    if (post.B_top_confirmed) done(5);
+    if (phase === 'post_extending_C') done(5);
+    if (phase === 'fault_paused' && post.initial_state) index = post.B_top_confirmed ? 6 : post.lateral_completion === 'timed_estimate_no_odometry' ? 5 : 4;
+    const finished = phase === 'complete' && p.disabled_confirmed && !p.stop_error && !post.stop_error;
+    if (finished && post.phase === 'complete') { done(6); done(7); }
+    if (profile.execute_post === false) for (const n of [2, 4, 5, 6]) skip(n, '本轮未启用');
+    let headline = started ? rows[index].label : p.observe_only ? '只读观察' : '未启动';
+    let detail = started ? '正在执行' : p.observe_only ? '只读观察 · 等待后续操作' : p.requested ? '等待启动自检就绪' : '等待任务启动';
+    const stopUnknown = latch?.code === 'STOP_UNCONFIRMED' || p.stop_error || post.stop_error || phase === 'stop_unconfirmed';
+    const fault = stopUnknown || phase === 'fault_paused' || has('fault') || Boolean(post.error || summary.error) || Boolean(latch && latch.code !== 'OPERATOR_STOP');
+    const paused = phase === 'stopped' || latch?.code === 'OPERATOR_STOP';
+    if (finished && !fault) {
+      if (!post.phase) done(7);
+      headline = '本轮完成'; detail = '任务已结束，输出禁用已确认';
+    } else if (fault) {
+      if (stopUnknown) index = 7;
+      rows[index].result = 'fail'; rows[index].detail = stopUnknown ? '停止未确认' : '故障暂停';
+      headline = rows[index].detail; detail = stopUnknown ? '停止状态未确认，请查看诊断详情' : '任务故障暂停，请查看诊断详情';
+    } else if (paused) {
+      rows[index].detail = '已暂停'; headline = '已暂停';
+      detail = p.disabled_confirmed ? '已暂停，输出禁用已确认' : '已请求停止，等待禁用确认';
+    } else if (phase === 'awaiting_execution_confirmation') {
+      headline = '等待后续操作'; detail = '已确认停车，等待后处理执行确认';
+    } else if (started && p.running) {
+      const waiting = ['waiting_target', 'waiting_initial_target', 'budget_paused'].includes(phase);
+      rows[index].result = waiting ? 'wait' : 'run';
+      rows[index].detail = phase === 'waiting_target' ? '等待原目标' : phase === 'budget_paused' ? '预算到限' : waiting ? '寻找目标' : '执行中';
+      if (phase === 'waiting_target') detail = '目标暂失，等待确认同一目标';
+      if (phase === 'budget_paused') detail = '行进时长到限，任务保持暂停';
+      if (phase === 'complete') { rows[7].result = 'wait'; rows[7].detail = '等待禁用确认'; detail = '等待最终禁用确认'; }
+      if (phase === 'post_left_translate_timed' && finite(p.timing?.seconds)) detail = `侧移定位 · ${p.timing.seconds} 秒定时动作`;
+    } else if (started) { headline = '等待状态确认'; detail = '任务当前状态待确认'; }
+    if (elapsed > 2 || !finite(elapsed)) {
+      for (const row of rows) if (row.result === 'run') { row.result = 'wait'; row.detail = '状态待更新'; }
+      headline = '状态待更新'; detail = '任务状态连接中断，等待最新回传';
+    }
+    return { rows, headline, detail };
+  }
+  return { readings, check, frameRate, temperatures, missionProgress };
 })();
 </script>
 <script src="/video_stream.js"></script>
@@ -245,6 +323,7 @@ let current=null, first=null, selecting=false, busy=false;
 let frameURL=null, deliveredAt=0, deliveredFPS=0, deliveryRate={id:null,times:[]};
 let statusReceivedAt=0, deliveredFrameAge=Infinity;
 let thermalDisplay='';
+let missionDisplay='';
 let videoController=null;
 let videoAck=null,videoAckBusy=false;
 const reasons={target_reacquiring:'短暂丢失：机构已暂停，正在确认同一目标',target_reacquire_timeout:'目标暂不可见',target_appearance_ambiguous:'目标匹配不唯一，机构暂停',operator_stop:'已停止',operator_connection_lost:'页面连接中断，已请求停止',working_range_limit:'目标超出当前可达范围；可修正方向已对准时保持停止',origins_or_heading_not_ready:'请先恢复零位和航向',pose_outside_working_range:'当前位置超出工作范围或 C 位置不匹配',arm_not_stopped_or_another_controller:'机构尚未禁用或串口正由其他程序控制',no_fresh_telemetry:'未收到稳定串口回传',target_appearance_lost:'目标外观丢失，请重新选择',target_lost_geometry:'目标形状变化或被遮挡，请重新选择',target_lost_flow:'目标运动无法确认，请重新选择',insufficient_feature_coverage:'目标可用细节不足，请重新选择',target_geometry_jump:'目标变化过大，请重新选择',target_outside_tracking_window:'目标离开可追踪区域，请重新选择',tracking_frame_gap:'画面间隔过长，已请求停止',alignment_error_increased:'调整后偏差增大，已请求停止',telemetry_timeout:'串口回传超时，已请求停止',target_lost_features:'目标丢失，请重新选择',stale_target:'等待目标位置更新',waiting_for_target_frame:'正在等待新画面，恢复后自动续跟',stale_camera:'相机画面过期',selection_changed_reselect:'目标已移动，请重新框选',target_has_too_few_features:'目标细节不足，请扩大框选范围',target_has_too_little_texture:'目标纹理不足，请扩大框选范围'};
@@ -309,6 +388,15 @@ function renderReadings(s=current){
    deliveredFPS,
  });
  el('rates').textContent=readings.fps;el('distance').textContent=readings.distance;el('offset').textContent=readings.offset;el('pose').textContent=readings.pose;
+ const aimContext=el('aimRegion')?.getContext?.('2d');
+ if(aimContext){
+  aimContext.clearRect(0,0,1280,720);
+  const region=s?.tracking?.target?.aim_region_px;
+  if(readings.targetFresh&&Array.isArray(region)&&region.length===4&&region.every(Number.isFinite)){
+   const [l,t,r,b]=region;aimContext.fillStyle='rgba(80,235,185,.15)';aimContext.strokeStyle='#50ebb9';aimContext.lineWidth=2;
+   aimContext.fillRect(l,t,r-l,b-t);aimContext.strokeRect(l,t,r-l,b-t);
+  }
+ }
  el('feed').hidden=!readings.videoFresh;el('placeholder').hidden=readings.videoFresh;
  el('frameMeta').textContent=readings.videoFresh?`预览 ${el('feed').naturalWidth} × ${el('feed').naturalHeight} · 追踪 1280 × 720`:'—';
  el('frameState').textContent=!readings.videoFresh?'等待新画面':!readings.frameFresh?'等待观测更新':s?.health?.capabilities?.detection?.available===false?'预览 · 检测不可用':readings.targetFresh?'目标已锁定':Array.isArray(s?.detections)?'检出 '+s.detections.length+' 个目标':'实时预览';
@@ -327,6 +415,25 @@ function renderTemperatures(s){
    label.textContent=item.label;value.textContent=item.value;
    row.append(label,value);box.append(row);
  }
+}
+function renderMissionProgress(s=current){
+ const elapsed=statusReceivedAt?(performance.now()-statusReceivedAt)/1000:Infinity;
+ const progress=consoleView.missionProgress(s?.task_progress,s?.health?.motion_latch,elapsed);
+ const section=el('missionSection');section.hidden=!progress;if(!progress)return;
+ const key=JSON.stringify(progress);if(key===missionDisplay)return;missionDisplay=key;
+ el('missionCurrent').textContent=progress.headline;el('missionSummary').textContent=progress.detail;
+ const box=el('missionSteps'), scroll=box.parentElement, atBottom=scroll.scrollTop;
+ box.replaceChildren();
+ for(const item of progress.rows){
+   const row=document.createElement('li');row.className='check';row.dataset.result=item.result;
+   if(item.result==='run')row.setAttribute('aria-current','step');
+   const marker=document.createElement('code');marker.setAttribute('aria-hidden','true');
+   marker.textContent={ok:'[ OK ]',run:'[RUN ]',wait:'[WAIT]',fail:'[FAIL]',skip:'[SKIP]'}[item.result];
+   const title=document.createElement('span');title.textContent=item.label;
+   const detail=document.createElement('span');detail.className='result';detail.textContent=item.detail;
+   row.append(marker,title,detail);box.append(row);
+ }
+ scroll.scrollTop=atBottom;
 }
 function render(s){
  current=s;const t=s.tracking||{},arm=t.arm||{},startup=t.startup;
@@ -347,7 +454,7 @@ function render(s){
  el('startupReport').textContent=report?'启动采样 · '+(report.metrics?.inference?.p95_ms!=null?'推理 P95 '+report.metrics.inference.p95_ms.toFixed(0)+' ms':'样本不足')+' · '+(report.status||'样本不足'):'';
  const quiet=['operator_stop','waiting_for_target_frame','target_reacquiring','power_cycle_preparing','power_cycle_confirmation_required','mcu_reset_reported','waiting_for_mcu_restart'];
  if(!busy)el('error').textContent=quiet.includes(t.reason)?'':textReason(t.reason);
- renderEvents(t.events||[]);renderHealth(s.health);renderReadings(s);
+ renderEvents(t.events||[]);renderHealth(s.health);renderReadings(s);renderMissionProgress(s);
 }
 async function refresh(){try{const r=await fetch('/status',{cache:'no-store'});const s=await r.json();statusReceivedAt=performance.now();render(s);if(current.tracking?.active)await api('heartbeat');}catch(e){el('status').textContent='连接已断开';el('start').disabled=true;el('status').className='bad';el('offset').textContent='—';el('distance').textContent='—';showError(e);renderReadings();}finally{setTimeout(refresh,350);}}
 function unfreeze(){selecting=false;first=null;el('selection').style.display='none';el('cancel').hidden=true;el('feed').style.visibility='visible';el('help').textContent='';}
@@ -419,7 +526,7 @@ async function liveVideo(){
    await new Promise(resolve=>setTimeout(resolve,150));
  }
 }
-setInterval(()=>renderReadings(),100);
+setInterval(()=>{renderReadings();renderMissionProgress();},100);
 liveVideo();refresh();</script>
 </body>
 </html>

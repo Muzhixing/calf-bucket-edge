@@ -22,6 +22,15 @@ class ForwardRange:
         self.prediction = RangePrediction(cruise=cruise)
         self.verify_started = None
         self.last_invalid = None
+        self.last_stationary_frame = None
+        self.minimum_capture_time = 0.0
+
+    def invalidate_before(self, stamp):
+        """An arm move changes camera geometry; require a post-settle image."""
+        self.minimum_capture_time = stamp
+        self.static_since = None
+        self.verify_started = None
+        self.prediction.reset()
 
     def run(self):
         delay = 0.5
@@ -109,6 +118,7 @@ class ForwardRange:
         valid = (
             current
             and m.get("valid")
+            and m.get("capture_time", 0) >= self.minimum_capture_time
             and m.get("distance_kind") == "stereo_optical_midpoint_to_bucket_surface"
         )
         static = (
@@ -129,10 +139,13 @@ class ForwardRange:
                 reason="waiting_valid_same_target_range",
                 measurement=m,
             )
+        if static and self.last_stationary_frame != m["frame_id"]:
+            self.prediction.reset()
+            self.last_stationary_frame = m["frame_id"]
         self.prediction.add(answer["identity"], m)
         current_box = target["box"]
         width_ratio = (answer["box"][2] - answer["box"][0]) / (current_box[2] - current_box[0])
-        plan = self.prediction.estimate(now, width_ratio)
+        plan = self.prediction.estimate(now, width_ratio, visual_stamp=target["timestamp"])
         if static:
             # No approach occurred during this latency interval. Old pre-stop
             # closing rates must not force repeated predicted stops at rest.
@@ -144,6 +157,7 @@ class ForwardRange:
                 verify_stop=m["lower_m"] <= 0.205,
             )
         plan["measurement"] = m
+        plan["static_verified"] = bool(static)
         if self.verify_started is not None:
             # A predicted stop is provisional. Complete only on a newly captured
             # disabled, image-verified measurement, not on extrapolation alone.

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "console_scripts": {
+    "bucket-track": "bucket_robot.runtime.application:track_main",
+    "bucket-mission": "bucket_robot.runtime.application:mission_main",
+    "bucket-forward": "bucket_robot.missions.forward:main",
+    "bucket-telemetry": "bucket_robot.transport.telemetry:main"
+  },
+  "field_entries": ["start_full_mission.py", "initialize_origins.py"],
+  "startup_service": "bucket_robot.runtime.preparation:StartupService",
+  "startup_ledger": "power-cycle.json"
+}
