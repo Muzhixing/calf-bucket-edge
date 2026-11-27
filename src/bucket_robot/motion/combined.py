@@ -5,6 +5,13 @@ from bucket_robot.motion.arm import ContinuousArmPort, pose
 
 
 class CombinedPort(ContinuousArmPort):
+    def check_heading(self):
+        recovery = getattr(self, "heading_recovery", None)
+        if recovery is not None:
+            recovery.check(self.state["yaw_deg"], self.rx_at)
+        elif abs((self.state["yaw_deg"] - self.fixed_yaw + 180) % 360 - 180) > 3:
+            raise RuntimeError("heading_drift")
+
     def __init__(self, *args, **kwargs):
         self.velocity = 0
         super().__init__(*args, **kwargs)
@@ -64,8 +71,7 @@ class CombinedPort(ContinuousArmPort):
             raise RuntimeError("unexpected_B_C_motion")
         if self.state["uart_error_count_mod256"] != self.errors:
             raise RuntimeError("new_uart_error")
-        if abs((self.state["yaw_deg"] - self.fixed_yaw + 180) % 360 - 180) > 3:
-            raise RuntimeError("heading_drift")
+        self.check_heading()
 
     def rearm(self):
         self.rearm_pose = pose(self.state)
@@ -108,8 +114,7 @@ class ABCombinedPort(CombinedPort):
             raise RuntimeError("unexpected_C_motion")
         if self.state["uart_error_count_mod256"] != self.errors:
             raise RuntimeError("new_uart_error")
-        if abs((self.state["yaw_deg"] - self.fixed_yaw + 180) % 360 - 180) > 3:
-            raise RuntimeError("heading_drift")
+        self.check_heading()
 
     def request(self, a, velocity):
         current = pose(self.state)

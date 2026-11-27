@@ -122,6 +122,7 @@ def main():
     post_plan = None
     post_aligning = False
     handoff = None
+    heading_recovery = None
     result = {
         "mode": "observe_only"
         if args.observe_only
@@ -238,6 +239,11 @@ def main():
             upper_aligned_at = None
             visibility_wait = False
             visibility_limited = False
+            heading_recovery = None
+            if args.recover_loss:
+                from bucket_robot.motion.heading import HeadingRecovery
+
+                heading_recovery = p.heading_recovery = HeadingRecovery(p.fixed_yaw, p.heading)
             while True:
                 stages.check()
                 now = time.monotonic()
@@ -266,6 +272,32 @@ def main():
                 # a newly arrived frame must not look as though it is future-dated.
                 now = time.monotonic()
                 target = controller.target(obs["target"])
+                if heading_recovery:
+                    was_correcting = heading_recovery.active
+                    correcting = heading_recovery.advance(p, now)
+                    if was_correcting or correcting:
+                        gate.hold_for_heading(now)
+                        policy.reset()
+                        if vertical:
+                            if vertical.stage == "moving":
+                                vertical.stage = "stopping"
+                            vertical.on_disabled(p)
+                        if correcting:
+                            if now - last_status_at >= 0.25:
+                                status = dict(
+                                    phase="heading_correcting",
+                                    reason=heading_recovery.phase,
+                                    velocity=0,
+                                    heading=heading_recovery.status(),
+                                    disabled_confirmed=p.phase == "idle" and not p.state["enabled"],
+                                )
+                                (args.out / "task_status.json").write_text(json.dumps(status))
+                                record("recovery_state", status)
+                                last_status_at = now
+                            time.sleep(0.005)
+                            continue
+                        if ranger:
+                            ranger.invalidate_before(now)
                 policy.set_a_rate_limit(
                     profile.a_rate_limit(
                         departed=gate.started is not None, post_aligning=post_aligning
@@ -399,7 +431,11 @@ def main():
                         current,
                         settled,
                         commanded_a=(p.target or [current])[0],
-                        speed_cap=range_plan.get("speed_cap", 8)
+                        speed_cap=(
+                            heading_recovery.speed_cap(range_plan.get("speed_cap", 8))
+                            if heading_recovery and range_plan
+                            else range_plan.get("speed_cap", 8)
+                        )
                         if range_plan
                         else 20
                         if post_aligning and (args.a_start_only or args.cruise_speed > 20)
@@ -547,6 +583,8 @@ def main():
                 gate.trip(repr(e))
         finally:
             stages.transition(Stage.DRAIN)
+            if heading_recovery:
+                result["heading_recovery"] = heading_recovery.status()
             result["drive_phase_elapsed_s"] = (
                 time.monotonic() - gate.started if gate.started is not None else 0
             )

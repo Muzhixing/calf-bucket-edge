@@ -262,7 +262,7 @@ const consoleView = (() => {
     const postStep = Object.hasOwn(postPhase, phase) ? postPhase[phase] : undefined;
     let index = postStep ?? (Object.hasOwn(stageIndex, stage) ? stageIndex[stage] : 0);
     if (phase === 'complete') index = 7;
-    if (['centering','driving','resuming','decelerating','recentering','waiting_target','budget_paused','left_approach','parked_upper_alignment','restoring_upper_view'].includes(phase)) index = 1;
+    if (['centering','driving','resuming','decelerating','recentering','waiting_target','budget_paused','left_approach','parked_upper_alignment','restoring_upper_view','heading_correcting'].includes(phase)) index = 1;
     if (phase === 'waiting_initial_target') index = 0;
     if (phase.startsWith('post_forward_align_')) index = 2;
     if (phase === 'awaiting_execution_confirmation') index = 3;
@@ -282,6 +282,7 @@ const consoleView = (() => {
     if (profile.execute_post === false) for (const n of [2, 4, 5, 6]) skip(n, '本轮未启用');
     let headline = started ? rows[index].label : p.observe_only ? '只读观察' : '未启动';
     let detail = started ? '正在执行' : p.observe_only ? '只读观察 · 等待后续操作' : p.requested ? '等待启动自检就绪' : '等待任务启动';
+    if (phase === 'heading_correcting') detail = '暂停平移，正在纠偏；稳定后自动继续';
     const stopUnknown = latch?.code === 'STOP_UNCONFIRMED' || p.stop_error || post.stop_error || phase === 'stop_unconfirmed';
     const fault = stopUnknown || phase === 'fault_paused' || has('fault') || Boolean(post.error || summary.error) || Boolean(latch && latch.code !== 'OPERATOR_STOP');
     const paused = phase === 'stopped' || latch?.code === 'OPERATOR_STOP';

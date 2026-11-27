@@ -241,3 +241,13 @@ class RecoveryGate:
             recovery_count=self.recovery_count,
             hard_pause=self.latched,
         )
+
+    def hold_for_heading(self, now):
+        """Account for the last travel interval without resetting mission limits."""
+        if self.velocity > 0 and self.last_now is not None:
+            self.drive_seconds += max(0, now - self.last_now)
+        self.speed = self.velocity = 0
+        self.last_now = now
+        self._unstable()
+        self.align_since = self.align_stamp = None
+        self.align_frames = 0

@@ -63,6 +63,8 @@ def run_continuous_approach(
                 commanded_drive_seconds=gate.drive_seconds,
                 **{"ranging": plan or {}},
             )
+            if phase == "heading_correcting":
+                state["heading"] = heading_recovery.status()
             tmp = out / "task_status.json.new"
             tmp.write_text(json.dumps(state, indent=2))
             tmp.replace(out / "task_status.json")
@@ -89,6 +91,11 @@ def run_continuous_approach(
             p.max_velocity = speed
             p.log = log
             result["initial_state"] = dict(p.state)
+            from bucket_robot.motion.heading import HeadingRecovery
+
+            heading_recovery = getattr(p, "heading_recovery", None)
+            if heading_recovery is None:
+                heading_recovery = p.heading_recovery = HeadingRecovery(p.fixed_yaw, p.heading)
             observer = StereoObserver(
                 native_port,
                 Geometry(calibration),
@@ -114,6 +121,17 @@ def run_continuous_approach(
                 p.tick()
                 obs = observer.get()
                 now = time.monotonic()
+                was_correcting = heading_recovery.active
+                correcting = heading_recovery.advance(p, now)
+                if was_correcting or correcting:
+                    gate.hold_for_heading(now)
+                    if correcting:
+                        if now - last_status >= 0.25:
+                            status("heading_correcting", heading_recovery.phase)
+                            last_status = now
+                        time.sleep(0.005)
+                        continue
+                    ranger.invalidate_before(now)
                 usable = obs
                 try:
                     alignment.target_check(now, obs, pose(p.state)[0])
@@ -175,7 +193,7 @@ def run_continuous_approach(
                     pose(p.state)[0],
                     True,
                     motion_permitted=plan["permit"],
-                    speed_cap=plan.get("speed_cap", 8),
+                    speed_cap=heading_recovery.speed_cap(plan.get("speed_cap", 8)),
                 )
                 if gate.latched:
                     raise RuntimeError(gate.latched)
@@ -201,6 +219,8 @@ def run_continuous_approach(
             if p is not None:
                 result["stop_error"] = p.shutdown()
                 result["final_state"] = dict(p.state)
+                if getattr(p, "heading_recovery", None):
+                    result["heading_recovery"] = p.heading_recovery.status()
             result["commanded_drive_seconds"] = gate.drive_seconds
             result["recovery"] = gate.status()
             final = result.get("final_state", {})

@@ -69,6 +69,7 @@ class RecoverySessionTests(unittest.TestCase):
         left_a=131,
         cruise=8,
         a_start_only=False,
+        recover_heading=False,
     ):
         m = MCU()
         if left_first:
@@ -246,7 +247,19 @@ class RecoverySessionTests(unittest.TestCase):
             while not end.wait(0.02):
                 elapsed = time.monotonic() - start
                 if inject_fault and elapsed > 2.7:
-                    m.yaw = 40
+                    m.yaw = 90
+                if recover_heading and elapsed > 2.7:
+                    if "heading_injected" not in observed:
+                        observed["heading_injected"] = len(m.commands)
+                        m.yaw = 33
+                    corrective = [
+                        f
+                        for f in m.commands[observed["heading_injected"] :]
+                        if f[8] == 1 and f[1:3] == bytes([0, 0])
+                    ]
+                    if corrective:
+                        observed["heading_command"] = list(corrective[0])
+                        m.yaw = max(0, m.yaw - 1)
                 state = out / "task_status.json"
                 if inject_fault and state.exists():
                     try:
@@ -401,6 +414,23 @@ class RecoverySessionTests(unittest.TestCase):
         self.assertFalse(summary["final_state"]["enabled"])
         self.assertEqual(commands[-1][1:3], bytes([0, 0]))
         self.assertEqual(commands[-1][8], 0)
+
+    def test_small_heading_drift_uses_zero_translation_then_resumes_same_task(self):
+        summary, states, commands, observed = self.run_session(recover_heading=True)
+        self.assertIsNone(summary["error"], summary)
+        self.assertIsNone(summary["stop_error"])
+        self.assertIn("heading_correcting", states)
+        self.assertEqual(summary["heading_recovery"]["completed"], 1)
+        command = observed["heading_command"]
+        self.assertEqual(command[1:4], [0, 0, 0])
+        self.assertEqual(command[5:8], [0, 0, 0])
+        index = next(
+            i
+            for i in range(observed["heading_injected"], len(commands))
+            if list(commands[i]) == command
+        )
+        self.assertTrue(any(f[1] > 0 and f[8] for f in commands[index + 1 :]))
+        self.assertFalse(summary["final_state"]["enabled"])
 
 
 if __name__ == "__main__":
