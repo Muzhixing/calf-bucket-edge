@@ -92,8 +92,7 @@ class FieldInitializationTests(unittest.TestCase):
         self.assertFalse(result["final_state"]["enabled"])
         self.assertTrue(all(c[1:3] == bytes([0, 0]) and not c[8] & 6 for c in self.mcu.commands))
         moves = [list(c[4:7]) for c in self.mcu.commands if c[8] & 1]
-        self.assertEqual(moves[0], [89, 0, 0])
-        self.assertEqual(moves[-1], [73, 0, 0])
+        self.assertEqual(moves, [[89, 0, 0], [73, 0, 0]])
         self.mcu.commands.clear()
         self.mcu.processed = 0
         self.assertFalse(self.initialize(return_home=True)["returned_home"])
@@ -116,10 +115,10 @@ class FieldInitializationTests(unittest.TestCase):
         self.mcu.b = self.mcu.target = 21
         result = self.initialize(return_home=True)
         moves = [list(c[4:7]) for c in self.mcu.commands if c[8] & 1]
-        self.assertEqual(moves[0], [81, 21, 0])
-        self.assertEqual(moves[1], [81, 1, 0])
-        self.assertEqual(moves[2], [81, 0, 0])
-        self.assertEqual(moves[-1], [73, 0, 0])
+        self.assertEqual(moves, [[81, 21, 0], [81, 0, 0], [73, 0, 0]])
+        for index, command in enumerate(self.mcu.commands):
+            if index and command[8] & 1:
+                self.assertEqual(self.mcu.commands[index - 1][8], 0)
         self.assertEqual(result["final_state"]["slide_position_mm"], 0)
         self.assertTrue(all(c[1:3] == bytes([0, 0]) and not c[8] & 6 for c in self.mcu.commands))
 

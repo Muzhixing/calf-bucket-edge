@@ -1,7 +1,6 @@
 """UART origin initialization and optional acknowledged return to registered home."""
 
 import json
-import math
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -115,9 +114,9 @@ def _initialize(
                     if c:
                         goal = [a, b, 0]
                     elif b:
-                        goal = [a, max(0, math.ceil(b - 20)), 0]
+                        goal = [a, 0, 0]
                     else:
-                        goal = [a + max(-4, min(4, limits.a_home - a)), 0, 0]
+                        goal = [limits.a_home, 0, 0]
                     port.registered_return_step(goal)
                     while port.phase != "idle":
                         if time.monotonic() > until:

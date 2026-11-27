@@ -6,7 +6,7 @@ from bucket_robot.motion.arm import ArmPort, pose
 
 
 class ExtensionPort(ArmPort):
-    """Shared bounded arm transaction; C only, stationary chassis."""
+    """Stationary B return and C extension using the shared arm transaction."""
 
     def extend(self):
         if self.phase != "idle" or self.state["enabled"]:
