@@ -19,6 +19,7 @@ RK3588沿用已核验的Python/OpenCV/NumPy与系统RKNN环境；正式发布从
 
 - [架构与依赖规则](docs/architecture.md)：能力所有权、数据流、扩展任务的方法。
 - [第二轮架构收敛](docs/architecture-consolidation-20261126.md)：统一启动、任务目标、观察生命周期和生效配置。
+- [后处理左移参数](docs/left40-2s-20261127.md)：源码采用40%速度、2秒；验证和板端适用范围。
 - [构建与发布手册](docs/release.md)：CMake、wheel、完整发布包、校验与部署。
 - [故障隔离与恢复](docs/resilience/README.md)：缺设备、失败降级、能力门控和停止确认。
 - [本地ARM64构建](tools/build/README.md)：容器、显式工具链和无设备回放验证。

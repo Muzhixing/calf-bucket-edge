@@ -34,11 +34,13 @@ class HeldArmLimits:
             raise RuntimeError("arm_pose_must_remain_unchanged")
 
 
-def pulse_frame(state, direction, speed):
+def pulse_frame(state, direction, speed, *, max_speed=20):
     if direction not in ("forward", "backward", "left", "right"):
         raise ValueError("invalid_direction")
-    if type(speed) is not int or not 1 <= speed <= 20:
-        raise ValueError("speed_must_be_1_to_20")
+    if type(max_speed) is not int or not 1 <= max_speed <= 40:
+        raise ValueError("invalid_pulse_speed_limit")
+    if type(speed) is not int or not 1 <= speed <= max_speed:
+        raise ValueError(f"speed_must_be_1_to_{max_speed}")
     q = pose(state)
     if any(not math.isfinite(v) or v != round(v) for v in q):
         raise RuntimeError("fractional_arm_position_requires_separate_normalization")
@@ -55,6 +57,8 @@ def pulse_frame(state, direction, speed):
 
 
 class ChassisPort(ArmPort):
+    max_velocity = 20
+
     def start_pulse(self, direction, speed, seconds, continuous=False):
         if not math.isfinite(seconds) or not 0.6 <= seconds <= 10:
             raise ValueError("duration_must_be_0.6_to_10_seconds")
@@ -63,7 +67,7 @@ class ChassisPort(ArmPort):
         self.check_state(self.state)
         if time.monotonic() - self.rx_at > 0.35:
             raise RuntimeError("stale_telemetry")
-        frame = pulse_frame(self.state, direction, speed)
+        frame = pulse_frame(self.state, direction, speed, max_speed=self.max_velocity)
         self.origin = self.target = pose(self.state)
         self.limits.check(self.target)
         self.uart_errors = self.state["uart_error_count_mod256"]

@@ -6,11 +6,11 @@ import math
 
 @dataclass(frozen=True)
 class TimedTranslate:
-    speed_percent: int = 20
-    duration_s: float = 4.0
+    speed_percent: int = 40
+    duration_s: float = 2.0
     direction: str = "left"
     completion_basis: str = "elapsed_time_then_acknowledged_disable"
-    policy: str = "operator_fixed_4s_20261126"
+    policy: str = "operator_40percent_left_2s_20261127"
 
     def as_dict(self):
         return asdict(self)

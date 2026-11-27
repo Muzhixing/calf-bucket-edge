@@ -35,8 +35,8 @@ class PostApproachTests(unittest.TestCase):
         self.assertEqual(p["displacement_source"], "operator_timing_no_odometry")
         self.assertTrue(p["execution_requires_explicit_opt_in"])
         action = p["sequence"][2]
-        self.assertEqual(action["execution"]["duration_s"], 4)
-        self.assertEqual(action["execution"]["speed_percent"], 20)
+        self.assertEqual(action["execution"]["duration_s"], 2)
+        self.assertEqual(action["execution"]["speed_percent"], 40)
         self.assertFalse(action["require_metric_displacement_feedback"])
 
     def test_distance_first_completion_can_handoff_from_left_front_pose(self):

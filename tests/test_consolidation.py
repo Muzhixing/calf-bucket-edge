@@ -368,7 +368,8 @@ class PolicyAndEntryContracts(unittest.TestCase):
         self.assertEqual(effective["cruise_speed"], 80)
         self.assertTrue(effective["track_b"])
         self.assertFalse(effective["a_priority_departure"])
-        self.assertEqual(effective["post_translate"]["duration_s"], 4)
+        self.assertEqual(effective["post_translate"]["duration_s"], 2)
+        self.assertEqual(effective["post_translate"]["speed_percent"], 40)
         with tempfile.TemporaryDirectory() as folder:
             stage = MissionStages(Path(folder))
             with self.assertRaisesRegex(RuntimeError, "invalid_mission_transition"):
