@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "version": "0.3.9",
+  "git_tag": "v0.3.9",
+  "tested_source_commit": "1b1fb4967117d58b8b8f487c8b7125ec2a99fcac",
+  "accepted_revision": "1b1fb4967117d58b8b8f487c8b7125ec2a99fcac",
+  "accepted_release": "/home/elf/bucket/releases/0.3.9-continuous-home-rc1-20261127",
+  "release_root": "/home/elf/bucket/releases/0.3.9",
+  "default_launcher": "/home/elf/bucket/start_full_mission.sh",
+  "accepted_manifest_sha256": "42ec156d07d98992cd4707a1d1aeaa40a3ec3e90f015c5c6d7c6c673811dbdeb",
+  "manifest_sha256": "1c570397c0c4dc921858f08959eebf4c157013707e1d669a17921257b1798d45",
+  "payload_files": 123,
+  "freeze_method": "identical software-checked payload; manifest version metadata only",
+  "software_checks": {
+    "existing_checks_passed": 65,
+    "new_checks_run_for_promotion": false
+  },
+  "field_acceptance": {
+    "fresh_field_test_performed": false,
+    "waived_by_user": true,
+    "baseline_version": "0.3.8",
+    "baseline_full_mission_field_accepted": true
+  },
+  "rollback_release": "/home/elf/bucket/releases/0.3.8"
+}
