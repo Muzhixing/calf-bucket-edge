@@ -16,6 +16,19 @@ class Policy(FollowPolicy):
 
 
 class VerticalTests(unittest.TestCase):
+    def test_lost_target_stop_can_settle_without_waiting_for_target_recovery(self):
+        supervisor = self.supervisor()
+        supervisor.stage, supervisor.goal = "stopping", 24
+        port = types.SimpleNamespace(phase="stopping", state=dict(enabled=False))
+        self.assertFalse(supervisor.on_disabled(port))
+        port.phase = "idle"
+        port.state["enabled"] = True
+        self.assertFalse(supervisor.on_disabled(port))
+        port.state["enabled"] = False
+        self.assertTrue(supervisor.on_disabled(port))
+        self.assertEqual(supervisor.stage, "idle")
+        self.assertIsNone(supervisor.goal)
+
     def supervisor(self):
         return VerticalSupervisor(
             Policy(

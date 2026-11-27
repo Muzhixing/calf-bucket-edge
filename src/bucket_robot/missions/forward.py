@@ -267,11 +267,9 @@ def main():
                 now = time.monotonic()
                 target = controller.target(obs["target"])
                 policy.set_a_rate_limit(
-                    30
-                    if args.a_start_only or args.cruise_speed > 20
-                    else 10
-                    if gate.started is None and not post_aligning
-                    else 30
+                    profile.a_rate_limit(
+                        departed=gate.started is not None, post_aligning=post_aligning
+                    )
                 )
                 current = pose(p.state)[0]
                 settled = abs(current - (p.target or [current])[0]) <= 1
@@ -463,6 +461,8 @@ def main():
                             p.stop()
                         if vertical and vertical.stage == "moving":
                             vertical.stage = "stopping"
+                        if vertical:
+                            vertical.on_disabled(p)
                         policy.reset()
                         time.sleep(0.005)
                         continue

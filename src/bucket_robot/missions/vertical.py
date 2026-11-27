@@ -106,6 +106,15 @@ class VerticalSupervisor:
         self.reason = self.controller.vertical_reason
         return result
 
+    def on_disabled(self, p):
+        """Clear a finished B stop even while visual recovery holds the gate."""
+        if self.stage == "stopping" and p.phase == "idle" and not p.state["enabled"]:
+            self.stage = "idle"
+            self.goal = None
+            self.policy.reset()
+            return True
+        return False
+
     def advance(self, p, plan, velocity, target, metadata, now):
         """True consumes this control iteration; never move B with chassis on."""
         if self.stage == "moving":
@@ -127,10 +136,7 @@ class VerticalSupervisor:
                 self.goal = list(decision.goal)[1]
             return True
         if self.stage == "stopping":
-            if p.phase == "idle" and not p.state["enabled"]:
-                self.stage = "idle"
-                self.goal = None
-                self.policy.reset()
+            self.on_disabled(p)
             return True
         if plan["ready"]:
             return False

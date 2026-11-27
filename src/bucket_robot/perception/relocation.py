@@ -40,6 +40,7 @@ class FeatureRelocationJob:
     def run(self, references, image, detections, stamp):
         try:
             matches = []
+            scene_proofs = {}
             for d in detections:
                 if self.cancel.is_set():
                     return
@@ -47,10 +48,17 @@ class FeatureRelocationJob:
                 box = visible_detection_box(raw, image.shape)
                 if d["score"] < 0.8 or box is None:
                     continue
-                for reference, old in references:
+                for index, (reference, old) in enumerate(references):
                     if self.cancel.is_set():
                         return
                     evidence = known_feature_relocation(reference, old, image, box)
+                    if evidence is None:
+                        if index not in scene_proofs:
+                            scene_proofs[index] = scene_projection(reference, image)
+                        if scene_proofs[index] is not None:
+                            evidence = known_scene_relocation(
+                                reference, old, image, box, scene_proofs[index]
+                            )
                     if evidence is not None:
                         matches.append((raw, box, evidence))
                         break
@@ -76,6 +84,113 @@ class FeatureRelocationJob:
     def close(self):
         self.request_stop()
         return self.await_stopped()
+
+
+def scene_projection(reference, current):
+    """Geometry evidence only; a scene match cannot establish target visibility."""
+    if reference.shape != current.shape:
+        return None
+    orb = cv2.ORB_create(nfeatures=4000, edgeThreshold=8, fastThreshold=8)
+    a, da = orb.detectAndCompute(cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY), None)
+    b, db = orb.detectAndCompute(cv2.cvtColor(current, cv2.COLOR_BGR2GRAY), None)
+    if da is None or db is None or min(len(a), len(b)) < 16:
+        return None
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+    forward = [
+        m
+        for pair in matcher.knnMatch(da, db, k=2)
+        if len(pair) == 2
+        for m, n in [pair]
+        if m.distance < 0.75 * n.distance
+    ]
+    reverse = {
+        m.queryIdx: m.trainIdx
+        for pair in matcher.knnMatch(db, da, k=2)
+        if len(pair) == 2
+        for m, n in [pair]
+        if m.distance < 0.75 * n.distance
+    }
+    matches = [m for m in forward if reverse.get(m.trainIdx) == m.queryIdx]
+    if len(matches) < 16:
+        return None
+    src = np.float32([a[m.queryIdx].pt for m in matches])
+    dst = np.float32([b[m.trainIdx].pt for m in matches])
+    # Locally optimized hypotheses handle blurred, non-uniform scene support;
+    # the independent distribution, residual and foreground gates remain below.
+    matrix, mask = cv2.findHomography(
+        src, dst, cv2.USAC_ACCURATE, 3, maxIters=10000, confidence=0.999
+    )
+    if matrix is None or mask is None or not np.isfinite(matrix).all():
+        return None
+    keep = mask.ravel().astype(bool)
+    if keep.sum() < 16 or keep.mean() < 0.45:
+        return None
+    h, w = reference.shape[:2]
+    for points in (src[keep], dst[keep]):
+        span = np.ptp(points, axis=0) / [w, h]
+        cells = set((min(3, int(x * 4 / w)), min(2, int(y * 3 / h))) for x, y in points)
+        if np.any(span < 0.3) or len(cells) < 3:
+            return None
+    predicted = cv2.perspectiveTransform(src[keep][None], matrix)[0]
+    residual = float(np.median(np.linalg.norm(predicted - dst[keep], axis=1)))
+    if not np.isfinite(residual) or residual > 2:
+        return None
+    return matrix, dict(
+        scene_inliers=int(keep.sum()),
+        scene_mutual_matches=len(matches),
+        scene_inlier_fraction=float(keep.mean()),
+        scene_residual_px=residual,
+    )
+
+
+def known_scene_relocation(reference, old_box, current, box, projection):
+    """Verify actual common target pixels after an independently measured warp.
+
+    The projection is never exposed as a target coordinate. Current detection,
+    unique-candidate selection and the original fresh-frame verifier still apply.
+    """
+    matrix, evidence = projection
+    x, y, r, bottom = map(int, old_box)
+    corners = np.float32([[x, y], [r, y], [r, bottom], [x, bottom]])
+    homogeneous = np.c_[corners, np.ones(4)] @ matrix.T
+    if np.any(homogeneous[:, 2] <= 0):
+        return None
+    projected = cv2.perspectiveTransform(corners[None], matrix)[0]
+    if not np.isfinite(projected).all() or not cv2.isContourConvex(projected):
+        return None
+    if cv2.contourArea(projected, oriented=True) <= 0:
+        return None
+    projected_box = np.r_[projected.min(axis=0), projected.max(axis=0)]
+    ratio = (projected_box[2:] - projected_box[:2]) / [r - x, bottom - y]
+    overlap = iou(projected_box, box)
+    if overlap < 0.65 or np.any((ratio < 0.5) | (ratio > 1.8)):
+        return None
+    h, w = reference.shape[:2]
+    gray = cv2.cvtColor(current, cv2.COLOR_BGR2GRAY)
+    warped = cv2.warpPerspective(
+        gray, matrix, (w, h), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP
+    )
+    mask = np.zeros(gray.shape, np.uint8)
+    l, t, right, bot = map(int, box)
+    mask[t + 5 : bot - 5, l + 5 : right - 5] = 1
+    common = cv2.warpPerspective(
+        mask, matrix, (w, h), flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP
+    )
+    region = (slice(y + 5, bottom - 5), slice(x + 5, r - 5))
+    weights = common[region].astype(np.float32)
+    if weights.size == 0 or weights.mean() < 0.75:
+        return None
+    original = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)[region]
+    score = weighted_ncc(original, warped[region], weights)
+    if not np.isfinite(score) or score < 0.85:
+        return None
+    return dict(
+        evidence,
+        source="scene_projection_and_common_target_pixels",
+        common_pixel_ncc=float(score),
+        common_fraction=float(weights.mean()),
+        projected_iou=float(overlap),
+    )
 
 
 def known_feature_relocation(reference, old_box, current, box):
