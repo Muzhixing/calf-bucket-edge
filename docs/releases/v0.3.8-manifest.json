@@ -1,0 +1,666 @@
+{
+  "schema_version": 1,
+  "version": "0.3.8",
+  "files": [
+    {
+      "path": "assets/calibration.json",
+      "bytes": 10132,
+      "sha256": "5917ede19309a4f78d810b3c9c91d4e8033c23751307e6879f7e3f55f5c7031e"
+    },
+    {
+      "path": "assets/calibration.yml",
+      "bytes": 1669,
+      "sha256": "345f68e9e4fbaf114c5ee982d11a75cfc0e0c23105df3de6ee6e4b51c3ee7b00"
+    },
+    {
+      "path": "assets/detector.rknn",
+      "bytes": 4472127,
+      "sha256": "4a59b48b634c25ca79d843cc746d8e062ca1161ec5ef7c0c0c96533c78d3fce7"
+    },
+    {
+      "path": "assets/fast_acv.rknn",
+      "bytes": 56408540,
+      "sha256": "6f3e86c00b6ba3dc63a9d6d7b070d6502b721d2e5ac1eb4f11087ced1b9405ac"
+    },
+    {
+      "path": "assets/hdmi_base.png",
+      "bytes": 41533,
+      "sha256": "b7fe372a492863c2e0eb2f728d9622b495742504d80ca35a3f4344503d4c0783"
+    },
+    {
+      "path": "assets/label0.png",
+      "bytes": 2457,
+      "sha256": "13284be2ae648fd4356b8208027abb1668aeb56b614aeedee7188dc21b2023cc"
+    },
+    {
+      "path": "assets/label1.png",
+      "bytes": 2103,
+      "sha256": "09d67b7e7915e4f812f6d38304a80c9316e9f4296742f04218c2345c97b9d560"
+    },
+    {
+      "path": "assets/label2.png",
+      "bytes": 2867,
+      "sha256": "a0305c509b5e397396eeaca59f4454ada36af53f42f256f5e484f0f521d33c58"
+    },
+    {
+      "path": "assets/label3.png",
+      "bytes": 1627,
+      "sha256": "78045c63e04af4207ff22e0ec2ae775fb638f77d19f7ecb6a25bb677c3b5e9ed"
+    },
+    {
+      "path": "assets/label4.png",
+      "bytes": 1286,
+      "sha256": "2d547e71815660c19f0b2784efa63635dbb55f7da284169b8de5e523e7432010"
+    },
+    {
+      "path": "assets/label5.png",
+      "bytes": 2533,
+      "sha256": "439a445cdcc2135eb03f622d874788b1456c1f5c1aea539b07b7bcf368b2512c"
+    },
+    {
+      "path": "assets/preview.html",
+      "bytes": 5178,
+      "sha256": "c4e69340e0c1f481cc8e1141d3e963727d0ddc446157495308319a72edc55eb9"
+    },
+    {
+      "path": "assisted_runtime/libfastacv.so",
+      "bytes": 18368,
+      "sha256": "d781be648c9acd32212ea96b3e16860ef0fe8dae33dcba300c6e70145956c4bf"
+    },
+    {
+      "path": "assisted_runtime/librknnrt.so",
+      "bytes": 8189368,
+      "sha256": "4b6cc575bedf8952b13db4b1190fa3b3d2ac213f00be774ff6ccd19d651970c0"
+    },
+    {
+      "path": "build_provenance.json",
+      "bytes": 4293,
+      "sha256": "7e78ec602c9e2521f94f3647e8a9386a95b8ec35ccd780b4bf9ae44bb2138688"
+    },
+    {
+      "path": "field/initialize_origins.py",
+      "bytes": 318,
+      "sha256": "e75b2a409276d86eb7676d2b4071ebf3a050a12de2501b2780a8697ebc07145a"
+    },
+    {
+      "path": "field/start_full_mission.py",
+      "bytes": 8831,
+      "sha256": "a1d556e28400812118fcc368e3ddb0fe7da25fff13cb2cc57d8611d83b2bef5b"
+    },
+    {
+      "path": "field/startup_policy.json",
+      "bytes": 363,
+      "sha256": "aac63ae3c9ca47be4524ba9d56374ccc958ecef3cac6debeb61f9cd1b2f3d3ad"
+    },
+    {
+      "path": "native/lib/libopencv_calib3d.so.410",
+      "bytes": 2426096,
+      "sha256": "fa3b03deead9398b513e39d669aaac5e4c83c8cd7b06ab041dcdbb76c3ed94e8"
+    },
+    {
+      "path": "native/lib/libopencv_core.so.410",
+      "bytes": 4668552,
+      "sha256": "f0772e1c008b1fa87b90e4dbca6223b915425f0ec2ad8e68a48bdd605fe2aab5"
+    },
+    {
+      "path": "native/lib/libopencv_features2d.so.410",
+      "bytes": 851456,
+      "sha256": "b0f9c05c4aa8810a079892c41609ec81b77a10b317807e5a2ccb1e2aa0880302"
+    },
+    {
+      "path": "native/lib/libopencv_flann.so.410",
+      "bytes": 663600,
+      "sha256": "fd70b2ff4716bff6edb796ee90553cf57ebf2d4b5d13d2b73ab11b4a17465509"
+    },
+    {
+      "path": "native/lib/libopencv_imgcodecs.so.410",
+      "bytes": 1625480,
+      "sha256": "9c0e50b255729959b91b08ee0055e86f5452945990633b675d18293174d5abc4"
+    },
+    {
+      "path": "native/lib/libopencv_imgproc.so.410",
+      "bytes": 4861528,
+      "sha256": "304aebf9484a88a2bd10f8808c41178370c2c26fb2272f9590380d76ba627e11"
+    },
+    {
+      "path": "native/lib/libopencv_videoio.so.410",
+      "bytes": 569064,
+      "sha256": "a1e35b4e2c4515c3607788ac8a640be1ee80b9c22453738dd05ac35dd6789441"
+    },
+    {
+      "path": "native/source/CMakeLists.txt",
+      "bytes": 2004,
+      "sha256": "35416a3decb15d4379b319c29508bfe9ad800108208284b49fb9ea2fd6752749"
+    },
+    {
+      "path": "native/source/build.sh",
+      "bytes": 899,
+      "sha256": "3824e4fce6e71fef9b0aa272b44e4924875cedb80589be985d372c5a4b5fd4f5"
+    },
+    {
+      "path": "native/source/core.hpp",
+      "bytes": 23816,
+      "sha256": "4f5dbc2af9570992dd703196ee1daea99522fdedc0cbc0450acf25823b050936"
+    },
+    {
+      "path": "native/source/detector_process.hpp",
+      "bytes": 5560,
+      "sha256": "394f2a15ab4120f418809ddf54461e9ee27b4a61899d6eeb0b671ccabbad863a"
+    },
+    {
+      "path": "native/source/display.hpp",
+      "bytes": 19860,
+      "sha256": "e1031d6d56fd2be210ff8a31ee422dd80ad61d0274edd5cc4bb750135940b4b7"
+    },
+    {
+      "path": "native/source/main.cpp",
+      "bytes": 16015,
+      "sha256": "29a260acf097d0bb971d325b0ef3b41419121447a6124fe94548f600ff76d100"
+    },
+    {
+      "path": "native/source/score_order.hpp",
+      "bytes": 2512,
+      "sha256": "a6f8bd061bd034710d4023e357212d717261a04c580d5910e6e4c14f918b5b3c"
+    },
+    {
+      "path": "native/source/source.hpp",
+      "bytes": 5590,
+      "sha256": "53eb2ad976bd49fc7a31900224fd8aa07e825f86c176a594731cba29b4a06b94"
+    },
+    {
+      "path": "native/source/worker_channel.hpp",
+      "bytes": 6668,
+      "sha256": "f25b5ce29bdda24dfd9ffa2bb21ed0fe99087d2dd386e3dfa012bfd66dde553b"
+    },
+    {
+      "path": "native/vision",
+      "bytes": 254352,
+      "sha256": "ecee41ed62608bf8c733fde7722255139ccbaa7dab30ef3d0d3352b1732a4a30"
+    },
+    {
+      "path": "python/bucket_robot/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/__main__.py",
+      "bytes": 1720,
+      "sha256": "3bbd503a874b855ab43860df8895989dd8b7d19e6f2c2ac664cd98c00a17f9d7"
+    },
+    {
+      "path": "python/bucket_robot/domain/__init__.py",
+      "bytes": 79,
+      "sha256": "90230982d375c02c56f8b0b12933dd2e6eb5c66ffb90ec089f6b5ac975bcfc2b"
+    },
+    {
+      "path": "python/bucket_robot/domain/lifecycle.py",
+      "bytes": 574,
+      "sha256": "9145643a306388dc9a0295039910ece40a52cb191649e412e9a661313d78e77e"
+    },
+    {
+      "path": "python/bucket_robot/domain/ports.py",
+      "bytes": 345,
+      "sha256": "7d20092a3ceadf11c6eb6fa468bc5c52c371eec6caf70034b303d089b3329a2d"
+    },
+    {
+      "path": "python/bucket_robot/domain/state.py",
+      "bytes": 186,
+      "sha256": "db5b301839fe4407eeba027c5d974fc12cd4622dfb6277e6e94b4b435b5eb6d7"
+    },
+    {
+      "path": "python/bucket_robot/missions/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/missions/approach.py",
+      "bytes": 10135,
+      "sha256": "9bb4b660008d5fe68b5020ea53e62a3df06ed23d484705fd942ff7f0edba4baf"
+    },
+    {
+      "path": "python/bucket_robot/missions/approach_policy.py",
+      "bytes": 3013,
+      "sha256": "563606938e669f8a8723d023cf66e0e7f55f047d09660a46c2004272904b5ab8"
+    },
+    {
+      "path": "python/bucket_robot/missions/completion.py",
+      "bytes": 7560,
+      "sha256": "07c5a89f335fafc9bacce49cdad24f417075acc38613c988319b07dd1849a9ee"
+    },
+    {
+      "path": "python/bucket_robot/missions/continuous_approach.py",
+      "bytes": 9992,
+      "sha256": "010b5e17058982ab82c6a917bbb77d8a13b043dd9649cd4c6fc4d53922b0111b"
+    },
+    {
+      "path": "python/bucket_robot/missions/coordinator.py",
+      "bytes": 1857,
+      "sha256": "c98b3af8df99ef883b8322d48704865e1e1080be041d977d81a9fba166e02a4e"
+    },
+    {
+      "path": "python/bucket_robot/missions/forward.py",
+      "bytes": 29059,
+      "sha256": "9aa8dd6fc2b1e2d5b8f97c28b44e4c725df9ffec538095ba350f92d13bde7124"
+    },
+    {
+      "path": "python/bucket_robot/missions/forward_range.py",
+      "bytes": 7485,
+      "sha256": "83442ce6a454347370e7497190d7b23a77575bab8c476e93f8f2832afc1abcac"
+    },
+    {
+      "path": "python/bucket_robot/missions/lifecycle.py",
+      "bytes": 3303,
+      "sha256": "e00a0962375ddc3e441dd092816ed337093b567eac044d47a091898a4658f2a7"
+    },
+    {
+      "path": "python/bucket_robot/missions/options.py",
+      "bytes": 5029,
+      "sha256": "a890d046add0ec6bdee75167f693dc0d80b4d904cec235004bfec2b006ffed18"
+    },
+    {
+      "path": "python/bucket_robot/missions/post_alignment.py",
+      "bytes": 265,
+      "sha256": "dc6e926551fc40a07b6d18ec2648cba58b3613411f486190ceffca6ffe05d00e"
+    },
+    {
+      "path": "python/bucket_robot/missions/post_approach.py",
+      "bytes": 1916,
+      "sha256": "c6df8314875e1d81210fc19a57c249d8828e05021ced442c8b4799163aa7db00"
+    },
+    {
+      "path": "python/bucket_robot/missions/post_execute.py",
+      "bytes": 7617,
+      "sha256": "c27d4e178a53937ae27a993fdc084e0d148a5dcf38f8361727961c3519756927"
+    },
+    {
+      "path": "python/bucket_robot/missions/post_geometry.py",
+      "bytes": 3616,
+      "sha256": "b7a108bc6551a1a93500eb3ab07738b15595eff455ef36390118f9515959787b"
+    },
+    {
+      "path": "python/bucket_robot/missions/profile.py",
+      "bytes": 1919,
+      "sha256": "f467f069453d82b7b33276190a0dc2edc8068470f902e06b27f451f5cadbc8f6"
+    },
+    {
+      "path": "python/bucket_robot/missions/range_prediction.py",
+      "bytes": 5916,
+      "sha256": "11b34774e48023e77ee083eca98a4eb28e35f887c3a41f566d4012d59cc1e395"
+    },
+    {
+      "path": "python/bucket_robot/missions/recovering_approach.py",
+      "bytes": 12700,
+      "sha256": "c1319266eee1fa63a404e5ba5568a1222ec9d2988e37fb67f3f1914730eb4f77"
+    },
+    {
+      "path": "python/bucket_robot/missions/recovery.py",
+      "bytes": 9792,
+      "sha256": "8359ae32d5e0f375587adb0364897c8d11b78f1e2a8c504e9cf9b5497468d642"
+    },
+    {
+      "path": "python/bucket_robot/missions/stages.py",
+      "bytes": 1731,
+      "sha256": "5ac17467eaea1e446576dbdb6c045182d0d47e088b1e06e7191c254749c23cbb"
+    },
+    {
+      "path": "python/bucket_robot/missions/timed_translate.py",
+      "bytes": 760,
+      "sha256": "fea859025151a5b7550aefe012d23917f1dd2e47fdaeaf632df992efcfdd485c"
+    },
+    {
+      "path": "python/bucket_robot/missions/vertical.py",
+      "bytes": 6798,
+      "sha256": "91fe1037d9482a74c57e89656cf3f149ebea3e3f3480a815459454e0ab5ca86f"
+    },
+    {
+      "path": "python/bucket_robot/motion/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/motion/arm.py",
+      "bytes": 23994,
+      "sha256": "872de66a18a0f5fec67bf8b1c8e85531f44458c033e5ebb706dc482fff006795"
+    },
+    {
+      "path": "python/bucket_robot/motion/chassis.py",
+      "bytes": 5949,
+      "sha256": "89d0e2f6d1d59e7a52f67a7d0b7059302223dd9de692cf8836b0fd9ee4886d6c"
+    },
+    {
+      "path": "python/bucket_robot/motion/combined.py",
+      "bytes": 7314,
+      "sha256": "70d5f39fedb91d968cd8789729c139eef42d987555f8a17b44089651ebd2a7bb"
+    },
+    {
+      "path": "python/bucket_robot/motion/extension.py",
+      "bytes": 1211,
+      "sha256": "cf55833814b24fd89d067fbb65d8496d7f0086389c82965193d1b0302b0387ea"
+    },
+    {
+      "path": "python/bucket_robot/motion/heading.py",
+      "bytes": 5038,
+      "sha256": "e1f15598cc80fa57b4e4d27841be7ac476cd5e4e64fe9d1a3b337570bab8e12c"
+    },
+    {
+      "path": "python/bucket_robot/perception/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/perception/assisted_range/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/perception/assisted_range/stereo.py",
+      "bytes": 8453,
+      "sha256": "9845195b1b2887b0e5bbf1729a43fea44c133242ed8774c2271ff7609cb04070"
+    },
+    {
+      "path": "python/bucket_robot/perception/bearing.py",
+      "bytes": 9491,
+      "sha256": "1b7e73f4f15fd7b17d67c62e4376827b841bc30c8af6a4f857348aa2c5f0bcc8"
+    },
+    {
+      "path": "python/bucket_robot/perception/capture.py",
+      "bytes": 1772,
+      "sha256": "8a6c8b74d0ba04c4f260abf6bdad0f1553519f9c661ccc52d51c7428decb8fdb"
+    },
+    {
+      "path": "python/bucket_robot/perception/correlation.py",
+      "bytes": 5302,
+      "sha256": "67024763678a04e5ca5d73604e2ce8c237bea28d932f38386ca94c8203b4c67d"
+    },
+    {
+      "path": "python/bucket_robot/perception/ego.py",
+      "bytes": 5833,
+      "sha256": "85c6531a6685ead35e98ee99dfb2741934d05dcbe573cbc5508a4aed9698a9ef"
+    },
+    {
+      "path": "python/bucket_robot/perception/filtering.py",
+      "bytes": 3871,
+      "sha256": "7a7c58d29fb95416d644cbdbc3fa55b8d872c26378ef208f478de0b97c7aae58"
+    },
+    {
+      "path": "python/bucket_robot/perception/matching.py",
+      "bytes": 3284,
+      "sha256": "f29e5c316f9f2eb48b6a8acbd2a8b49854290bb937002457cf4fff37a3e1d3f5"
+    },
+    {
+      "path": "python/bucket_robot/perception/observation.py",
+      "bytes": 3626,
+      "sha256": "c326c15c23361e0947d658c3e5c43fb5db0541c6e2570bd5abf0c0314664282c"
+    },
+    {
+      "path": "python/bucket_robot/perception/observer.py",
+      "bytes": 13666,
+      "sha256": "ffa02c02820ee342187c11a31d1eccb6abfbb97845ee7058e393fe69257f4111"
+    },
+    {
+      "path": "python/bucket_robot/perception/relocation.py",
+      "bytes": 10923,
+      "sha256": "d943308d312b14d58cd60d77c4b21b498ab46e4f3964e1a9d05b38877f1306ab"
+    },
+    {
+      "path": "python/bucket_robot/perception/session.py",
+      "bytes": 10088,
+      "sha256": "64a113c7d3f2c42e6bf15706506a8502d4a97b8333567619160db1215c7d8e89"
+    },
+    {
+      "path": "python/bucket_robot/perception/target.py",
+      "bytes": 54126,
+      "sha256": "784d64e3107a70a8a5d14b93a5fa07f604479fc493bf7a8f5647db96944db495"
+    },
+    {
+      "path": "python/bucket_robot/resources/__init__.py",
+      "bytes": 415,
+      "sha256": "753a816b8e7ffb431d1389c3804a5ac2e6a456234a80f92477333e0779cf0fa8"
+    },
+    {
+      "path": "python/bucket_robot/resources/arm_reference.json",
+      "bytes": 10075,
+      "sha256": "935c1e84f925cd095cceaffdd9c7332c2cdb100279ba7cd75b8f4d52758fc23d"
+    },
+    {
+      "path": "python/bucket_robot/resources/left_view_reference.json",
+      "bytes": 943,
+      "sha256": "59efbbef3d709944972b412b21e0aa0c8f25b017cf379d5b38f5f06845de46c3"
+    },
+    {
+      "path": "python/bucket_robot/resources/mission_profiles.json",
+      "bytes": 603,
+      "sha256": "da13877283ddf91f1ce365363dc80c77339fd4af69bc8f73046e107a0f13a19c"
+    },
+    {
+      "path": "python/bucket_robot/resources/production_entries.json",
+      "bytes": 499,
+      "sha256": "cf1ef0ecdad3de7bd43932ec170358b95679055622022d7f407a01a7938ca301"
+    },
+    {
+      "path": "python/bucket_robot/runtime/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/runtime/application.py",
+      "bytes": 38528,
+      "sha256": "8b12aed08fd19abc4134ab13cc997d696608661efaa7c1757e746dfb09208704"
+    },
+    {
+      "path": "python/bucket_robot/runtime/diagnostics.py",
+      "bytes": 14942,
+      "sha256": "f4adbdcec36f275933fb32e8f9a53b8b708bd231a52c5ea73bda51faaa6e2977"
+    },
+    {
+      "path": "python/bucket_robot/runtime/health.py",
+      "bytes": 7225,
+      "sha256": "a64e2ce6a1eb4829adcb46ef15d96870ed6c7893fe4a7ee373aa6eb15231d90f"
+    },
+    {
+      "path": "python/bucket_robot/runtime/http.py",
+      "bytes": 7621,
+      "sha256": "e3a03255f65abf44fa8baaa575b354db482fef3f6572e21dca345542a42471ee"
+    },
+    {
+      "path": "python/bucket_robot/runtime/index.html",
+      "bytes": 45299,
+      "sha256": "98daf53ceef80da46ae2c2a380a1026ba7bc2d67da06255dc520bf3ea8662c31"
+    },
+    {
+      "path": "python/bucket_robot/runtime/journal.py",
+      "bytes": 4244,
+      "sha256": "7ab4666c7bf686dedc87f5f662ccc0614f16c1ada165b5b93372612d93e60814"
+    },
+    {
+      "path": "python/bucket_robot/runtime/preparation.py",
+      "bytes": 8108,
+      "sha256": "68cc7640f3750111f3c231ce8865bdfbf99b791e1c996ebf0b682c059f35a1df"
+    },
+    {
+      "path": "python/bucket_robot/runtime/preview.py",
+      "bytes": 1582,
+      "sha256": "ed239d24ea979227aad8f6e3e3ed6ec16aa5d6dab071d4dcd40b69cd0d989e62"
+    },
+    {
+      "path": "python/bucket_robot/runtime/raw_camera.py",
+      "bytes": 4418,
+      "sha256": "27f4466a1b545100f4db0f087ce46ca173c0998fb86b6ffe80a9bf5f503a7d03"
+    },
+    {
+      "path": "python/bucket_robot/runtime/release.py",
+      "bytes": 5710,
+      "sha256": "4fa5eab7215263a78116d526c78363c88a08bb31397fad602cd721546b485843"
+    },
+    {
+      "path": "python/bucket_robot/runtime/startup.py",
+      "bytes": 38891,
+      "sha256": "c26d74592a931fb62475c826e69d77ca867511fa6e5b72516f9338cb8f4baf92"
+    },
+    {
+      "path": "python/bucket_robot/runtime/stationary.py",
+      "bytes": 78518,
+      "sha256": "555a784e3631d6404ac1c562a7f15752f5644579ba92da7532682c1433841595"
+    },
+    {
+      "path": "python/bucket_robot/runtime/supervision.py",
+      "bytes": 3155,
+      "sha256": "edbadde91ceb8e4f4dc9bedd8e980fe16274abf4cd3d5cab3ea142f7dac4aa6b"
+    },
+    {
+      "path": "python/bucket_robot/runtime/task_progress.py",
+      "bytes": 2620,
+      "sha256": "c65f4955b273168ff7da982c3b36dcd7818770eb0e2881643604df2c6855258c"
+    },
+    {
+      "path": "python/bucket_robot/runtime/telemetry_monitor.py",
+      "bytes": 3520,
+      "sha256": "fa81829ccc2141d371d3aea8f679fc4ea0b4319543aefc7dfa387c041647f4f9"
+    },
+    {
+      "path": "python/bucket_robot/runtime/thermal.py",
+      "bytes": 2205,
+      "sha256": "76cbc5d745f09214d7e886904a3d3d8416dad1e2b2fcbc081aabf31d39eae997"
+    },
+    {
+      "path": "python/bucket_robot/runtime/video.py",
+      "bytes": 4404,
+      "sha256": "4b8db213b11266610945a5d60bc2e2081a7e2023e4d6dab9e47c7f5ba4e94e3d"
+    },
+    {
+      "path": "python/bucket_robot/runtime/video_stream.js",
+      "bytes": 2400,
+      "sha256": "c98d6f85359437c558f4a6ee2c34b47d2bef61e61bb6c8aad08f83160ea6b5f6"
+    },
+    {
+      "path": "python/bucket_robot/tracking/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/tracking/aim.py",
+      "bytes": 1271,
+      "sha256": "3984dfc246998605b2ab0bf717792afc200f7980ddb84d9f242e9384ca130e9a"
+    },
+    {
+      "path": "python/bucket_robot/tracking/controller.py",
+      "bytes": 5233,
+      "sha256": "4b2cf9a2bf0b7b266f22af4629f9026b904866b8571c16e40e7adc63466ab8e0"
+    },
+    {
+      "path": "python/bucket_robot/tracking/policy.py",
+      "bytes": 16712,
+      "sha256": "3ac82cfcaa9dc764da825f81d89515fb319f92d4ad6e3174ca25956d61bdbc7e"
+    },
+    {
+      "path": "python/bucket_robot/tracking/response.py",
+      "bytes": 7186,
+      "sha256": "a11f992458201f06f0ee66cd7e99ff5fddbb281238443364daabead535fc2a6a"
+    },
+    {
+      "path": "python/bucket_robot/transport/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "python/bucket_robot/transport/disable_once.py",
+      "bytes": 5599,
+      "sha256": "4183a36dda388aa457fae3cdf11d0034a40f4be3de7e0f1e3d35fe09d511ae89"
+    },
+    {
+      "path": "python/bucket_robot/transport/telemetry.py",
+      "bytes": 14391,
+      "sha256": "31357bf09779e6f84a83e37b3cda8aff6aa13ef6470057882da9db359286e3f9"
+    },
+    {
+      "path": "python/bucket_robot/transport/writer.py",
+      "bytes": 1086,
+      "sha256": "4882fe775073f1bd2509c7d8cdd89730c1e4667c8b34ba1065ae0b5af78ea16e"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/METADATA",
+      "bytes": 414,
+      "sha256": "41fa159e81c048dbd8ee0770febb6f11f3b246abdc4c27010665366a87f7a5ce"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/RECORD",
+      "bytes": 7826,
+      "sha256": "29353eb6731a4c3cdb0c0a93d819e7b1e0ac9871138d1852c06ff8d410389cf4"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/WHEEL",
+      "bytes": 91,
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/entry_points.txt",
+      "bytes": 249,
+      "sha256": "b08e4a9e15fdd291ffad3c29f116b84e88c9db71460a33e7646f66c7090e6800"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/licenses/LICENSE",
+      "bytes": 1067,
+      "sha256": "497cc748326061df29263c9df9dfd01c60211534608ac63c4c9bc7620470a5c3"
+    },
+    {
+      "path": "python/bucket_robot-0.3.8.dist-info/top_level.txt",
+      "bytes": 13,
+      "sha256": "5aeefca1233520df3f16476462ca9b9797218cc3366349c979c59926a3e4eae9"
+    },
+    {
+      "path": "run_mission.sh",
+      "bytes": 192,
+      "sha256": "d42544240f7eacd078b42174b51f5877b989a1a121dfd667c4958285c472dbfe"
+    },
+    {
+      "path": "run_track.sh",
+      "bytes": 664,
+      "sha256": "27ef19ff4f631828b6036e227ceb1b40a97f5c5b1da046f61b1e27ce52ac5cf8"
+    }
+  ],
+  "mission_profiles": {
+    "schema_version": 1,
+    "default": "production-center",
+    "profiles": {
+      "production-center": {
+        "cruise_speed": 80,
+        "track_b": true,
+        "recover_loss": true,
+        "distance_first": true,
+        "auto_target": true,
+        "until_left": true,
+        "bearing_tracker": true,
+        "post_approach_plan": true
+      },
+      "experimental-a-priority": {
+        "cruise_speed": 80,
+        "track_b": true,
+        "recover_loss": true,
+        "distance_first": true,
+        "auto_target": true,
+        "until_left": true,
+        "bearing_tracker": true,
+        "post_approach_plan": true,
+        "a_start_only": true
+      },
+      "diagnostic": {
+        "cruise_speed": 8
+      }
+    }
+  },
+  "production_entries": {
+    "schema_version": 1,
+    "console_scripts": {
+      "bucket-track": "bucket_robot.runtime.application:track_main",
+      "bucket-mission": "bucket_robot.runtime.application:mission_main",
+      "bucket-forward": "bucket_robot.missions.forward:main",
+      "bucket-telemetry": "bucket_robot.transport.telemetry:main"
+    },
+    "field_entries": [
+      "start_full_mission.py",
+      "initialize_origins.py"
+    ],
+    "startup_service": "bucket_robot.runtime.preparation:StartupService",
+    "startup_ledger": "power-cycle.json"
+  }
+}

@@ -32,6 +32,14 @@ RK3588沿用已核验的Python/OpenCV/NumPy与系统RKNN环境；正式发布从
 
 ## 运行入口
 
+当前固定版本为 **v0.3.8**，已完成无人工干预的完整实车验收。默认启动：
+
+```sh
+ssh -t rk3588 /home/elf/bucket/start_full_mission.sh
+```
+
+板端固定目录为`/home/elf/bucket/releases/0.3.8`。版本、文件校验和验收记录见[固定版本记录](docs/releases/v0.3.8.json)，详细用法见[完整流程运行方式](docs/run-full-mission-20261126.md)。
+
 完整发布包提供`run_track.sh`和`run_mission.sh`。先按发布手册核验包与当前设备状态，再按已有现场流程运行。`python -m bucket_robot --help`和`python -m bucket_robot verify <release>`只显示帮助或校验文件，不启动设备。
 
 旧`deploy/`入口保留兼容转发；原Python实现已经移入正式包。旧assisted脚本需要显式设置`BUCKET_RELEASE_ROOT`，统一使用A/B追踪，不再默认拼接日期目录。冻结v1及既有板端入口作为回退保留，重构候选包通过软件回归不代表已完成新的实车验收。
