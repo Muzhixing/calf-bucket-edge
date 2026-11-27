@@ -329,6 +329,51 @@ class ArmPort:
         heading = round((yaw or 0) / 2) % 180
         return bytes([0xB3, 0, 0, heading, *map(int, q), 0, int(enable), 0xB4])
 
+    def return_axis_home(self, axis):
+        """One stationary absolute endpoint command, using the normal ACK owner.
+
+        This is limited to B/C zero or A's calibrated home. Tracking retains
+        its small-step limits; full travel cannot choose an arbitrary target.
+        """
+        if type(axis) is not int or axis not in (0, 1, 2):
+            raise ValueError("invalid_home_axis")
+        if self.phase != "idle" or self.state["enabled"]:
+            raise RuntimeError("home_requires_disabled_chassis")
+        self.check_state(self.state)
+        now = time.monotonic()
+        if now < self.ready_at or now - self.rx_at > 0.35:
+            raise RuntimeError("home_not_fresh_or_ready")
+        current = pose(self.state)
+        self.limits.check(current)
+        if axis == 0 and current[1:] != [0, 0]:
+            raise RuntimeError("A_home_requires_B_C_retracted")
+        q = list(current)
+        q[axis] = self.limits.a_home if axis == 0 else 0
+        self.limits.check(q)
+        if any(v != round(v) for v in q):
+            raise RuntimeError("home_requires_integer_preserved_axes")
+        if q == current:
+            return False
+        duration = (
+            abs(current[1]) / self.limits.b_max_speed
+            + self.limits.b_max_speed / self.limits.b_accel
+            if axis == 1
+            else abs(current[2]) / self.limits.c_max_speed
+            + self.limits.c_max_speed / self.limits.c_accel
+            if axis == 2
+            else 0
+        )
+        self.origin, self.target = current, q
+        self.arrived_at = None
+        self.move_counter = (self.expected + 1) % 256
+        self.phase, self.attempted = "moving", True
+        self.started = now
+        self.deadline = now + max(8, duration + 4)
+        self.log("continuous_axis_home", dict(axis=axis, origin=current, target=q))
+        if not self.gateway.write_control_frame(self.frame(q, True), repeats=1):
+            raise RuntimeError("home_write_failed_no_retry")
+        return True
+
     def move(self, q):
         if self.phase != "idle" or time.monotonic() < self.ready_at:
             raise RuntimeError("arm_busy")

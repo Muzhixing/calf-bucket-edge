@@ -685,27 +685,17 @@ class StartupPort(ArmPort):
         if self.phase != "idle" or self.state["enabled"]:
             raise RuntimeError("registered_return_requires_disabled_chassis")
         if current[2] > 0:
-            if q != [current[0], current[1], 0] or any(v != round(v) for v in current[:2]):
-                raise RuntimeError("registered_return_requires_C_only_retraction")
-            if time.monotonic() < self.ready_at or time.monotonic() - self.rx_at > 0.35:
-                raise RuntimeError("registered_return_not_fresh_or_ready")
-            self.origin, self.target = current, q
-            self.arrived_at = None
-            self.move_counter = (self.expected + 1) % 256
-            self.phase, self.attempted = "moving", True
-            self.started = time.monotonic()
-            self.deadline = self.started + current[2] / self.limits.c_max_speed + 4
-            if not self.gateway.write_control_frame(self.frame(q, True), repeats=1):
-                raise RuntimeError("retraction_write_failed_no_retry")
-            return
-        if current[1] > 0:
-            allowed = q[0] == current[0] and 0 <= q[1] < current[1] and q[2] == 0
+            axis = 2
+            endpoint = [current[0], current[1], 0]
+        elif current[1] > 0:
+            axis = 1
+            endpoint = [current[0], 0, 0]
         else:
-            home = self.limits.a_home
-            allowed = q[1:] == [0, 0] and min(current[0], home) <= q[0] <= max(current[0], home)
-        if not allowed:
+            axis = 0
+            endpoint = [self.limits.a_home, 0, 0]
+        if q != endpoint:
             raise RuntimeError("registered_return_order_or_direction_invalid")
-        self.move(q)
+        return self.return_axis_home(axis)
 
     def disabled_command(self, flags):
         if self.phase != "idle" or flags not in (0, 6):

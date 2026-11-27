@@ -140,5 +140,43 @@ class PostExecuteTests(unittest.TestCase):
                 self.assertFalse(result["C_extension_sent"])
                 self.assertEqual(result["final_state"]["slide_position_mm"], 150)
                 self.assertTrue(all(c[1:3] == bytes([0, 0]) and c[6] == 150 for c in m.commands))
+                moves = [c for c in m.commands if c[8]]
+                self.assertEqual([list(c[4:7]) for c in moves], [[132, 0, 150]])
+        finally:
+            m.close()
+
+    def test_B96_returns_in_one_command_and_is_disabled_before_C_extension(self):
+        m = PostMCU(b=96)
+        m.a = 131
+
+        def chassis(limits, record):
+            return ChassisPort(
+                limits, record, port=m.path, sender_factory=Sender, check_holders=False
+            )
+
+        def extension(limits, record):
+            return ExtensionPort(
+                limits, record, port=m.path, sender_factory=Sender, check_holders=False
+            )
+
+        try:
+            with tempfile.TemporaryDirectory() as root:
+                result = execute_post(
+                    alignment_extension_plan(0.2, 131),
+                    default_reference(),
+                    Path(root),
+                    chassis_factory=chassis,
+                    extension_factory=extension,
+                )
+                self.assertIsNone(result["error"], result)
+                self.assertTrue(result["B_top_confirmed"])
+                commands = list(m.commands)
+                i = next(i for i, c in enumerate(commands) if c[8] and c[6] == 150)
+                homes = [(n, c) for n, c in enumerate(commands[:i]) if c[8] and c[2] == 0]
+                self.assertEqual(len(homes), 1)
+                n, home = homes[0]
+                self.assertEqual(list(home[4:7]), [131, 0, 0])
+                self.assertTrue(any(c[8] == 0 for c in commands[n + 1 : i]))
+                self.assertFalse(result["final_state"]["enabled"])
         finally:
             m.close()

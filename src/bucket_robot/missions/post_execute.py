@@ -118,16 +118,17 @@ def execute_post(
                 raise RuntimeError("pose_changed_between_post_stages")
             status("post_raising_B_tracking_paused")
             result["tracking_paused"] = True
-            while pose(port.state)[1] > 0:
+            if pose(port.state)[1] > 0:
                 if (folder / "STOP").exists():
                     raise KeyboardInterrupt("operator_stop")
                 while time.monotonic() < port.ready_at:
                     port.tick()
                     time.sleep(0.005)
-                q = pose(port.state)
-                port.move([q[0], max(0, q[1] - 20), q[2]])
+                port.return_axis_home(1)
                 wait()
             result["B_top_confirmed"] = pose(port.state)[1] == 0
+            if not result["B_top_confirmed"] or port.state["enabled"]:
+                raise RuntimeError("B_top_disabled_not_confirmed")
             if not already_extended:
                 status("post_extending_C")
                 port.extend()
